@@ -279,3 +279,6 @@ __pycache__/
 # tools/
 
 # End of https://www.gitignore.io/api/csharp
+
+MultiTool.exe
+Logs/
