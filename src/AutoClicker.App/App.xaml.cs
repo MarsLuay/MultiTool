@@ -48,6 +48,7 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IScreenshotCaptureService, WindowsScreenshotCaptureService>();
                         services.AddSingleton<IInstallerService, WindowsWingetInstallerService>();
                         services.AddSingleton<IAppUpdateService, GitHubAppUpdateService>();
+                        services.AddSingleton<IBrowserLauncherService, WindowsBrowserLauncherService>();
                         services.AddSingleton<IFirefoxExtensionService, WindowsFirefoxExtensionService>();
                         services.AddSingleton<IEmptyDirectoryService, WindowsEmptyDirectoryService>();
                         services.AddSingleton<IDisplayRefreshRateService, WindowsDisplayRefreshRateService>();

@@ -110,6 +110,76 @@ public sealed class WindowsFirefoxExtensionServiceTests : IDisposable
         results[0].Message.Should().Be("Firefox could not be located. Install Firefox first, then try again.");
     }
 
+    [Fact]
+    public async Task SyncExtensionSelectionsAsync_ShouldRestartFirefoxWhenPoliciesChangeAndFirefoxIsRunning()
+    {
+        var firefoxDirectory = CreateFirefoxInstallDirectory();
+        var restartedFirefox = false;
+        var service = new WindowsFirefoxExtensionService(
+            () => firefoxDirectory,
+            firefoxRunningDetector: () => true,
+            firefoxRestarter: (_, _) =>
+            {
+                restartedFirefox = true;
+                return Task.FromResult(true);
+            });
+
+        var results = await service.SyncExtensionSelectionsAsync(["ublock-origin"]);
+
+        restartedFirefox.Should().BeTrue();
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeTrue();
+        results[0].Changed.Should().BeTrue();
+        results[0].Message.Should().Be("Configured for automatic install and restarted Firefox.");
+    }
+
+    [Fact]
+    public async Task SyncExtensionSelectionsAsync_ShouldUseElevatedWriterWhenDirectPolicyWriteNeedsPermission()
+    {
+        var firefoxDirectory = CreateFirefoxInstallDirectory();
+        var elevatedWriterUsed = false;
+        var service = new WindowsFirefoxExtensionService(
+            () => firefoxDirectory,
+            policyWriter: (_, _, _) => throw new UnauthorizedAccessException("Denied."),
+            elevatedPolicyWriter: (path, json, cancellationToken) =>
+            {
+                elevatedWriterUsed = true;
+                return Task.Run(
+                    async () =>
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                        await File.WriteAllTextAsync(path, json, cancellationToken);
+                        return true;
+                    },
+                    cancellationToken);
+            });
+
+        var results = await service.SyncExtensionSelectionsAsync(["ublock-origin"]);
+
+        elevatedWriterUsed.Should().BeTrue();
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeTrue();
+        results[0].Changed.Should().BeTrue();
+        results[0].Message.Should().Be("Configured for automatic install.");
+        File.Exists(Path.Combine(firefoxDirectory, "distribution", "policies.json")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SyncExtensionSelectionsAsync_ShouldReturnFailureWhenElevatedWriteIsNotApproved()
+    {
+        var firefoxDirectory = CreateFirefoxInstallDirectory();
+        var service = new WindowsFirefoxExtensionService(
+            () => firefoxDirectory,
+            policyWriter: (_, _, _) => throw new UnauthorizedAccessException("Denied."),
+            elevatedPolicyWriter: (_, _, _) => Task.FromResult(false));
+
+        var results = await service.SyncExtensionSelectionsAsync(["ublock-origin"]);
+
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeFalse();
+        results[0].Message.Should().Be("Firefox add-ons need administrator permission to update Firefox's policies. Approve the Windows prompt and try again.");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(workingDirectory))

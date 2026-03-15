@@ -11,4 +11,5 @@ public sealed record InstallerCatalogItem(
     IReadOnlyList<string>? Dependencies = null,
     bool TrackStatusWithWinget = true,
     string? InstallUrl = null,
-    string? UpdateUrl = null);
+    string? UpdateUrl = null,
+    bool UsesCustomInstallFlow = false);

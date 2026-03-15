@@ -247,14 +247,9 @@ public partial class MainWindowViewModel
 
         try
         {
-            Process.Start(
-                new ProcessStartInfo
-                {
-                    FileName = site.Url,
-                    UseShellExecute = true,
-                });
+            var launchResult = browserLauncherService.OpenUrl(site.Url);
 
-            UsefulSitesStatusMessage = $"Opened {site.DisplayName}.";
+            UsefulSitesStatusMessage = $"Opened {site.DisplayName} in {launchResult.BrowserDisplayName}.";
             AddToolLog(UsefulSitesStatusMessage);
         }
         catch (Exception ex)

@@ -39,6 +39,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IMacroLibraryService macroLibraryService;
     private readonly IInstallerService installerService;
     private readonly IAppUpdateService appUpdateService;
+    private readonly IBrowserLauncherService browserLauncherService;
     private readonly IFirefoxExtensionService firefoxExtensionService;
     private readonly IEmptyDirectoryService emptyDirectoryService;
     private readonly IDisplayRefreshRateService displayRefreshRateService;
@@ -74,6 +75,7 @@ public partial class MainWindowViewModel : ObservableObject
         IMacroLibraryService macroLibraryService,
         IInstallerService installerService,
         IAppUpdateService appUpdateService,
+        IBrowserLauncherService browserLauncherService,
         IFirefoxExtensionService firefoxExtensionService,
         IEmptyDirectoryService emptyDirectoryService,
         IDisplayRefreshRateService displayRefreshRateService,
@@ -101,6 +103,7 @@ public partial class MainWindowViewModel : ObservableObject
         this.macroLibraryService = macroLibraryService;
         this.installerService = installerService;
         this.appUpdateService = appUpdateService;
+        this.browserLauncherService = browserLauncherService;
         this.firefoxExtensionService = firefoxExtensionService;
         this.emptyDirectoryService = emptyDirectoryService;
         this.displayRefreshRateService = displayRefreshRateService;

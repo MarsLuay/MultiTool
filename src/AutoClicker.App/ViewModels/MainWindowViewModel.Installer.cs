@@ -324,7 +324,8 @@ public partial class MainWindowViewModel
             changedLabel: "installed",
             packageIds => installerService.InstallPackagesAsync(packageIds),
             requireInstalledSelection: false,
-            syncFirefoxExtensions: true);
+            syncFirefoxExtensions: true,
+            canRunWithoutWinget: item => item.UsesGuidedInstall);
     }
 
     private bool CanUpgradeSelectedPackages =>
@@ -341,7 +342,8 @@ public partial class MainWindowViewModel
             changedLabel: "updated",
             packageIds => installerService.UpgradePackagesAsync(packageIds),
             requireInstalledSelection: true,
-            syncFirefoxExtensions: false);
+            syncFirefoxExtensions: false,
+            canRunWithoutWinget: item => item.UsesGuidedUpdate);
     }
 
     private bool CanUninstallSelectedCleanupPackages => IsWingetAvailable && !IsInstallerBusy && CleanupPackages.Any(item => item.IsSelected && item.IsInstalled);
@@ -395,12 +397,14 @@ public partial class MainWindowViewModel
         string changedLabel,
         Func<IReadOnlyList<string>, Task<IReadOnlyList<InstallerOperationResult>>> runBatchAsync,
         bool requireInstalledSelection,
-        bool syncFirefoxExtensions)
+        bool syncFirefoxExtensions,
+        Func<InstallerPackageItem, bool>? canRunWithoutWinget = null)
     {
+        canRunWithoutWinget ??= item => item.UsesGuidedInstall || item.UsesGuidedUpdate;
         var selectedPackages = InstallerPackages
             .Where(
                 item => item.IsSelected
-                    && (IsWingetAvailable || item.UsesGuidedInstall || item.UsesGuidedUpdate)
+                    && (IsWingetAvailable || canRunWithoutWinget(item))
                     && (!requireInstalledSelection || item.IsInstalled || item.UsesGuidedUpdate))
             .ToArray();
 

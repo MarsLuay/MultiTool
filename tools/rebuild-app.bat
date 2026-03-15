@@ -1,18 +1,19 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
-set "ROOT_DIR=%~dp0"
-set "SOURCE_DIR=%ROOT_DIR%source"
-set "PROJECT_FILE=%SOURCE_DIR%\src\AutoClicker.App\AutoClicker.App.csproj"
+for %%I in ("%~dp0..") do set "ROOT_DIR=%%~fI"
+set "SOURCE_DIR=%ROOT_DIR%"
+set "PROJECT_FILE=%ROOT_DIR%\src\AutoClicker.App\AutoClicker.App.csproj"
 set "ROOT_OUTPUT_DIR=%ROOT_DIR%"
-set "ROOT_RESOURCES_DIR=%ROOT_DIR%Resources"
-set "ROOT_STAGE_DIR=%ROOT_DIR%.publish-root"
+set "ROOT_RESOURCES_DIR=%ROOT_DIR%\Resources"
+set "ROOT_STAGE_DIR=%ROOT_DIR%\.publish-root"
 set "ROOT_PUBLISH_EXE=%ROOT_STAGE_DIR%\MultiTool.exe"
-set "ROOT_FINAL_EXE=%ROOT_OUTPUT_DIR%MultiTool.exe"
-set "ROOT_LEGACY_EXE=%ROOT_OUTPUT_DIR%AutoClicker.exe"
-set "ROOT_FFMPEG_EXE=%ROOT_OUTPUT_DIR%ffmpeg.exe"
-set "DEPENDENCY_INSTALLER=%ROOT_DIR%install-runtime-dependencies.bat"
+set "ROOT_FINAL_EXE=%ROOT_OUTPUT_DIR%\MultiTool.exe"
+set "ROOT_LEGACY_EXE=%ROOT_OUTPUT_DIR%\AutoClicker.exe"
+set "ROOT_FFMPEG_EXE=%ROOT_OUTPUT_DIR%\ffmpeg.exe"
+set "DEPENDENCY_INSTALLER=%ROOT_DIR%\tools\install-runtime-dependencies.bat"
 set "DOTNET_EXE=%USERPROFILE%\.dotnet\dotnet.exe"
+set "PROGRAM_FILES_DOTNET=%ProgramFiles%\dotnet\dotnet.exe"
 
 if not exist "%PROJECT_FILE%" (
     echo Could not find the app project:
@@ -21,6 +22,11 @@ if not exist "%PROJECT_FILE%" (
 )
 
 if not exist "%DOTNET_EXE%" (
+    if exist "%PROGRAM_FILES_DOTNET%" (
+        set "DOTNET_EXE=%PROGRAM_FILES_DOTNET%"
+        goto dotnet_ready
+    )
+
     where dotnet >nul 2>&1
     if errorlevel 1 (
         echo Could not find dotnet. Install .NET 8 SDK or add dotnet to PATH.
@@ -29,6 +35,8 @@ if not exist "%DOTNET_EXE%" (
 
     set "DOTNET_EXE=dotnet"
 )
+
+:dotnet_ready
 
 echo Rebuilding MultiTool...
 echo Source: %PROJECT_FILE%

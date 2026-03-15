@@ -44,3 +44,13 @@ dotnet restore
 dotnet build
 dotnet test
 ```
+
+## Helper scripts
+
+- `run-to-start.bat`
+  - root convenience script that rebuilds the app, installs runtime dependencies, and installs the startup launcher
+- `tools\rebuild-app.bat`
+- `tools\install-runtime-dependencies.bat`
+- `tools\install-startup-launcher.bat`
+- `tools\remove-startup-launcher.bat`
+- `tools\uninstall-multitool.bat`

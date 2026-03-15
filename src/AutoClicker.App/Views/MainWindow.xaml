@@ -74,6 +74,30 @@
         </Trigger>
       </Style.Triggers>
     </Style>
+    <Style x:Key="LinkButtonStyle" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <ContentPresenter />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
   </Window.Resources>
 
   <Border BorderBrush="{DynamicResource BorderBrush}"
@@ -802,7 +826,7 @@
 
                                 <StackPanel Margin="0,8,0,0">
                                   <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                                             Text="These use Firefox's supported policies system. They will auto-install from Mozilla Add-ons, and Firefox may need a restart if it is already open."
+                                             Text="These use Firefox's supported policies system. MultiTool will apply them automatically, try to restart Firefox if it is already open, and may show a Windows admin prompt when Firefox policies need elevated write access."
                                              TextWrapping="Wrap" />
 
                                   <ItemsControl Margin="0,6,0,0"
@@ -1499,22 +1523,29 @@
                                 BorderThickness="1"
                                 CornerRadius="6">
                           <StackPanel>
-                            <Button HorizontalAlignment="Left"
-                                    Padding="12,6"
-                                    Command="{Binding DataContext.OpenUsefulSiteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}"
-                                    Content="{Binding DisplayName}" />
+                            <TextBlock FontWeight="SemiBold"
+                                       Text="{Binding DisplayName}" />
 
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource MutedTextBrush}"
                                        Text="{Binding Description}"
                                        TextWrapping="Wrap" />
 
+                            <Button Margin="0,8,0,0"
+                                    Style="{StaticResource LinkButtonStyle}"
+                                    Command="{Binding DataContext.OpenUsefulSiteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}">
+                              <TextBlock FontFamily="Consolas"
+                                         FontSize="11"
+                                         Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                         Text="{Binding Url}"
+                                         TextDecorations="Underline"
+                                         TextWrapping="Wrap" />
+                            </Button>
+
                             <TextBlock Margin="0,6,0,0"
-                                       FontFamily="Consolas"
-                                       FontSize="11"
                                        Foreground="{DynamicResource MutedTextBrush}"
-                                       Text="{Binding Url}"
+                                       Text="{Binding BrowserLabel, StringFormat=Opens in: {0}}"
                                        TextWrapping="Wrap" />
                           </StackPanel>
                         </Border>

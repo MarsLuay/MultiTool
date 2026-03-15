@@ -1,8 +1,8 @@
 @echo off
 setlocal EnableExtensions
 
-for %%I in ("%~dp0.") do set "ROOT_DIR=%%~fI"
-set "SHORTCUT_REMOVER=%ROOT_DIR%\remove-startup-launcher.bat"
+for %%I in ("%~dp0..") do set "ROOT_DIR=%%~fI"
+set "SHORTCUT_REMOVER=%ROOT_DIR%\tools\remove-startup-launcher.bat"
 set "CLEANUP_SCRIPT=%TEMP%\multitool-uninstall-%RANDOM%%RANDOM%.cmd"
 
 echo MultiTool uninstall helper
@@ -13,8 +13,8 @@ echo.
 echo That includes:
 echo   - MultiTool.exe
 echo   - Logs, Macros, and Resources
-echo   - the source folder
-echo   - every root batch file, including this one
+echo   - src, tests, and the tools folder
+echo   - run-to-start.bat and the helper scripts
 echo.
 echo This cannot be undone.
 echo.

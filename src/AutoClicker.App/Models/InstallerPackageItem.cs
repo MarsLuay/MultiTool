@@ -25,7 +25,7 @@ public partial class InstallerPackageItem : ObservableObject
 
     public bool IsDeveloperTool => Package.IsDeveloperTool;
 
-    public bool UsesGuidedInstall => !string.IsNullOrWhiteSpace(Package.InstallUrl);
+    public bool UsesGuidedInstall => !Package.UsesCustomInstallFlow && !string.IsNullOrWhiteSpace(Package.InstallUrl);
 
     public bool UsesGuidedUpdate => !string.IsNullOrWhiteSpace(Package.UpdateUrl) || UsesGuidedInstall;
 

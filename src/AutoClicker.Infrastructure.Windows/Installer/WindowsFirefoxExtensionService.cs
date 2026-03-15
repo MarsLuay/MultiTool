@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,6 +11,8 @@ namespace AutoClicker.Infrastructure.Windows.Installer;
 
 public sealed class WindowsFirefoxExtensionService : IFirefoxExtensionService
 {
+    private const int FirefoxRestartWaitMilliseconds = 5000;
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
@@ -31,15 +35,33 @@ public sealed class WindowsFirefoxExtensionService : IFirefoxExtensionService
     ];
 
     private readonly Func<string?> installDirectoryResolver;
+    private readonly Func<bool> firefoxRunningDetector;
+    private readonly Func<string, CancellationToken, Task<bool>> firefoxRestarter;
+    private readonly Func<string, string, CancellationToken, Task> policyWriter;
+    private readonly Func<string, string, CancellationToken, Task<bool>> elevatedPolicyWriter;
 
     public WindowsFirefoxExtensionService()
-        : this(ResolveFirefoxInstallDirectory)
+        : this(
+            ResolveFirefoxInstallDirectory,
+            IsFirefoxRunning,
+            RestartFirefoxAsync,
+            WritePolicyFileAsync,
+            WritePolicyFileElevatedAsync)
     {
     }
 
-    public WindowsFirefoxExtensionService(Func<string?> installDirectoryResolver)
+    public WindowsFirefoxExtensionService(
+        Func<string?> installDirectoryResolver,
+        Func<bool>? firefoxRunningDetector = null,
+        Func<string, CancellationToken, Task<bool>>? firefoxRestarter = null,
+        Func<string, string, CancellationToken, Task>? policyWriter = null,
+        Func<string, string, CancellationToken, Task<bool>>? elevatedPolicyWriter = null)
     {
         this.installDirectoryResolver = installDirectoryResolver;
+        this.firefoxRunningDetector = firefoxRunningDetector ?? IsFirefoxRunning;
+        this.firefoxRestarter = firefoxRestarter ?? RestartFirefoxAsync;
+        this.policyWriter = policyWriter ?? WritePolicyFileAsync;
+        this.elevatedPolicyWriter = elevatedPolicyWriter ?? WritePolicyFileElevatedAsync;
     }
 
     public IReadOnlyList<InstallerOptionDefinition> GetCatalog() =>
@@ -88,6 +110,7 @@ public sealed class WindowsFirefoxExtensionService : IFirefoxExtensionService
         }
 
         var policiesPath = Path.Combine(installDirectory, "distribution", "policies.json");
+        var firefoxExecutablePath = Path.Combine(installDirectory, "firefox.exe");
 
         try
         {
@@ -131,43 +154,31 @@ public sealed class WindowsFirefoxExtensionService : IFirefoxExtensionService
 
             if (changed)
             {
-                var directory = Path.GetDirectoryName(policiesPath)
-                    ?? throw new InvalidOperationException("Firefox policy path is invalid.");
-                Directory.CreateDirectory(directory);
-                await File.WriteAllTextAsync(policiesPath, afterJson, cancellationToken).ConfigureAwait(false);
+                var restartNeeded = firefoxRunningDetector();
+                var writeSucceeded = await TryWritePoliciesAsync(policiesPath, afterJson, cancellationToken).ConfigureAwait(false);
+                if (!writeSucceeded)
+                {
+                    return BuildFailureResults(
+                        selectedItems,
+                        "Firefox add-ons need administrator permission to update Firefox's policies. Approve the Windows prompt and try again.",
+                        afterJson);
+                }
+
+                var restarted = await TryRestartFirefoxAsync(firefoxExecutablePath, restartNeeded, cancellationToken).ConfigureAwait(false);
+                var message = BuildSuccessMessage(changed, restartNeeded, restarted, clearingSelections: selectedItems.Length == 0);
+                return BuildSuccessResults(selectedItems, message, afterJson, changed);
             }
 
             if (selectedItems.Length == 0)
             {
-                return changed
-                    ?
-                    [
-                        new InstallerOperationResult(
-                            "firefox-extension-sync",
-                            "Firefox add-ons",
-                            true,
-                            true,
-                            "Cleared Firefox add-on auto-install settings.",
-                            afterJson),
-                    ]
-                    : [];
+                return [];
             }
 
-            var message = changed
-                ? "Configured for automatic install. Restart Firefox if it is already open."
-                : "Already configured for automatic install.";
-
-            return
-            [
-                .. selectedItems.Select(
-                    item => new InstallerOperationResult(
-                        item.OptionId,
-                        $"Firefox: {item.DisplayName}",
-                        true,
-                        changed,
-                        message,
-                        afterJson)),
-            ];
+            return BuildSuccessResults(
+                selectedItems,
+                "Already configured for automatic install.",
+                afterJson,
+                changed: false);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -182,6 +193,40 @@ public sealed class WindowsFirefoxExtensionService : IFirefoxExtensionService
                 selectedItems,
                 ex.Message,
                 ex.ToString());
+        }
+    }
+
+    private async Task<bool> TryWritePoliciesAsync(string policiesPath, string policyJson, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await policyWriter(policiesPath, policyJson, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return await elevatedPolicyWriter(policiesPath, policyJson, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            return false;
+        }
+    }
+
+    private async Task<bool> TryRestartFirefoxAsync(string firefoxExecutablePath, bool restartNeeded, CancellationToken cancellationToken)
+    {
+        if (!restartNeeded || !File.Exists(firefoxExecutablePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            return await firefoxRestarter(firefoxExecutablePath, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -249,6 +294,76 @@ public sealed class WindowsFirefoxExtensionService : IFirefoxExtensionService
                     message,
                     details)),
         ];
+    }
+
+    private static IReadOnlyList<InstallerOperationResult> BuildSuccessResults(
+        IReadOnlyList<FirefoxExtensionCatalogItem> selectedItems,
+        string message,
+        string output,
+        bool changed)
+    {
+        if (selectedItems.Count == 0)
+        {
+            return
+            [
+                new InstallerOperationResult(
+                    "firefox-extension-sync",
+                    "Firefox add-ons",
+                    true,
+                    changed,
+                    message,
+                    output),
+            ];
+        }
+
+        return
+        [
+            .. selectedItems.Select(
+                item => new InstallerOperationResult(
+                    item.OptionId,
+                    $"Firefox: {item.DisplayName}",
+                    true,
+                    changed,
+                    message,
+                    output)),
+        ];
+    }
+
+    private static string BuildSuccessMessage(bool changed, bool restartNeeded, bool restarted, bool clearingSelections)
+    {
+        if (!changed)
+        {
+            return clearingSelections
+                ? "Firefox add-on auto-install settings were already cleared."
+                : "Already configured for automatic install.";
+        }
+
+        if (clearingSelections)
+        {
+            if (restartNeeded && restarted)
+            {
+                return "Cleared Firefox add-on auto-install settings and restarted Firefox.";
+            }
+
+            if (restartNeeded)
+            {
+                return "Cleared Firefox add-on auto-install settings, but Firefox could not be restarted automatically. Restart Firefox to finish applying the change.";
+            }
+
+            return "Cleared Firefox add-on auto-install settings.";
+        }
+
+        if (restartNeeded && restarted)
+        {
+            return "Configured for automatic install and restarted Firefox.";
+        }
+
+        if (restartNeeded)
+        {
+            return "Configured for automatic install, but Firefox could not be restarted automatically. Restart Firefox to finish applying the add-ons.";
+        }
+
+        return "Configured for automatic install.";
     }
 
     private static async Task<JsonObject> LoadPolicyRootAsync(string policiesPath, CancellationToken cancellationToken)
@@ -329,6 +444,139 @@ public sealed class WindowsFirefoxExtensionService : IFirefoxExtensionService
         }
 
         return Path.GetDirectoryName(path);
+    }
+
+    private static async Task WritePolicyFileAsync(string policiesPath, string policyJson, CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(policiesPath)
+            ?? throw new InvalidOperationException("Firefox policy path is invalid.");
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(policiesPath, policyJson, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> WritePolicyFileElevatedAsync(string policiesPath, string policyJson, CancellationToken cancellationToken)
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "MultiTool", "firefox-policy", Guid.NewGuid().ToString("N"));
+        var tempPolicyPath = Path.Combine(tempDirectory, "policies.json");
+        var tempScriptPath = Path.Combine(tempDirectory, "write-firefox-policy.ps1");
+
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            await File.WriteAllTextAsync(tempPolicyPath, policyJson, cancellationToken).ConfigureAwait(false);
+            await File.WriteAllTextAsync(
+                tempScriptPath,
+                """
+                param(
+                    [Parameter(Mandatory = $true)][string]$SourcePath,
+                    [Parameter(Mandatory = $true)][string]$DestinationPath
+                )
+
+                $directory = Split-Path -Parent $DestinationPath
+                if (-not [string]::IsNullOrWhiteSpace($directory))
+                {
+                    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+                }
+
+                Copy-Item -LiteralPath $SourcePath -Destination $DestinationPath -Force
+                """,
+                cancellationToken).ConfigureAwait(false);
+
+            using var process = Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{tempScriptPath}\" -SourcePath \"{tempPolicyPath}\" -DestinationPath \"{policiesPath}\"",
+                    UseShellExecute = true,
+                    Verb = "runas",
+                });
+
+            if (process is null)
+            {
+                return false;
+            }
+
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            return process.ExitCode == 0;
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            return false;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempDirectory))
+                {
+                    Directory.Delete(tempDirectory, true);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static bool IsFirefoxRunning() =>
+        Process.GetProcessesByName("firefox").Length > 0;
+
+    private static async Task<bool> RestartFirefoxAsync(string firefoxExecutablePath, CancellationToken cancellationToken)
+    {
+        var processes = Process.GetProcessesByName("firefox");
+        try
+        {
+            if (processes.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (var process in processes.Where(process => !process.HasExited))
+            {
+                try
+                {
+                    process.CloseMainWindow();
+                }
+                catch
+                {
+                }
+            }
+
+            await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
+
+            foreach (var process in processes.Where(process => !process.HasExited))
+            {
+                try
+                {
+                    if (!process.WaitForExit(FirefoxRestartWaitMilliseconds))
+                    {
+                        process.Kill(entireProcessTree: true);
+                        process.WaitForExit(FirefoxRestartWaitMilliseconds);
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = firefoxExecutablePath,
+                    WorkingDirectory = Path.GetDirectoryName(firefoxExecutablePath) ?? string.Empty,
+                    UseShellExecute = true,
+                });
+
+            return true;
+        }
+        finally
+        {
+            foreach (var process in processes)
+            {
+                process.Dispose();
+            }
+        }
     }
 
     private sealed record FirefoxExtensionCatalogItem(

@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
 set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "SHORTCUT_PATH=%STARTUP_DIR%\Launch MultiTool.lnk"

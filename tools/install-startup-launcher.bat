@@ -1,9 +1,9 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
-set "ROOT_DIR=%~dp0"
-set "SCRIPT_PATH=%ROOT_DIR%source\tools\startup\LaunchMultiTool.ahk"
-set "APP_PATH=%ROOT_DIR%MultiTool.exe"
+for %%I in ("%~dp0..") do set "ROOT_DIR=%%~fI"
+set "SCRIPT_PATH=%ROOT_DIR%\tools\startup\LaunchMultiTool.ahk"
+set "APP_PATH=%ROOT_DIR%\MultiTool.exe"
 set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "SHORTCUT_PATH=%STARTUP_DIR%\Launch MultiTool.lnk"
 set "LEGACY_SHORTCUT_PATH=%STARTUP_DIR%\Launch AutoClicker.lnk"
