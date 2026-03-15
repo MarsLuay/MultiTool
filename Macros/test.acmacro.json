@@ -1,0 +1,27 @@
+{
+  "Name": "test",
+  "Events": [
+    {
+      "Offset": "00:00:01.0170491",
+      "Kind": 2,
+      "VirtualKey": 0,
+      "MouseButton": 0,
+      "Position": {
+        "X": 4805,
+        "Y": 715
+      }
+    },
+    {
+      "Offset": "00:00:01.6085042",
+      "Kind": 1,
+      "VirtualKey": 0,
+      "MouseButton": 0,
+      "Position": {
+        "X": 4543,
+        "Y": 711
+      }
+    }
+  ],
+  "Duration": "00:00:01.6085042",
+  "RecordedAt": "2026-03-14T00:30:53.6933471-07:00"
+}
