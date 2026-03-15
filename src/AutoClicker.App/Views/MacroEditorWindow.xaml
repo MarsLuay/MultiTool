@@ -1,0 +1,304 @@
+<Window x:Class="AutoClicker.App.Views.MacroEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:AutoClicker.App.Converters"
+        Title="Edit Macro"
+        Width="920"
+        Height="860"
+        MinWidth="760"
+        MinHeight="700"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextBrush}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        ResizeMode="CanResize"
+        WindowStartupLocation="Manual"
+        ShowInTaskbar="False">
+  <Window.Resources>
+    <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    <converters:EnumDisplayNameConverter x:Key="EnumDisplayNameConverter" />
+    <Style TargetType="DataGrid">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="GridLinesVisibility" Value="Horizontal" />
+      <Setter Property="HeadersVisibility" Value="Column" />
+      <Setter Property="RowBackground" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="AlternatingRowBackground" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style TargetType="DataGridColumnHeader">
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+    <Style TargetType="DataGridRow">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Style.Triggers>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style TargetType="DataGridCell">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4" />
+      <Style.Triggers>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </Window.Resources>
+
+  <Border Margin="12"
+          Padding="16"
+          Background="{DynamicResource SurfaceBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="8">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <Grid Grid.Row="0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Margin="0,0,12,0"
+                   VerticalAlignment="Center"
+                   FontWeight="SemiBold"
+                   Text="Macro name" />
+        <TextBox x:Name="MacroNameTextBox"
+                 Grid.Column="1"
+                 MinWidth="260"
+                 Padding="10,6"
+                 Text="{Binding MacroName, UpdateSourceTrigger=PropertyChanged}" />
+      </Grid>
+
+      <Grid Grid.Row="1"
+            Margin="0,12,0,0">
+        <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                   Text="Choose an event from the top list, then use the details panel below to change what it does. Offsets are in milliseconds from the start of the macro."
+                   TextWrapping="Wrap" />
+      </Grid>
+
+      <Grid Grid.Row="2"
+            Margin="0,12,0,0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="1.15*" />
+          <RowDefinition Height="16" />
+          <RowDefinition Height="0.95*" />
+        </Grid.RowDefinitions>
+
+        <GroupBox Header="Events">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <TextBlock VerticalAlignment="Center"
+                         Foreground="{DynamicResource MutedTextBrush}"
+                         Text="Pick the event you want to edit." />
+
+              <TextBlock Grid.Column="1"
+                         VerticalAlignment="Center"
+                         FontWeight="SemiBold"
+                         Text="{Binding SummaryText}" />
+            </Grid>
+
+            <WrapPanel Grid.Row="1"
+                       Margin="0,12,0,0">
+              <Button Margin="0,0,8,0"
+                      Padding="12,6"
+                      Command="{Binding AddEventCommand}"
+                      Content="Add Event" />
+              <Button Margin="0,0,8,0"
+                      Padding="12,6"
+                      Command="{Binding RemoveSelectedEventCommand}"
+                      Content="Remove Selected" />
+              <Button Padding="12,6"
+                      Command="{Binding SortByOffsetCommand}"
+                      Content="Sort by Offset" />
+            </WrapPanel>
+
+            <DataGrid Grid.Row="2"
+                      Margin="0,12,0,0"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      ItemsSource="{Binding Events}"
+                      SelectedItem="{Binding SelectedEvent}"
+                      SelectionMode="Single">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="#"
+                                    Binding="{Binding Index}"
+                                    Width="44" />
+                <DataGridTextColumn Header="Offset"
+                                    Binding="{Binding OffsetMilliseconds, StringFormat={}{0} ms}"
+                                    Width="94" />
+                <DataGridTextColumn Header="Action"
+                                    Binding="{Binding KindDisplayName}"
+                                    Width="120" />
+                <DataGridTextColumn Header="Details"
+                                    Binding="{Binding DetailsDisplayName}"
+                                    Width="*" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Grid>
+        </GroupBox>
+
+        <GroupBox Grid.Row="2"
+                  Header="Selected Event"
+                  ClipToBounds="True">
+          <ScrollViewer Background="{DynamicResource SurfaceBrush}"
+                        VerticalScrollBarVisibility="Auto">
+            <StackPanel Background="{DynamicResource SurfaceBrush}">
+              <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                         Text="{Binding SelectedEventHint}"
+                         TextWrapping="Wrap" />
+
+              <Border Margin="0,12,0,0"
+                      Padding="12"
+                      Background="{DynamicResource SurfaceAltBrush}"
+                      BorderBrush="{DynamicResource BorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6">
+                <TextBlock FontWeight="SemiBold"
+                           Text="{Binding SelectedEvent.DetailsDisplayName, TargetNullValue=Choose an event from the list first.}"
+                           TextWrapping="Wrap" />
+              </Border>
+
+              <Border Margin="0,16,0,0"
+                      Padding="12"
+                      Background="{DynamicResource SurfaceBrush}"
+                      BorderBrush="{DynamicResource BorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      IsEnabled="{Binding HasSelectedEvent}">
+                <StackPanel>
+                  <TextBlock FontWeight="SemiBold"
+                             Text="Action" />
+                  <ComboBox MinWidth="210"
+                            Margin="0,6,0,12"
+                            ItemsSource="{Binding EventKinds}"
+                            SelectedItem="{Binding SelectedEvent.Kind, UpdateSourceTrigger=PropertyChanged}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+
+                  <TextBlock FontWeight="SemiBold"
+                             Text="Offset (ms)" />
+                  <TextBox Margin="0,6,0,12"
+                           Padding="10,6"
+                           Text="{Binding SelectedEvent.OffsetMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
+
+                  <StackPanel Margin="0,0,0,12"
+                              Visibility="{Binding SelectedEvent.IsKeyboardKind, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Key Code" />
+                    <TextBox Margin="0,6,0,0"
+                             Padding="10,6"
+                             Text="{Binding SelectedEvent.VirtualKey, UpdateSourceTrigger=PropertyChanged}" />
+                  </StackPanel>
+
+                  <StackPanel Margin="0,0,0,12"
+                              Visibility="{Binding SelectedEvent.IsMouseButtonKind, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Mouse Button" />
+                    <ComboBox MinWidth="210"
+                              Margin="0,6,0,0"
+                              ItemsSource="{Binding MouseButtons}"
+                              SelectedItem="{Binding SelectedEvent.MouseButton, UpdateSourceTrigger=PropertyChanged}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </StackPanel>
+
+                  <StackPanel Visibility="{Binding SelectedEvent.UsesPosition, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="X Position" />
+                    <TextBox Margin="0,6,0,12"
+                             Padding="10,6"
+                             Text="{Binding SelectedEvent.X, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Y Position" />
+                    <TextBox Margin="0,6,0,0"
+                             Padding="10,6"
+                             Text="{Binding SelectedEvent.Y, UpdateSourceTrigger=PropertyChanged}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <TextBlock Margin="0,12,0,0"
+                         Foreground="{DynamicResource MutedTextBrush}"
+                         Text="Only the fields that matter for the selected action stay enabled."
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </ScrollViewer>
+        </GroupBox>
+      </Grid>
+
+      <Grid Grid.Row="3"
+            Margin="0,12,0,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock VerticalAlignment="Center"
+                   Foreground="{DynamicResource MutedTextBrush}"
+                   Text="{Binding StatusMessage}"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+          <Button Width="92"
+                  Margin="0,0,8,0"
+                  Click="CancelButton_OnClick"
+                  Content="Cancel"
+                  IsCancel="True" />
+          <Button Width="92"
+                  Click="SaveButton_OnClick"
+                  Content="Save"
+                  IsDefault="True" />
+        </StackPanel>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>
