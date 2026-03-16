@@ -4,6 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using AutoClicker.App.Services;
 using AutoClicker.App.ViewModels;
 using AutoClicker.Core.Results;
 using AutoClicker.Core.Services;
@@ -53,8 +54,7 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        var handle = new WindowInteropHelper(this).Handle;
-        hotkeyService.Attach(handle);
+        EnsureHotkeyServiceAttached();
     }
 
     private async void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
@@ -63,6 +63,12 @@ public partial class MainWindow : Window
         await viewModel.InitializeAsync();
         RegisterHotkeys();
         trayIconService.SetRunningState(viewModel.IsRunning);
+
+        if (viewModel.ShouldAutoHideOnStartup)
+        {
+            HideToTray();
+            viewModel.SetStatus("MultiTool started hidden in the tray.");
+        }
     }
 
     private void MainWindow_OnStateChanged(object? sender, EventArgs e)
@@ -107,6 +113,12 @@ public partial class MainWindow : Window
 
     private void RegisterHotkeys()
     {
+        if (!EnsureHotkeyServiceAttached())
+        {
+            viewModel.SetStatus("Hotkeys will register once the main window is ready.");
+            return;
+        }
+
         var results = hotkeyService.RegisterHotkeys(
             viewModel.CurrentHotkeys,
             viewModel.CurrentScreenshotSettings,
@@ -118,9 +130,28 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool EnsureHotkeyServiceAttached()
+    {
+        if (hotkeyService.IsAttached)
+        {
+            return true;
+        }
+
+        var handle = new WindowInteropHelper(this).EnsureHandle();
+        if (handle == nint.Zero)
+        {
+            AppLog.Info("Skipped hotkey registration because the main window handle is not available yet.");
+            return false;
+        }
+
+        hotkeyService.Attach(handle);
+        return true;
+    }
+
     private async void HotkeyService_HotkeyPressed(object? sender, HotkeyPressedEventArgs e)
     {
-        await Dispatcher.InvokeAsync(() => viewModel.HandleHotkeyAsync(e.Action));
+        var operation = Dispatcher.InvokeAsync(() => viewModel.HandleHotkeyAsync(e.Action, e.Payload));
+        await await operation;
     }
 
     private void ViewModel_HotkeysChanged(object? sender, EventArgs e)

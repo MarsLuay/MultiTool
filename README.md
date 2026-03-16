@@ -8,6 +8,8 @@ This repository contains the current .NET 8 MultiTool codebase with a split betw
 
 ## Current solution layout
 
+- repository root
+  - runtime layout for the published EXE, macros, icons, and logs
 - `src/AutoClicker.App`
   - WPF shell, view models, and dialog services
 - `src/AutoClicker.Core`
@@ -48,7 +50,7 @@ dotnet test
 ## Helper scripts
 
 - `run-to-start.bat`
-  - root convenience script that rebuilds the app, installs runtime dependencies, and installs the startup launcher
+  - root convenience script that rebuilds the app into the repo root, installs runtime dependencies, and installs the startup launcher
 - `tools\rebuild-app.bat`
 - `tools\install-runtime-dependencies.bat`
 - `tools\install-startup-launcher.bat`

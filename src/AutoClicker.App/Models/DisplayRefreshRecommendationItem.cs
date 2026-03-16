@@ -23,6 +23,9 @@ public sealed class DisplayRefreshRecommendationItem
 
     public string RecommendedFrequencyText => FormatFrequency(Recommendation.RecommendedFrequency);
 
+    public string FrequencySummaryText =>
+        $"Resolution: {Resolution}  |  Current: {CurrentFrequencyText}  |  Top: {RecommendedFrequencyText}";
+
     public string StatusText => Recommendation.Message;
 
     private static string FormatFrequency(int frequency) =>

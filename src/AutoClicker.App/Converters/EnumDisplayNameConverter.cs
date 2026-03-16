@@ -22,6 +22,8 @@ public sealed class EnumDisplayNameConverter : IValueConverter
             ClickKind.Single => "Single",
             ClickKind.Double => "Double",
             ClickKind.Hold => "Hold",
+            MacroHotkeyPlaybackMode.PlayOnce => "Run once",
+            MacroHotkeyPlaybackMode.ToggleRepeat => "Start/stop",
             MacroEventKind.MouseMove => "Move Mouse",
             MacroEventKind.MouseButtonDown => "Mouse Down",
             MacroEventKind.MouseButtonUp => "Mouse Up",

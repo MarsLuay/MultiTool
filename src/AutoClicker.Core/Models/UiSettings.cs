@@ -6,10 +6,13 @@ public sealed class UiSettings
 
     public bool EnableCtrlWheelResize { get; set; } = true;
 
+    public bool AutoHideOnStartup { get; set; }
+
     public UiSettings Clone() =>
         new()
         {
             IsDarkMode = IsDarkMode,
             EnableCtrlWheelResize = EnableCtrlWheelResize,
+            AutoHideOnStartup = AutoHideOnStartup,
         };
 }

@@ -1,3 +1,4 @@
+using AutoClicker.Core.Models;
 using AutoClicker.Infrastructure.Windows.Installer;
 using FluentAssertions;
 
@@ -282,6 +283,106 @@ public sealed class WindowsWingetInstallerServiceTests
     }
 
     [Fact]
+    public async Task GetPackageStatusesAsync_ShouldMarkAutomatic1111AsUpgradeableWhenGitReportsBehindRemote()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+        var commands = new List<(string FileName, string Arguments)>();
+
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(installDirectory, ".git"));
+            File.WriteAllText(Path.Combine(installDirectory, "webui-user.bat"), "@echo off");
+            File.WriteAllText(Path.Combine(installDirectory, "webui.bat"), "@echo off");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add((startInfo.FileName, startInfo.Arguments));
+
+                    if (string.Equals(startInfo.FileName, @"C:\Program Files\Git\cmd\git.exe", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(startInfo.Arguments, $"-C \"{installDirectory}\" fetch origin --quiet", StringComparison.Ordinal))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    if (string.Equals(startInfo.FileName, @"C:\Program Files\Git\cmd\git.exe", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(startInfo.Arguments, $"-C \"{installDirectory}\" rev-list --count HEAD..@{{upstream}}", StringComparison.Ordinal))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, "3", string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                automatic1111InstallDirectoryResolver: () => installDirectory,
+                gitExecutableResolver: () => @"C:\Program Files\Git\cmd\git.exe");
+
+            var statuses = await service.GetPackageStatusesAsync(["AUTOMATIC1111.StableDiffusionWebUI"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeTrue();
+            statuses[0].StatusText.Should().Be("Update available");
+            commands.Should().ContainInOrder(
+                (@"C:\Program Files\Git\cmd\git.exe", $"-C \"{installDirectory}\" fetch origin --quiet"),
+                (@"C:\Program Files\Git\cmd\git.exe", $"-C \"{installDirectory}\" rev-list --count HEAD..@{{upstream}}"));
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldKeepAutomatic1111AsInstalledWhenGitReportsNoRemoteChanges()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(installDirectory, ".git"));
+            File.WriteAllText(Path.Combine(installDirectory, "webui-user.bat"), "@echo off");
+            File.WriteAllText(Path.Combine(installDirectory, "webui.bat"), "@echo off");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    if (string.Equals(startInfo.FileName, @"C:\Program Files\Git\cmd\git.exe", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(startInfo.Arguments, $"-C \"{installDirectory}\" fetch origin --quiet", StringComparison.Ordinal))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    if (string.Equals(startInfo.FileName, @"C:\Program Files\Git\cmd\git.exe", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(startInfo.Arguments, $"-C \"{installDirectory}\" rev-list --count HEAD..@{{upstream}}", StringComparison.Ordinal))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, "0", string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                automatic1111InstallDirectoryResolver: () => installDirectory,
+                gitExecutableResolver: () => @"C:\Program Files\Git\cmd\git.exe");
+
+            var statuses = await service.GetPackageStatusesAsync(["AUTOMATIC1111.StableDiffusionWebUI"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeFalse();
+            statuses[0].StatusText.Should().Be("Installed (custom)");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task GetPackageStatusesAsync_ShouldMarkOpenWebUiAsInstalledWhenLocalInstallExists()
     {
         var installDirectory = CreateTemporaryDirectory();
@@ -294,7 +395,16 @@ public sealed class WindowsWingetInstallerServiceTests
             File.WriteAllText(Path.Combine(installDirectory, "launch-open-webui-multitool.bat"), "@echo off");
 
             var service = new WindowsWingetInstallerService(
-                CreateRunner(),
+                (startInfo, _) =>
+                {
+                    if (string.Equals(startInfo.FileName, Path.Combine(installDirectory, "venv", "Scripts", "python.exe"), StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(startInfo.Arguments, "-m pip list --outdated --format=json", StringComparison.Ordinal))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, "[]", string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
                 openWebUiInstallDirectoryResolver: () => installDirectory);
 
             var statuses = await service.GetPackageStatusesAsync(["OpenWebUI.OpenWebUI"]);
@@ -303,6 +413,51 @@ public sealed class WindowsWingetInstallerServiceTests
             statuses[0].IsInstalled.Should().BeTrue();
             statuses[0].HasUpdateAvailable.Should().BeFalse();
             statuses[0].StatusText.Should().Be("Installed (custom)");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldMarkOpenWebUiAsUpgradeableWhenPipReportsOutdatedPackage()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(installDirectory, "venv", "Scripts"));
+            File.WriteAllText(Path.Combine(installDirectory, "venv", "Scripts", "python.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(installDirectory, "venv", "Scripts", "open-webui.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(installDirectory, "launch-open-webui-multitool.bat"), "@echo off");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    if (string.Equals(startInfo.FileName, Path.Combine(installDirectory, "venv", "Scripts", "python.exe"), StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(startInfo.Arguments, "-m pip list --outdated --format=json", StringComparison.Ordinal))
+                    {
+                        return Task.FromResult(
+                            new InstallerCommandResult(
+                                0,
+                                """[{"name":"open-webui","version":"0.6.5","latest_version":"0.6.6","latest_filetype":"wheel"}]""",
+                                string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                openWebUiInstallDirectoryResolver: () => installDirectory);
+
+            var statuses = await service.GetPackageStatusesAsync(["OpenWebUI.OpenWebUI"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeTrue();
+            statuses[0].StatusText.Should().Be("Update available");
         }
         finally
         {
@@ -325,7 +480,80 @@ public sealed class WindowsWingetInstallerServiceTests
 
             var service = new WindowsWingetInstallerService(
                 CreateRunner(),
-                ryubingRyujinxInstallDirectoryResolver: () => installDirectory);
+                ryubingRyujinxInstallDirectoryResolver: () => installDirectory,
+                ryubingRyujinxReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(null));
+
+            var statuses = await service.GetPackageStatusesAsync(["Ryubing.Ryujinx"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeFalse();
+            statuses[0].StatusText.Should().Be("Installed (custom)");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldMarkRyubingRyujinxAsUpgradeableWhenReleaseMarkerDiffers()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "Ryujinx.exe"), string.Empty);
+            File.WriteAllText(
+                Path.Combine(installDirectory, ".multitool-installed-release.txt"),
+                "https://git.ryujinx.app/api/v4/projects/1/packages/generic/Ryubing/1.3.3/ryujinx-1.3.3-win_x64.zip");
+
+            var service = new WindowsWingetInstallerService(
+                CreateRunner(),
+                ryubingRyujinxInstallDirectoryResolver: () => installDirectory,
+                ryubingRyujinxReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "ryujinx-1.3.4-win_x64.zip",
+                    "https://git.ryujinx.app/api/v4/projects/1/packages/generic/Ryubing/1.3.4/ryujinx-1.3.4-win_x64.zip")));
+
+            var statuses = await service.GetPackageStatusesAsync(["Ryubing.Ryujinx"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeTrue();
+            statuses[0].StatusText.Should().Be("Update available");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldKeepRyubingRyujinxAsInstalledWhenReleaseMarkerMatches()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "Ryujinx.exe"), string.Empty);
+            File.WriteAllText(
+                Path.Combine(installDirectory, ".multitool-installed-release.txt"),
+                "https://git.ryujinx.app/api/v4/projects/1/packages/generic/Ryubing/1.3.4/ryujinx-1.3.4-win_x64.zip");
+
+            var service = new WindowsWingetInstallerService(
+                CreateRunner(),
+                ryubingRyujinxInstallDirectoryResolver: () => installDirectory,
+                ryubingRyujinxReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "ryujinx-1.3.4-win_x64.zip",
+                    "https://git.ryujinx.app/api/v4/projects/1/packages/generic/Ryubing/1.3.4/ryujinx-1.3.4-win_x64.zip")));
 
             var statuses = await service.GetPackageStatusesAsync(["Ryubing.Ryujinx"]);
 
@@ -355,7 +583,80 @@ public sealed class WindowsWingetInstallerServiceTests
 
             var service = new WindowsWingetInstallerService(
                 CreateRunner(),
-                azaharInstallDirectoryResolver: () => installDirectory);
+                azaharInstallDirectoryResolver: () => installDirectory,
+                azaharReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(null));
+
+            var statuses = await service.GetPackageStatusesAsync(["AzaharEmu.Azahar"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeFalse();
+            statuses[0].StatusText.Should().Be("Installed (custom)");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldMarkAzaharAsUpgradeableWhenReleaseMarkerDiffers()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "azahar.exe"), string.Empty);
+            File.WriteAllText(
+                Path.Combine(installDirectory, ".multitool-installed-release.txt"),
+                "https://github.com/azahar-emu/azahar/releases/download/2124.3/azahar-2124.3-windows-msys2.zip");
+
+            var service = new WindowsWingetInstallerService(
+                CreateRunner(),
+                azaharInstallDirectoryResolver: () => installDirectory,
+                azaharReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "azahar-2124.4-windows-msys2.zip",
+                    "https://github.com/azahar-emu/azahar/releases/download/2124.4/azahar-2124.4-windows-msys2.zip")));
+
+            var statuses = await service.GetPackageStatusesAsync(["AzaharEmu.Azahar"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeTrue();
+            statuses[0].StatusText.Should().Be("Update available");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldKeepAzaharAsInstalledWhenReleaseMarkerMatches()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "azahar.exe"), string.Empty);
+            File.WriteAllText(
+                Path.Combine(installDirectory, ".multitool-installed-release.txt"),
+                "https://github.com/azahar-emu/azahar/releases/download/2124.4/azahar-2124.4-windows-msys2.zip");
+
+            var service = new WindowsWingetInstallerService(
+                CreateRunner(),
+                azaharInstallDirectoryResolver: () => installDirectory,
+                azaharReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "azahar-2124.4-windows-msys2.zip",
+                    "https://github.com/azahar-emu/azahar/releases/download/2124.4/azahar-2124.4-windows-msys2.zip")));
 
             var statuses = await service.GetPackageStatusesAsync(["AzaharEmu.Azahar"]);
 
@@ -381,10 +682,13 @@ public sealed class WindowsWingetInstallerServiceTests
         try
         {
             File.WriteAllText(executablePath, string.Empty);
+            var workingDirectory = Path.GetDirectoryName(executablePath)!;
 
             var service = new WindowsWingetInstallerService(
                 CreateRunner(),
-                macriumReflectExecutableResolver: () => executablePath);
+                macriumReflectWorkingDirectoryResolver: () => workingDirectory,
+                macriumReflectExecutableResolver: () => executablePath,
+                macriumReflectReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(null));
 
             var statuses = await service.GetPackageStatusesAsync(["Macrium.Reflect"]);
 
@@ -404,6 +708,80 @@ public sealed class WindowsWingetInstallerServiceTests
     }
 
     [Fact]
+    public async Task GetPackageStatusesAsync_ShouldMarkMacriumReflectAsUpgradeableWhenReleaseMarkerDiffers()
+    {
+        var workingDirectory = CreateTemporaryDirectory();
+        var executablePath = Path.Combine(workingDirectory, "ReflectBin.exe");
+
+        try
+        {
+            File.WriteAllText(executablePath, string.Empty);
+            File.WriteAllText(
+                Path.Combine(workingDirectory, ".multitool-installed-release.txt"),
+                "https://download.macrium.com/reflect/v10/v10.0.8750/reflect_home_setup_x64.exe");
+
+            var service = new WindowsWingetInstallerService(
+                CreateRunner(),
+                macriumReflectWorkingDirectoryResolver: () => workingDirectory,
+                macriumReflectExecutableResolver: () => executablePath,
+                macriumReflectReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "reflect_home_setup_x64.exe",
+                    "https://download.macrium.com/reflect/v10/v10.0.8751/reflect_home_setup_x64.exe")));
+
+            var statuses = await service.GetPackageStatusesAsync(["Macrium.Reflect"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeTrue();
+            statuses[0].StatusText.Should().Be("Update available");
+        }
+        finally
+        {
+            if (Directory.Exists(workingDirectory))
+            {
+                Directory.Delete(workingDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldKeepMacriumReflectAsInstalledWhenReleaseMarkerMatches()
+    {
+        var workingDirectory = CreateTemporaryDirectory();
+        var executablePath = Path.Combine(workingDirectory, "ReflectBin.exe");
+
+        try
+        {
+            File.WriteAllText(executablePath, string.Empty);
+            File.WriteAllText(
+                Path.Combine(workingDirectory, ".multitool-installed-release.txt"),
+                "https://download.macrium.com/reflect/v10/v10.0.8751/reflect_home_setup_x64.exe");
+
+            var service = new WindowsWingetInstallerService(
+                CreateRunner(),
+                macriumReflectWorkingDirectoryResolver: () => workingDirectory,
+                macriumReflectExecutableResolver: () => executablePath,
+                macriumReflectReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "reflect_home_setup_x64.exe",
+                    "https://download.macrium.com/reflect/v10/v10.0.8751/reflect_home_setup_x64.exe")));
+
+            var statuses = await service.GetPackageStatusesAsync(["Macrium.Reflect"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeFalse();
+            statuses[0].StatusText.Should().Be("Installed (custom)");
+        }
+        finally
+        {
+            if (Directory.Exists(workingDirectory))
+            {
+                Directory.Delete(workingDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task GetPackageStatusesAsync_ShouldMarkRpcs3AsInstalledWhenExecutableExists()
     {
         var installDirectory = CreateTemporaryDirectory();
@@ -415,7 +793,80 @@ public sealed class WindowsWingetInstallerServiceTests
 
             var service = new WindowsWingetInstallerService(
                 CreateRunner(),
-                rpcs3InstallDirectoryResolver: () => installDirectory);
+                rpcs3InstallDirectoryResolver: () => installDirectory,
+                rpcs3ReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(null));
+
+            var statuses = await service.GetPackageStatusesAsync(["RPCS3.RPCS3"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeFalse();
+            statuses[0].StatusText.Should().Be("Installed (custom)");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldMarkRpcs3AsUpgradeableWhenReleaseMarkerDiffers()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "rpcs3.exe"), string.Empty);
+            File.WriteAllText(
+                Path.Combine(installDirectory, ".multitool-installed-release.txt"),
+                "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-123/rpcs3-v0.0.40-18950-16277576_win64_msvc.7z");
+
+            var service = new WindowsWingetInstallerService(
+                CreateRunner(),
+                rpcs3InstallDirectoryResolver: () => installDirectory,
+                rpcs3ReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z",
+                    "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-124/rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z")));
+
+            var statuses = await service.GetPackageStatusesAsync(["RPCS3.RPCS3"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeTrue();
+            statuses[0].StatusText.Should().Be("Update available");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldKeepRpcs3AsInstalledWhenReleaseMarkerMatches()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "rpcs3.exe"), string.Empty);
+            File.WriteAllText(
+                Path.Combine(installDirectory, ".multitool-installed-release.txt"),
+                "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-124/rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z");
+
+            var service = new WindowsWingetInstallerService(
+                CreateRunner(),
+                rpcs3InstallDirectoryResolver: () => installDirectory,
+                rpcs3ReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z",
+                    "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-124/rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z")));
 
             var statuses = await service.GetPackageStatusesAsync(["RPCS3.RPCS3"]);
 
@@ -448,6 +899,182 @@ public sealed class WindowsWingetInstallerServiceTests
         statuses.Should().ContainEquivalentOf(new { PackageId = "Git.Git", IsInstalled = true, HasUpdateAvailable = true, StatusText = "Update available" });
         statuses.Should().ContainEquivalentOf(new { PackageId = "Mozilla.Firefox", IsInstalled = true, HasUpdateAvailable = false, StatusText = "Installed" });
         statuses.Should().ContainEquivalentOf(new { PackageId = "Google.Chrome", IsInstalled = false, HasUpdateAvailable = false, StatusText = "Not installed" });
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldMarkFirefoxAsInstalledWhenWingetMissesButLocalInstallExists()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            File.WriteAllText(Path.Combine(installDirectory, "firefox.exe"), "stub");
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    var result = startInfo.Arguments switch
+                    {
+                        "--version" => new InstallerCommandResult(0, "v1.28.220", string.Empty),
+                        "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                            0,
+                            """
+                            Name    Id       Version  Source
+                            --------------------------------
+                            Git     Git.Git  2.53.0   winget
+                            """,
+                            string.Empty),
+                        "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                            0,
+                            """
+                            Name  Id       Version  Available  Source
+                            -----------------------------------------
+                            Git   Git.Git  2.53.0   2.53.0.2   winget
+                            """,
+                            string.Empty),
+                        _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                    };
+
+                    return Task.FromResult(result);
+                },
+                firefoxInstallDirectoryResolver: () => installDirectory);
+
+            var statuses = await service.GetPackageStatusesAsync(["Mozilla.Firefox"]);
+
+            statuses.Should().ContainSingle();
+            statuses[0].IsInstalled.Should().BeTrue();
+            statuses[0].HasUpdateAvailable.Should().BeFalse();
+            statuses[0].StatusText.Should().Be("Installed (detected locally)");
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldMatchArpAndMsixEntriesByDisplayName()
+    {
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                var result = startInfo.Arguments switch
+                {
+                    "--version" => new InstallerCommandResult(0, "v1.28.220", string.Empty),
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name                        Id                                               Version
+                        -------------------------------------------------------------------------------
+                        Git                         ARP\Machine\X64\Git_is1                           2.52.0
+                        Discord                     ARP\User\X64\Discord                              1.0.9228
+                        Everything 1.4.1.1032 (x86) ARP\Machine\X86\Everything                        1.4.1.1032
+                        Dolby Access                MSIX\DolbyLaboratories.DolbyAccess_123            3.27.7470.0
+                        Outlook for Windows         MSIX\Microsoft.OutlookForWindows_123              1.2026.225.400
+                        """,
+                        string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name        Id                      Version Available Source
+                        ------------------------------------------------------------
+                        qBittorrent qBittorrent.qBittorrent 5.1.2   5.1.4     winget
+                        """,
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            localPackageStatusResolver: _ => null);
+
+        var statuses = await service.GetPackageStatusesAsync(
+            [
+                "Git.Git",
+                "Discord.Discord",
+                "voidtools.Everything",
+                "9N0866FS04W8",
+                "9NRX63209R7B",
+                "qBittorrent.qBittorrent",
+            ]);
+
+        statuses.Should().ContainEquivalentOf(new { PackageId = "Git.Git", IsInstalled = true, HasUpdateAvailable = false, StatusText = "Installed" });
+        statuses.Should().ContainEquivalentOf(new { PackageId = "Discord.Discord", IsInstalled = true, HasUpdateAvailable = false, StatusText = "Installed" });
+        statuses.Should().ContainEquivalentOf(new { PackageId = "voidtools.Everything", IsInstalled = true, HasUpdateAvailable = false, StatusText = "Installed" });
+        statuses.Should().ContainEquivalentOf(new { PackageId = "9N0866FS04W8", IsInstalled = true, HasUpdateAvailable = false, StatusText = "Installed" });
+        statuses.Should().ContainEquivalentOf(new { PackageId = "9NRX63209R7B", IsInstalled = true, HasUpdateAvailable = false, StatusText = "Installed" });
+        statuses.Should().ContainEquivalentOf(new { PackageId = "qBittorrent.qBittorrent", IsInstalled = true, HasUpdateAvailable = true, StatusText = "Update available" });
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldNotConfuseEverythingWithDateEverything()
+    {
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                var result = startInfo.Arguments switch
+                {
+                    "--version" => new InstallerCommandResult(0, "v1.28.220", string.Empty),
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name                    Id                                  Version
+                        -------------------------------------------------------------------
+                        Date Everything!        ARP\Machine\X64\Steam App 2201320   Unknown
+                        """,
+                        string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name Id Version Available Source
+                        --------------------------------
+                        """,
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            localPackageStatusResolver: _ => null);
+
+        var statuses = await service.GetPackageStatusesAsync(["voidtools.Everything"]);
+
+        statuses.Should().ContainSingle();
+        statuses[0].IsInstalled.Should().BeFalse();
+        statuses[0].HasUpdateAvailable.Should().BeFalse();
+        statuses[0].StatusText.Should().Be("Not installed");
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldUseLocalFallbackForManualTorAndVencordInstalls()
+    {
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                var result = startInfo.Arguments switch
+                {
+                    "--version" => new InstallerCommandResult(0, "v1.28.220", string.Empty),
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(0, "Name Id Version Source", string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(0, "Name Id Version Available Source", string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            localPackageStatusResolver: packageId =>
+                packageId switch
+                {
+                    "TorProject.TorBrowser" => new InstallerPackageStatus(packageId, true, false, "Installed (detected locally)"),
+                    "Vendicated.Vencord" => new InstallerPackageStatus(packageId, true, false, "Installed (detected locally)"),
+                    _ => null,
+                });
+
+        var statuses = await service.GetPackageStatusesAsync(["TorProject.TorBrowser", "Vendicated.Vencord"]);
+
+        statuses.Should().ContainEquivalentOf(new { PackageId = "TorProject.TorBrowser", IsInstalled = true, HasUpdateAvailable = false, StatusText = "Installed (detected locally)" });
+        statuses.Should().ContainEquivalentOf(new { PackageId = "Vendicated.Vencord", IsInstalled = true, HasUpdateAvailable = false, StatusText = "Installed (detected locally)" });
     }
 
     [Fact]
@@ -490,6 +1117,86 @@ public sealed class WindowsWingetInstallerServiceTests
     }
 
     [Fact]
+    public async Task InstallPackagesAsync_ShouldSkipInstalledWingetPackageBeforeRunningInstall()
+    {
+        var commands = new List<string>();
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                commands.Add(startInfo.Arguments);
+
+                var result = startInfo.Arguments switch
+                {
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name  Id       Version Source
+                        --------------------------------
+                        Git   Git.Git  2.53.0  winget
+                        """,
+                        string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name  Id       Version  Available  Source
+                        -----------------------------------------
+                        Git   Git.Git  2.53.0   2.53.0.2   winget
+                        """,
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            localPackageStatusResolver: _ => null);
+
+        var results = await service.InstallPackagesAsync(["Git.Git"]);
+
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeTrue();
+        results[0].Changed.Should().BeFalse();
+        results[0].Message.Should().Be("Already installed. Use Update to upgrade.");
+        commands.Should().NotContain(argument => argument.StartsWith("install ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task InstallPackagesAsync_ShouldSkipInstalledCustomPackageBeforeRunningInstall()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+        var commands = new List<string>();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "webui-user.bat"), "@echo off");
+            File.WriteAllText(Path.Combine(installDirectory, "webui.bat"), "@echo off");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add($"{startInfo.FileName} {startInfo.Arguments}".Trim());
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                automatic1111InstallDirectoryResolver: () => installDirectory);
+
+            var results = await service.InstallPackagesAsync(["AUTOMATIC1111.StableDiffusionWebUI"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            results[0].Changed.Should().BeFalse();
+            results[0].Message.Should().Be("Already installed. Skipped.");
+            commands.Should().BeEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task UpgradePackagesAsync_ShouldReportMissingInstall()
     {
         var service = new WindowsWingetInstallerService(CreateRunner());
@@ -503,6 +1210,151 @@ public sealed class WindowsWingetInstallerServiceTests
     }
 
     [Fact]
+    public async Task UpgradePackagesAsync_ShouldFallbackToOfficialSpotifyInstallerWhenWingetUpgradeFails()
+    {
+        var launchedInstallers = new List<(string FileName, string Arguments, bool PreferUnelevated)>();
+        var downloadedFiles = new List<(string Url, string DestinationPath)>();
+        var commandCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                commandCounts[startInfo.Arguments] = commandCounts.GetValueOrDefault(startInfo.Arguments) + 1;
+
+                var result = startInfo.Arguments switch
+                {
+                    "upgrade --exact --id \"Spotify.Spotify\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent" => new InstallerCommandResult(
+                        1,
+                        """
+                        Found Spotify [Spotify.Spotify] Version 1.2.85.513.g45f09625
+                        Downloading https://upgrade.scdn.co/upgrade/client/win32-x86_64/spotify_installer-1.2.85.513.g45f09625-3679.exe
+                        An unexpected error occurred while executing the command:
+                        Download request status is not success.
+                        0x80190193 : Forbidden (403).
+                        """,
+                        string.Empty),
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name     Id               Version  Source
+                        -----------------------------------------
+                        Spotify  Spotify.Spotify  1.2.85   winget
+                        """,
+                        string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name  Id  Version  Available  Source
+                        ------------------------------------
+                        """,
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            fileDownloader: (url, destinationPath, _) =>
+            {
+                downloadedFiles.Add((url, destinationPath));
+                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+                File.WriteAllText(destinationPath, "spotify");
+                return Task.CompletedTask;
+            },
+            installerExecutableLauncher: (startInfo, preferUnelevated, _) =>
+            {
+                launchedInstallers.Add((startInfo.FileName, startInfo.Arguments, preferUnelevated));
+                return Task.CompletedTask;
+            },
+            delayAsync: (_, _) => Task.CompletedTask,
+            localPackageStatusResolver: _ => null);
+
+        var results = await service.UpgradePackagesAsync(["Spotify.Spotify"]);
+
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeTrue();
+        results[0].Changed.Should().BeTrue();
+        results[0].Message.Should().Be("Updated successfully through Spotify's official installer fallback.");
+        downloadedFiles.Should().ContainSingle();
+        downloadedFiles[0].Url.Should().Be("https://download.scdn.co/SpotifySetup.exe");
+        launchedInstallers.Should().ContainSingle();
+        launchedInstallers[0].PreferUnelevated.Should().BeTrue();
+        launchedInstallers[0].FileName.Should().EndWith("SpotifySetup.exe");
+        launchedInstallers[0].Arguments.Should().Contain("/silent /skip-app-launch");
+        commandCounts["list --accept-source-agreements --disable-interactivity"].Should().Be(1);
+        commandCounts["list --upgrade-available --accept-source-agreements --disable-interactivity"].Should().Be(1);
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldSurfaceWingetDownloadFailureDetails()
+    {
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                var result = startInfo.Arguments switch
+                {
+                    "upgrade --exact --id \"Spotify.Spotify\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent" => new InstallerCommandResult(
+                        1,
+                        """
+                        Found Spotify [Spotify.Spotify] Version 1.2.85.513.g45f09625
+                        This application is licensed to you by its owner.
+                        Microsoft is not responsible for, nor does it grant any licenses to, third-party packages.
+                        Downloading https://upgrade.scdn.co/upgrade/client/win32-x86_64/spotify_installer.exe
+                        An unexpected error occurred while executing the command:
+                        Download request status is not success.
+                        0x80190193 : Forbidden (403).
+                        """,
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            fileDownloader: (_, _, _) => throw new InvalidOperationException("Fallback download blocked."),
+            localPackageStatusResolver: _ => null);
+
+        var results = await service.UpgradePackagesAsync(["Spotify.Spotify"]);
+
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeFalse();
+        results[0].Changed.Should().BeFalse();
+        results[0].Message.Should().Be("Spotify fallback download failed after winget failed: Download request status is not success. 0x80190193 : Forbidden (403). Direct installer error: Fallback download blocked.");
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldTreatWingetErrorOutputAsFailureEvenWhenExitCodeIsZero()
+    {
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                var result = startInfo.Arguments switch
+                {
+                    "upgrade --exact --id \"Spotify.Spotify\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent" => new InstallerCommandResult(
+                        0,
+                        """
+                        Found Spotify [Spotify.Spotify] Version 1.2.85.513.g45f09625
+                        Downloading https://upgrade.scdn.co/upgrade/client/win32-x86_64/spotify_installer.exe
+                        An unexpected error occurred while executing the command:
+                        Download request status is not success.
+                        0x80190193 : Forbidden (403).
+                        """,
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            fileDownloader: (_, _, _) => throw new InvalidOperationException("Fallback download blocked."),
+            localPackageStatusResolver: _ => null);
+
+        var results = await service.UpgradePackagesAsync(["Spotify.Spotify"]);
+
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeFalse();
+        results[0].Changed.Should().BeFalse();
+        results[0].Message.Should().Be("Spotify fallback download failed after winget failed: Download request status is not success. 0x80190193 : Forbidden (403). Direct installer error: Fallback download blocked.");
+    }
+
+    [Fact]
     public async Task InstallPackagesAsync_ShouldInstallDiscordBeforeVencord()
     {
         var commands = new List<string>();
@@ -510,15 +1362,33 @@ public sealed class WindowsWingetInstallerServiceTests
             (startInfo, _) =>
             {
                 commands.Add(startInfo.Arguments);
-                var packageId = startInfo.Arguments.Contains("Vendicated.Vencord", StringComparison.Ordinal)
-                    ? "Vendicated.Vencord"
-                    : "Discord.Discord";
-                return Task.FromResult(
-                    new InstallerCommandResult(
+
+                var result = startInfo.Arguments switch
+                {
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
                         0,
-                        $"Successfully installed {packageId}",
-                        string.Empty));
-            });
+                        """
+                        Name  Id  Version Source
+                        ------------------------
+                        """,
+                        string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name  Id  Version  Available  Source
+                        ------------------------------------
+                        """,
+                        string.Empty),
+                    _ =>
+                        new InstallerCommandResult(
+                            0,
+                            $"Successfully installed {(startInfo.Arguments.Contains("Vendicated.Vencord", StringComparison.Ordinal) ? "Vendicated.Vencord" : "Discord.Discord")}",
+                            string.Empty),
+                };
+
+                return Task.FromResult(result);
+            },
+            localPackageStatusResolver: _ => null);
 
         var results = await service.InstallPackagesAsync(["Vendicated.Vencord"]);
 
@@ -526,6 +1396,51 @@ public sealed class WindowsWingetInstallerServiceTests
             "install --exact --id \"Discord.Discord\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent",
             "install --exact --id \"Vendicated.Vencord\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent");
         results.Select(result => result.PackageId).Should().ContainInOrder("Discord.Discord", "Vendicated.Vencord");
+    }
+
+    [Fact]
+    public async Task InstallPackagesAsync_ShouldSkipAutoIncludedDependencyWhenAlreadyInstalled()
+    {
+        var commands = new List<string>();
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                commands.Add(startInfo.Arguments);
+
+                var result = startInfo.Arguments switch
+                {
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name     Id               Version Source
+                        ----------------------------------------
+                        Discord  Discord.Discord  1.0.0   winget
+                        """,
+                        string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name  Id  Version  Available  Source
+                        ------------------------------------
+                        """,
+                        string.Empty),
+                    "install --exact --id \"Vendicated.Vencord\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent" => new InstallerCommandResult(
+                        0,
+                        "Successfully installed Vendicated.Vencord",
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            localPackageStatusResolver: _ => null);
+
+        var results = await service.InstallPackagesAsync(["Vendicated.Vencord"]);
+
+        results.Should().ContainSingle();
+        results[0].PackageId.Should().Be("Vendicated.Vencord");
+        commands.Should().NotContain(argument => argument.Contains("\"Discord.Discord\"", StringComparison.Ordinal));
+        commands.Should().Contain("install --exact --id \"Vendicated.Vencord\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent");
     }
 
     [Fact]
@@ -841,6 +1756,8 @@ public sealed class WindowsWingetInstallerServiceTests
                 command.Arguments.Contains("launch-ryujinx-ryubing-multitool.bat", StringComparison.OrdinalIgnoreCase));
 
             File.Exists(Path.Combine(installDirectory, "Ryujinx.exe")).Should().BeTrue();
+            File.ReadAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"))
+                .Should().Be("https://git.ryujinx.app/api/v4/projects/1/packages/generic/Ryubing/1.3.3/ryujinx-1.3.3-win_x64.zip");
             var launcherPath = Path.Combine(installDirectory, "launch-ryujinx-ryubing-multitool.bat");
             File.Exists(launcherPath).Should().BeTrue();
             var launcherContents = File.ReadAllText(launcherPath);
@@ -912,6 +1829,8 @@ public sealed class WindowsWingetInstallerServiceTests
                 command.Arguments.Contains("launch-azahar-multitool.bat", StringComparison.OrdinalIgnoreCase));
 
             File.Exists(Path.Combine(installDirectory, "azahar.exe")).Should().BeTrue();
+            File.ReadAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"))
+                .Should().Be("https://github.com/azahar-emu/azahar/releases/download/2124.3/azahar-2124.3-windows-msys2.zip");
             var launcherPath = Path.Combine(installDirectory, "launch-azahar-multitool.bat");
             File.Exists(launcherPath).Should().BeTrue();
             var launcherContents = File.ReadAllText(launcherPath);
@@ -954,6 +1873,20 @@ public sealed class WindowsWingetInstallerServiceTests
 
                     var result = startInfo.Arguments switch
                     {
+                        "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                            0,
+                            """
+                            Name  Id  Version Source
+                            ------------------------
+                            """,
+                            string.Empty),
+                        "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                            0,
+                            """
+                            Name  Id  Version  Available  Source
+                            ------------------------------------
+                            """,
+                            string.Empty),
                         "install --exact --id \"Microsoft.VCRedist.2015+.x64\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent" =>
                             new InstallerCommandResult(0, "Successfully installed Microsoft.VCRedist.2015+.x64", string.Empty),
                         "install --exact --id \"7zip.7zip\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent" =>
@@ -996,6 +1929,8 @@ public sealed class WindowsWingetInstallerServiceTests
 
             var launcherPath = Path.Combine(installDirectory, "launch-rpcs3-multitool.bat");
             File.Exists(launcherPath).Should().BeTrue();
+            File.ReadAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"))
+                .Should().Be("https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-123/rpcs3-v0.0.40-18950-16277576_win64_msvc.7z");
             var launcherContents = File.ReadAllText(launcherPath);
             launcherContents.Should().Contain(@"start """" """);
             launcherContents.Should().Contain(Path.Combine(installDirectory, "rpcs3.exe"));
@@ -1010,25 +1945,478 @@ public sealed class WindowsWingetInstallerServiceTests
     }
 
     [Fact]
-    public async Task UpgradePackagesAsync_ShouldOpenGuidedUpdatePageForExternalEntries()
+    public async Task InstallPackagesAsync_ShouldSkipDetectedVisualCppDependencyForRpcs3()
     {
-        var openedTargets = new List<string>();
-        var service = new WindowsWingetInstallerService(
-            CreateRunner(),
-            (target, _) =>
+        var installDirectory = CreateTemporaryDirectory();
+        var commands = new List<(string FileName, string Arguments)>();
+
+        try
+        {
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add((startInfo.FileName, startInfo.Arguments));
+
+                    if (startInfo.Arguments == "list --accept-source-agreements --disable-interactivity")
+                    {
+                        return Task.FromResult(
+                            new InstallerCommandResult(
+                                0,
+                                """
+                                Name                           Id                              Version Source
+                                --------------------------------------------------------------------------------
+                                Visual C++ Redistributable     Microsoft.VCRedist.2015+.x64   14.42   winget
+                                """,
+                                string.Empty));
+                    }
+
+                    if (startInfo.Arguments == "list --upgrade-available --accept-source-agreements --disable-interactivity")
+                    {
+                        return Task.FromResult(
+                            new InstallerCommandResult(
+                                0,
+                                """
+                                Name  Id  Version  Available  Source
+                                ------------------------------------
+                                """,
+                                string.Empty));
+                    }
+
+                    if (startInfo.FileName.Equals(@"C:\Program Files\7-Zip\7z.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.StartsWith("x -y ", StringComparison.Ordinal))
+                    {
+                        File.WriteAllText(Path.Combine(installDirectory, "rpcs3.exe"), string.Empty);
+                        return Task.FromResult(new InstallerCommandResult(0, "Everything is Ok", string.Empty));
+                    }
+
+                    if (string.Equals(startInfo.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("launch-rpcs3-multitool.bat", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                rpcs3InstallDirectoryResolver: () => installDirectory,
+                sevenZipExecutableResolver: () => @"C:\Program Files\7-Zip\7z.exe",
+                rpcs3ReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "rpcs3-v0.0.40-18950-16277576_win64_msvc.7z",
+                    "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-123/rpcs3-v0.0.40-18950-16277576_win64_msvc.7z")),
+                fileDownloader: (_, destinationPath, _) =>
+                {
+                    File.WriteAllText(destinationPath, "fake archive");
+                    return Task.CompletedTask;
+                });
+
+            var results = await service.InstallPackagesAsync(["RPCS3.RPCS3"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            commands.Should().NotContain(command => command.Arguments.Contains("\"Microsoft.VCRedist.2015+.x64\"", StringComparison.Ordinal));
+            commands.Should().Contain(command =>
+                command.FileName.Equals(@"C:\Program Files\7-Zip\7z.exe", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
             {
-                openedTargets.Add(target);
-                return Task.CompletedTask;
-            });
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
 
-        var results = await service.UpgradePackagesAsync(["AUTOMATIC1111.StableDiffusionWebUI"]);
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldUpdateAutomatic1111FromExistingClone()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+        var commands = new List<(string FileName, string Arguments)>();
 
-        openedTargets.Should().ContainSingle()
-            .Which.Should().Be("https://github.com/AUTOMATIC1111/stable-diffusion-webui");
-        results.Should().ContainSingle();
-        results[0].Succeeded.Should().BeTrue();
-        results[0].Changed.Should().BeTrue();
-        results[0].Message.Should().Be("Opened the official update page.");
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "webui-user.bat"), "@echo off");
+            File.WriteAllText(Path.Combine(installDirectory, "webui.bat"), "@echo off");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add((startInfo.FileName, startInfo.Arguments));
+
+                    if (startInfo.FileName.Equals(@"C:\Program Files\Git\cmd\git.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains(" pull", StringComparison.Ordinal))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, "Updating 0123456..89abcde", string.Empty));
+                    }
+
+                    if (string.Equals(startInfo.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("launch-webui-multitool.bat", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                automatic1111InstallDirectoryResolver: () => installDirectory,
+                gitExecutableResolver: () => @"C:\Program Files\Git\cmd\git.exe",
+                python310ExecutableResolver: () => @"C:\Users\Test\AppData\Local\Programs\Python\Python310\python.exe");
+
+            var results = await service.UpgradePackagesAsync(["AUTOMATIC1111.StableDiffusionWebUI"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            results[0].Changed.Should().BeTrue();
+            results[0].Message.Should().Contain("Pulled the latest Stable Diffusion WebUI changes");
+            commands.Should().Contain(command =>
+                command.FileName.Equals(@"C:\Program Files\Git\cmd\git.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains(" pull", StringComparison.Ordinal));
+            commands.Should().Contain(command =>
+                string.Equals(command.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("launch-webui-multitool.bat", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldUpdateOpenWebUiInExistingVenv()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+        var venvPythonPath = Path.Combine(installDirectory, "venv", "Scripts", "python.exe");
+        var openWebUiExecutablePath = Path.Combine(installDirectory, "venv", "Scripts", "open-webui.exe");
+        var commands = new List<(string FileName, string Arguments)>();
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(venvPythonPath)!);
+            File.WriteAllText(venvPythonPath, string.Empty);
+            File.WriteAllText(openWebUiExecutablePath, string.Empty);
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add((startInfo.FileName, startInfo.Arguments));
+
+                    if (startInfo.FileName.Equals(venvPythonPath, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(startInfo.Arguments, "-m pip install -U open-webui", StringComparison.Ordinal))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, "Successfully installed open-webui-0.6.6", string.Empty));
+                    }
+
+                    if (string.Equals(startInfo.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("launch-open-webui-multitool.bat", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                openWebUiInstallDirectoryResolver: () => installDirectory);
+
+            var results = await service.UpgradePackagesAsync(["OpenWebUI.OpenWebUI"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            results[0].Changed.Should().BeTrue();
+            results[0].Message.Should().Contain("Updated Open WebUI");
+            commands.Should().Contain(command =>
+                command.FileName.Equals(venvPythonPath, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(command.Arguments, "-m pip install -U open-webui", StringComparison.Ordinal));
+            commands.Should().Contain(command =>
+                string.Equals(command.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("launch-open-webui-multitool.bat", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldUpdateRyubingRyujinxInPlace()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+        var commands = new List<(string FileName, string Arguments)>();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "Ryujinx.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"), "old-release");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add((startInfo.FileName, startInfo.Arguments));
+
+                    if (string.Equals(startInfo.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("launch-ryujinx-ryubing-multitool.bat", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                ryubingRyujinxInstallDirectoryResolver: () => installDirectory,
+                ryubingRyujinxReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "ryujinx-1.3.4-win_x64.zip",
+                    "https://git.ryujinx.app/api/v4/projects/1/packages/generic/Ryubing/1.3.4/ryujinx-1.3.4-win_x64.zip")),
+                fileDownloader: (_, destinationPath, _) =>
+                {
+                    CreateZipArchiveWithFiles(destinationPath, ("Ryujinx.exe", string.Empty));
+                    return Task.CompletedTask;
+                });
+
+            var results = await service.UpgradePackagesAsync(["Ryubing.Ryujinx"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            results[0].Changed.Should().BeTrue();
+            results[0].Message.Should().Contain("Updated Ryujinx (Ryubing)");
+            File.ReadAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"))
+                .Should().Be("https://git.ryujinx.app/api/v4/projects/1/packages/generic/Ryubing/1.3.4/ryujinx-1.3.4-win_x64.zip");
+            commands.Should().ContainSingle(command =>
+                string.Equals(command.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("launch-ryujinx-ryubing-multitool.bat", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldUpdateAzaharInPlace()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+        var commands = new List<(string FileName, string Arguments)>();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "azahar.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"), "old-release");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add((startInfo.FileName, startInfo.Arguments));
+
+                    if (string.Equals(startInfo.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("launch-azahar-multitool.bat", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                azaharInstallDirectoryResolver: () => installDirectory,
+                azaharReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "azahar-2124.4-windows-msys2.zip",
+                    "https://github.com/azahar-emu/azahar/releases/download/2124.4/azahar-2124.4-windows-msys2.zip")),
+                fileDownloader: (_, destinationPath, _) =>
+                {
+                    CreateZipArchiveWithFiles(destinationPath, ("azahar.exe", string.Empty));
+                    return Task.CompletedTask;
+                });
+
+            var results = await service.UpgradePackagesAsync(["AzaharEmu.Azahar"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            results[0].Changed.Should().BeTrue();
+            results[0].Message.Should().Contain("Updated Lime3DS (Azahar)");
+            File.ReadAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"))
+                .Should().Be("https://github.com/azahar-emu/azahar/releases/download/2124.4/azahar-2124.4-windows-msys2.zip");
+            commands.Should().ContainSingle(command =>
+                string.Equals(command.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("launch-azahar-multitool.bat", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldUpdateMacriumReflectSilentlyWithLatestInstaller()
+    {
+        var workingDirectory = CreateTemporaryDirectory();
+        var installedExecutablePath = Path.Combine(workingDirectory, "ReflectBin.exe");
+        var commands = new List<(string FileName, string Arguments)>();
+
+        try
+        {
+            File.WriteAllText(installedExecutablePath, string.Empty);
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add((startInfo.FileName, startInfo.Arguments));
+
+                    if (string.Equals(startInfo.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("reflect_home_setup_x64.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("/qn", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("/norestart", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("macrium-reflect-update.log", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                macriumReflectWorkingDirectoryResolver: () => workingDirectory,
+                macriumReflectExecutableResolver: () => installedExecutablePath,
+                macriumReflectReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "reflect_home_setup_x64.exe",
+                    "https://download.macrium.com/reflect/v10/v10.0.8751/reflect_home_setup_x64.exe")),
+                fileDownloader: (_, destinationPath, _) =>
+                {
+                    File.WriteAllText(destinationPath, "fake installer");
+                    return Task.CompletedTask;
+                });
+
+            var results = await service.UpgradePackagesAsync(["Macrium.Reflect"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            results[0].Changed.Should().BeTrue();
+            results[0].Message.Should().Be("Updated Macrium Reflect silently with the latest installer.");
+            File.Exists(Path.Combine(workingDirectory, "downloads", "reflect_home_setup_x64.exe")).Should().BeTrue();
+            File.ReadAllText(Path.Combine(workingDirectory, ".multitool-installed-release.txt"))
+                .Should().Be("https://download.macrium.com/reflect/v10/v10.0.8751/reflect_home_setup_x64.exe");
+            commands.Should().ContainSingle(command =>
+                string.Equals(command.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("reflect_home_setup_x64.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("/qn", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("/norestart", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("macrium-reflect-update.log", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(workingDirectory))
+            {
+                Directory.Delete(workingDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldSkipMacriumReflectWhenLatestInstallerMarkerMatches()
+    {
+        var workingDirectory = CreateTemporaryDirectory();
+        var installedExecutablePath = Path.Combine(workingDirectory, "ReflectBin.exe");
+
+        try
+        {
+            File.WriteAllText(installedExecutablePath, string.Empty);
+            File.WriteAllText(
+                Path.Combine(workingDirectory, ".multitool-installed-release.txt"),
+                "https://download.macrium.com/reflect/v10/v10.0.8751/reflect_home_setup_x64.exe");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                macriumReflectWorkingDirectoryResolver: () => workingDirectory,
+                macriumReflectExecutableResolver: () => installedExecutablePath,
+                macriumReflectReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "reflect_home_setup_x64.exe",
+                    "https://download.macrium.com/reflect/v10/v10.0.8751/reflect_home_setup_x64.exe")),
+                fileDownloader: (_, _, _) => throw new InvalidOperationException("The installer should not be downloaded when the latest release marker already matches."));
+
+            var results = await service.UpgradePackagesAsync(["Macrium.Reflect"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            results[0].Changed.Should().BeFalse();
+            results[0].Message.Should().Be("Already up to date.");
+        }
+        finally
+        {
+            if (Directory.Exists(workingDirectory))
+            {
+                Directory.Delete(workingDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldUpdateRpcs3InPlace()
+    {
+        var installDirectory = CreateTemporaryDirectory();
+        var commands = new List<(string FileName, string Arguments)>();
+
+        try
+        {
+            Directory.CreateDirectory(installDirectory);
+            File.WriteAllText(Path.Combine(installDirectory, "rpcs3.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"), "old-release");
+
+            var service = new WindowsWingetInstallerService(
+                (startInfo, _) =>
+                {
+                    commands.Add((startInfo.FileName, startInfo.Arguments));
+
+                    if (startInfo.FileName.Equals(@"C:\Program Files\7-Zip\7z.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.StartsWith("x -y ", StringComparison.Ordinal))
+                    {
+                        File.WriteAllText(Path.Combine(installDirectory, "rpcs3.exe"), string.Empty);
+                        return Task.FromResult(new InstallerCommandResult(0, "Everything is Ok", string.Empty));
+                    }
+
+                    if (string.Equals(startInfo.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                        && startInfo.Arguments.Contains("launch-rpcs3-multitool.bat", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new InstallerCommandResult(0, string.Empty, string.Empty));
+                    }
+
+                    throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}");
+                },
+                rpcs3InstallDirectoryResolver: () => installDirectory,
+                sevenZipExecutableResolver: () => @"C:\Program Files\7-Zip\7z.exe",
+                rpcs3ReleaseResolver: _ => Task.FromResult<InstallerReleaseAsset?>(new InstallerReleaseAsset(
+                    "rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z",
+                    "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-124/rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z")),
+                fileDownloader: (_, destinationPath, _) =>
+                {
+                    File.WriteAllText(destinationPath, "fake archive");
+                    return Task.CompletedTask;
+                });
+
+            var results = await service.UpgradePackagesAsync(["RPCS3.RPCS3"]);
+
+            results.Should().ContainSingle();
+            results[0].Succeeded.Should().BeTrue();
+            results[0].Changed.Should().BeTrue();
+            results[0].Message.Should().Contain("Updated RPCS3");
+            File.ReadAllText(Path.Combine(installDirectory, ".multitool-installed-release.txt"))
+                .Should().Be("https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-124/rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z");
+            commands.Should().Contain(command =>
+                command.FileName.Equals(@"C:\Program Files\7-Zip\7z.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("rpcs3-v0.0.41-19000-abcdef12_win64_msvc.7z", StringComparison.Ordinal));
+            commands.Should().Contain(command =>
+                string.Equals(command.FileName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                && command.Arguments.Contains("launch-rpcs3-multitool.bat", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(installDirectory))
+            {
+                Directory.Delete(installDirectory, true);
+            }
+        }
     }
 
     private static InstallerCommandRunner CreateRunner() =>
@@ -1078,5 +2466,34 @@ public sealed class WindowsWingetInstallerServiceTests
         var path = Path.Combine(Path.GetTempPath(), "AutoClicker.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private static void CreateZipArchiveWithFiles(string destinationPath, params (string RelativePath, string Contents)[] files)
+    {
+        var tempSourceDirectory = CreateTemporaryDirectory();
+
+        try
+        {
+            foreach (var (relativePath, contents) in files)
+            {
+                var fullPath = Path.Combine(tempSourceDirectory, relativePath);
+                var parentDirectory = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrWhiteSpace(parentDirectory))
+                {
+                    Directory.CreateDirectory(parentDirectory);
+                }
+
+                File.WriteAllText(fullPath, contents);
+            }
+
+            System.IO.Compression.ZipFile.CreateFromDirectory(tempSourceDirectory, destinationPath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempSourceDirectory))
+            {
+                Directory.Delete(tempSourceDirectory, true);
+            }
+        }
     }
 }

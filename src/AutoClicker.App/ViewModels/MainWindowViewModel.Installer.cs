@@ -46,6 +46,18 @@ public partial class MainWindowViewModel
     private bool isInstallerBusy;
 
     [ObservableProperty]
+    private bool isInstallerProgressVisible;
+
+    [ObservableProperty]
+    private int installerProgressValue;
+
+    [ObservableProperty]
+    private int installerProgressMaximum = 1;
+
+    [ObservableProperty]
+    private string installerProgressText = string.Empty;
+
+    [ObservableProperty]
     private bool isWingetAvailable;
 
     [ObservableProperty]
@@ -314,7 +326,7 @@ public partial class MainWindowViewModel
 
     private bool CanInstallSelectedPackages =>
         !IsInstallerBusy
-        && InstallerPackages.Any(item => item.IsSelected && (IsWingetAvailable || item.UsesGuidedInstall));
+        && InstallerPackages.Any(item => item.IsSelected && (IsWingetAvailable || item.CanInstallWithoutWinget));
 
     [RelayCommand(CanExecute = nameof(CanInstallSelectedPackages))]
     private async Task InstallSelectedPackagesAsync()
@@ -325,14 +337,14 @@ public partial class MainWindowViewModel
             packageIds => installerService.InstallPackagesAsync(packageIds),
             requireInstalledSelection: false,
             syncFirefoxExtensions: true,
-            canRunWithoutWinget: item => item.UsesGuidedInstall);
+            canRunWithoutWinget: item => item.CanInstallWithoutWinget);
     }
 
     private bool CanUpgradeSelectedPackages =>
         !IsInstallerBusy
         && InstallerPackages.Any(
             item => item.IsSelected
-                && ((IsWingetAvailable && item.IsInstalled) || item.UsesGuidedUpdate));
+                && ((IsWingetAvailable && item.IsInstalled) || (item.IsInstalled && item.CanUpdateWithoutWinget)));
 
     [RelayCommand(CanExecute = nameof(CanUpgradeSelectedPackages))]
     private async Task UpgradeSelectedPackagesAsync()
@@ -343,7 +355,74 @@ public partial class MainWindowViewModel
             packageIds => installerService.UpgradePackagesAsync(packageIds),
             requireInstalledSelection: true,
             syncFirefoxExtensions: false,
-            canRunWithoutWinget: item => item.UsesGuidedUpdate);
+            canRunWithoutWinget: item => item.IsInstalled && item.CanUpdateWithoutWinget);
+    }
+
+    private bool CanUpgradeAllInstalledPackages =>
+        !IsInstallerBusy
+        && InstallerPackages.Any(item => item.IsInstalled && item.HasUpdateAvailable && (IsWingetAvailable || item.CanUpdateWithoutWinget));
+
+    [RelayCommand(CanExecute = nameof(CanUpgradeAllInstalledPackages))]
+    private async Task UpgradeAllInstalledPackagesAsync()
+    {
+        await RefreshInstallerStatusCoreAsync(addLogEntry: false);
+
+        var installedPackages = InstallerPackages
+            .Where(item => item.IsInstalled && item.HasUpdateAvailable && (IsWingetAvailable || item.CanUpdateWithoutWinget))
+            .ToArray();
+
+        if (installedPackages.Length == 0)
+        {
+            InstallerStatusMessage = "There are no apps with updates ready.";
+            AddInstallerLog(InstallerStatusMessage);
+            return;
+        }
+
+        IsInstallerBusy = true;
+        StartInstallerProgress(installedPackages.Length, $"Preparing updates for {installedPackages.Length} app{(installedPackages.Length == 1 ? string.Empty : "s")}...");
+        InstallerStatusMessage = $"Running update for {installedPackages.Length} app{(installedPackages.Length == 1 ? string.Empty : "s")}...";
+        AddInstallerLog(InstallerStatusMessage);
+
+        try
+        {
+            var results = new List<InstallerOperationResult>();
+
+            for (var index = 0; index < installedPackages.Length; index++)
+            {
+                var package = installedPackages[index];
+                UpdateInstallerProgress(index, installedPackages.Length, package.DisplayName);
+                package.StatusText = $"Updating ({index + 1}/{installedPackages.Length})...";
+
+                var packageResults = await installerService.UpgradePackagesAsync([package.PackageId]);
+                results.AddRange(packageResults);
+
+                foreach (var result in packageResults)
+                {
+                    AddInstallerLog($"{result.DisplayName}: {result.Message}");
+                }
+
+                InstallerProgressValue = index + 1;
+            }
+
+            var changedCount = results.Count(result => result.Succeeded && result.Changed);
+            var unchangedCount = results.Count(result => result.Succeeded && !result.Changed);
+            var failedCount = results.Count(result => !result.Succeeded);
+            var completionMessage = $"{changedCount} updated, {unchangedCount} already current, {failedCount} failed.";
+
+            InstallerProgressText = $"Completed {installedPackages.Length}/{installedPackages.Length} updates.";
+            await RefreshInstallerStatusCoreAsync(addLogEntry: false);
+            InstallerStatusMessage = completionMessage;
+        }
+        catch (Exception ex)
+        {
+            InstallerStatusMessage = $"Installer update failed: {ex.Message}";
+            AddInstallerLog(InstallerStatusMessage);
+        }
+        finally
+        {
+            ResetInstallerProgress();
+            IsInstallerBusy = false;
+        }
     }
 
     private bool CanUninstallSelectedCleanupPackages => IsWingetAvailable && !IsInstallerBusy && CleanupPackages.Any(item => item.IsSelected && item.IsInstalled);
@@ -398,20 +477,22 @@ public partial class MainWindowViewModel
         Func<IReadOnlyList<string>, Task<IReadOnlyList<InstallerOperationResult>>> runBatchAsync,
         bool requireInstalledSelection,
         bool syncFirefoxExtensions,
-        Func<InstallerPackageItem, bool>? canRunWithoutWinget = null)
+        Func<InstallerPackageItem, bool>? canRunWithoutWinget = null,
+        Func<InstallerPackageItem, bool>? packageFilter = null)
     {
-        canRunWithoutWinget ??= item => item.UsesGuidedInstall || item.UsesGuidedUpdate;
+        canRunWithoutWinget ??= item => item.CanInstallWithoutWinget || item.CanUpdateWithoutWinget;
+        packageFilter ??= item => item.IsSelected;
         var selectedPackages = InstallerPackages
             .Where(
-                item => item.IsSelected
+                item => packageFilter(item)
                     && (IsWingetAvailable || canRunWithoutWinget(item))
-                    && (!requireInstalledSelection || item.IsInstalled || item.UsesGuidedUpdate))
+                    && (!requireInstalledSelection || item.IsInstalled))
             .ToArray();
 
         if (selectedPackages.Length == 0)
         {
             InstallerStatusMessage = requireInstalledSelection
-                ? "Select at least one installed or guided-update app first."
+                ? "There are no installed apps ready to update."
                 : "Select at least one app first.";
             AddInstallerLog(InstallerStatusMessage);
             return;
@@ -442,7 +523,16 @@ public partial class MainWindowViewModel
             var failedCount = results.Count(result => !result.Succeeded);
             var firefoxSummarySuffix = BuildSupplementalResultSummary(firefoxExtensionResults, "Firefox add-ons");
 
-            InstallerStatusMessage = $"{changedCount} {changedLabel}, {unchangedCount} already current, {failedCount} failed.{firefoxSummarySuffix}";
+            if (results.Count == 1 && failedCount == 1 && changedCount == 0 && unchangedCount == 0)
+            {
+                var failedResult = results[0];
+                InstallerStatusMessage = $"{failedResult.DisplayName}: {failedResult.Message}{firefoxSummarySuffix}";
+            }
+            else
+            {
+                InstallerStatusMessage = $"{changedCount} {changedLabel}, {unchangedCount} already current, {failedCount} failed.{firefoxSummarySuffix}";
+            }
+
             await RefreshInstallerStatusCoreAsync(addLogEntry: false);
         }
         catch (Exception ex)
@@ -549,7 +639,31 @@ public partial class MainWindowViewModel
         ClearCleanupSelectionCommand.NotifyCanExecuteChanged();
         InstallSelectedPackagesCommand.NotifyCanExecuteChanged();
         UpgradeSelectedPackagesCommand.NotifyCanExecuteChanged();
+        UpgradeAllInstalledPackagesCommand.NotifyCanExecuteChanged();
         UninstallSelectedCleanupPackagesCommand.NotifyCanExecuteChanged();
+    }
+
+    private void StartInstallerProgress(int totalCount, string initialMessage)
+    {
+        InstallerProgressMaximum = Math.Max(totalCount, 1);
+        InstallerProgressValue = 0;
+        InstallerProgressText = initialMessage;
+        IsInstallerProgressVisible = true;
+    }
+
+    private void UpdateInstallerProgress(int completedCount, int totalCount, string displayName)
+    {
+        InstallerProgressMaximum = Math.Max(totalCount, 1);
+        InstallerProgressValue = completedCount;
+        InstallerProgressText = $"Updating {displayName} ({completedCount + 1}/{totalCount})...";
+    }
+
+    private void ResetInstallerProgress()
+    {
+        IsInstallerProgressVisible = false;
+        InstallerProgressValue = 0;
+        InstallerProgressMaximum = 1;
+        InstallerProgressText = string.Empty;
     }
 
     private bool FilterInstallerPackage(object item)
@@ -592,16 +706,16 @@ public partial class MainWindowViewModel
             .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(item => item.DisplayName)
             .ToArray();
-        var guidedCount = InstallerPackages.Count(item => item.UsesGuidedUpdate);
+        var customInstalledCount = InstallerPackages.Count(item => item.UsesCustomInstallFlow && item.IsInstalled);
+        var customSuffix = customInstalledCount > 0
+            ? $" Update All Ready also refreshes {customInstalledCount} custom app{(customInstalledCount == 1 ? string.Empty : "s")}."
+            : string.Empty;
 
         return updates.Length switch
         {
-            0 when guidedCount > 0 => $"No winget-tracked updates found. {guidedCount} guided app{(guidedCount == 1 ? string.Empty : "s")} use manual update pages.",
-            0 => "No updates found across the tracked app list.",
-            <= 5 when guidedCount > 0 => $"Updates ready: {string.Join(", ", updates)}. {guidedCount} guided app{(guidedCount == 1 ? string.Empty : "s")} use manual update pages.",
-            <= 5 => $"Updates ready: {string.Join(", ", updates)}.",
-            _ when guidedCount > 0 => $"Updates ready: {string.Join(", ", updates[..5])}, +{updates.Length - 5} more. {guidedCount} guided app{(guidedCount == 1 ? string.Empty : "s")} use manual update pages.",
-            _ => $"Updates ready: {string.Join(", ", updates[..5])}, +{updates.Length - 5} more.",
+            0 => $"No winget-tracked updates found.{customSuffix}".Trim(),
+            <= 5 => $"Updates ready: {string.Join(", ", updates)}.{customSuffix}",
+            _ => $"Updates ready: {string.Join(", ", updates[..5])}, +{updates.Length - 5} more.{customSuffix}",
         };
     }
 
@@ -619,16 +733,16 @@ public partial class MainWindowViewModel
             .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(item => item.DisplayName)
             .ToArray();
-        var guidedCount = InstallerPackages.Count(item => item.UsesGuidedUpdate);
+        var customInstalledCount = InstallerPackages.Count(item => item.UsesCustomInstallFlow && item.IsInstalled);
+        var customSuffix = customInstalledCount > 0
+            ? $" Update All Ready also refreshes {customInstalledCount} custom app{(customInstalledCount == 1 ? string.Empty : "s")}."
+            : string.Empty;
 
         return updates.Length switch
         {
-            0 when guidedCount > 0 => $"No winget-tracked updates found. {guidedCount} guided app{(guidedCount == 1 ? string.Empty : "s")} use manual update pages.",
-            0 => "No updates found across the tracked app list.",
-            1 when guidedCount > 0 => $"Update ready for {updates[0]}. {guidedCount} guided app{(guidedCount == 1 ? string.Empty : "s")} use manual update pages.",
-            1 => $"Update ready for {updates[0]}.",
-            _ when guidedCount > 0 => $"Updates ready for {updates.Length} apps: {string.Join(", ", updates)}. {guidedCount} guided app{(guidedCount == 1 ? string.Empty : "s")} use manual update pages.",
-            _ => $"Updates ready for {updates.Length} apps: {string.Join(", ", updates)}.",
+            0 => $"No winget-tracked updates found.{customSuffix}".Trim(),
+            1 => $"Update ready for {updates[0]}.{customSuffix}",
+            _ => $"Updates ready for {updates.Length} apps: {string.Join(", ", updates)}.{customSuffix}",
         };
     }
 

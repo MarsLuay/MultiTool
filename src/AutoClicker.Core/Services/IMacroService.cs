@@ -18,5 +18,7 @@ public interface IMacroService : IDisposable
 
     Task PlayAsync(int repeatCount, CancellationToken cancellationToken = default);
 
+    Task PlayAsync(RecordedMacro macro, int repeatCount, CancellationToken cancellationToken = default);
+
     void Clear();
 }

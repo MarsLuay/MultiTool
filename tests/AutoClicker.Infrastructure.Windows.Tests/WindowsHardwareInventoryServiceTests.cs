@@ -17,7 +17,11 @@ public sealed class WindowsHardwareInventoryServiceTests
             "ASUSTeK COMPUTER INC. ROG STRIX",
             "3208  |  Released 2026-02-01",
             [new HardwareDisplayAdapterInfo("NVIDIA GeForce RTX 4080", "32.0.0.1", "16 GB")],
-            [new HardwareStorageDriveInfo("Samsung SSD 990 PRO", "2 TB", "NVMe", "SSD")],
+            [new HardwareStorageDriveInfo("Samsung SSD 990 PRO", "2 TB", "NVMe", "SSD", "Healthy", "Healthy", "5B2QJXD7", "S6Z9", "OK")],
+            [new HardwarePartitionInfo("Samsung SSD 990 PRO", "Disk #0, Partition #1", "512 GB", "GPT: Basic Data", "C: (Windows)", "NTFS", "210 GB", "Boot  |  Primary  |  OK")],
+            [new HardwareSensorInfo("Temperature", "CPU Package", "64.2 C", "ACPI thermal zone", "Reported by Windows ACPI telemetry")],
+            [new HardwarePciDeviceInfo("NVIDIA GeForce RTX 4080", "Display", "NVIDIA", "PCI bus 1, device 0, function 0", "OK")],
+            [new HardwareRaidInfo("Intel RST Premium Controller", "PCIe RAID Controller", "OK", "Intel  |  PCI bus 0, device 17, function 0", "Win32_PnPEntity")],
             []);
         var service = new WindowsHardwareInventoryService(() => expectedReport);
 

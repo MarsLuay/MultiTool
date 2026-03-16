@@ -1,4 +1,5 @@
 using AutoClicker.Infrastructure.Windows.Tools;
+using AutoClicker.Core.Models;
 using FluentAssertions;
 
 namespace AutoClicker.Infrastructure.Windows.Tests;
@@ -37,6 +38,44 @@ public sealed class WindowsEmptyDirectoryServiceTests : IDisposable
                 FullPath = Path.Combine(rootPath, "AlreadyEmpty"),
                 ContainsNestedEmptyDirectories = false,
             });
+    }
+
+    [Fact]
+    public async Task FindEmptyDirectoriesAsync_ShouldReportScanProgress()
+    {
+        var rootPath = CreateDirectory("ProgressRoot");
+        CreateDirectory(Path.Combine(rootPath, "A"));
+        CreateDirectory(Path.Combine(rootPath, "B", "Child"));
+        var service = new WindowsEmptyDirectoryService();
+        var progressUpdates = new List<EmptyDirectoryScanProgress>();
+        var progress = new Progress<EmptyDirectoryScanProgress>(update => progressUpdates.Add(update));
+
+        var result = await service.FindEmptyDirectoriesAsync(rootPath, progress);
+
+        result.Candidates.Should().NotBeEmpty();
+        progressUpdates.Should().NotBeEmpty();
+        progressUpdates[0].TotalDirectoryCount.Should().BeGreaterThanOrEqualTo(1);
+        progressUpdates[^1].CompletedDirectoryCount.Should().Be(progressUpdates[^1].TotalDirectoryCount);
+        progressUpdates.Should().Contain(update => string.Equals(update.CurrentPath, rootPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task FindEmptyDirectoriesAsync_ShouldUseExactDirectoryCountWhenFastProviderIsAvailable()
+    {
+        var rootPath = CreateDirectory("ExactCountRoot");
+        CreateDirectory(Path.Combine(rootPath, "A"));
+        CreateDirectory(Path.Combine(rootPath, "B", "Child"));
+        var service = new WindowsEmptyDirectoryService(_ => 4);
+        var progressUpdates = new List<EmptyDirectoryScanProgress>();
+        var progress = new Progress<EmptyDirectoryScanProgress>(update => progressUpdates.Add(update));
+
+        var result = await service.FindEmptyDirectoriesAsync(rootPath, progress);
+
+        result.Candidates.Should().NotBeEmpty();
+        progressUpdates.Should().NotBeEmpty();
+        progressUpdates[0].TotalDirectoryCount.Should().Be(4);
+        progressUpdates.Should().OnlyContain(update => update.TotalDirectoryCount == 4);
+        progressUpdates[^1].CompletedDirectoryCount.Should().Be(4);
     }
 
     [Fact]

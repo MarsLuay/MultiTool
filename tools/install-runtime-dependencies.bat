@@ -3,7 +3,7 @@ setlocal EnableExtensions
 
 for %%I in ("%~dp0..") do set "ROOT_DIR=%%~fI"
 set "FFMPEG_ROOT=%ROOT_DIR%\ffmpeg.exe"
-set "AUTOHOTKEY_EXE=C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe"
+set "AUTOHOTKEY_EXE="
 
 echo MultiTool runtime dependency installer
 echo Root: %ROOT_DIR%
@@ -70,8 +70,10 @@ goto :eof
 echo.
 echo Checking AutoHotkey v2...
 
-if exist "%AUTOHOTKEY_EXE%" (
+call :resolve_autohotkey
+if defined AUTOHOTKEY_EXE (
     echo AutoHotkey v2 is already installed.
+    echo   %AUTOHOTKEY_EXE%
     goto :eof
 )
 
@@ -82,12 +84,42 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist "%AUTOHOTKEY_EXE%" (
+call :resolve_autohotkey
+if not defined AUTOHOTKEY_EXE (
     echo AutoHotkey install finished, but the expected executable was not found:
-    echo   %AUTOHOTKEY_EXE%
-    echo If AutoHotkey installed somewhere else, update tools\install-startup-launcher.bat to match.
+    echo   AutoHotkey64.exe / AutoHotkey.exe / AutoHotkeyU64.exe
+    echo If AutoHotkey installed somewhere else, add it to PATH or update the script detection paths.
     exit /b 1
 )
 
 echo AutoHotkey v2 installed successfully.
+echo   %AUTOHOTKEY_EXE%
+goto :eof
+
+:resolve_autohotkey
+set "AUTOHOTKEY_EXE="
+
+for %%P in (
+    "%ProgramFiles%\AutoHotkey\v2\AutoHotkey64.exe"
+    "%ProgramFiles%\AutoHotkey\AutoHotkey64.exe"
+    "%ProgramFiles%\AutoHotkey\AutoHotkey.exe"
+    "%ProgramFiles(x86)%\AutoHotkey\v2\AutoHotkey64.exe"
+    "%ProgramFiles(x86)%\AutoHotkey\AutoHotkeyU64.exe"
+    "%ProgramFiles(x86)%\AutoHotkey\AutoHotkey.exe"
+) do (
+    if not defined AUTOHOTKEY_EXE if exist %%~P (
+        set "AUTOHOTKEY_EXE=%%~fP"
+    )
+)
+
+if defined AUTOHOTKEY_EXE goto :eof
+
+for %%E in (AutoHotkey64.exe AutoHotkey.exe AutoHotkeyU64.exe) do (
+    if not defined AUTOHOTKEY_EXE (
+        for /f "delims=" %%F in ('where %%E 2^>nul') do (
+            if not defined AUTOHOTKEY_EXE set "AUTOHOTKEY_EXE=%%~fF"
+        )
+    )
+)
+
 goto :eof

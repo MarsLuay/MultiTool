@@ -139,4 +139,66 @@ public sealed class SettingsValidatorTests
         result.IsValid.Should().BeFalse();
         result.Summary.Should().Contain("keyboard key");
     }
+
+    [Fact]
+    public void ValidateMacro_ShouldRejectAssignedHotkeyConflictWithPrimaryMacroHotkey()
+    {
+        var settings = new MacroSettings
+        {
+            PlayHotkey = new HotkeyBinding(0x70, "F1"),
+            RecordHotkey = new HotkeyBinding(0x71, "F2"),
+            AssignedHotkeys =
+            [
+                new MacroHotkeyAssignment
+                {
+                    Id = "farm",
+                    MacroDisplayName = "Farm",
+                    MacroFilePath = @"C:\Macros\Farm.acmacro.json",
+                    Hotkey = new HotkeyBinding(0x70, "F1"),
+                    PlaybackMode = MacroHotkeyPlaybackMode.ToggleRepeat,
+                    IsEnabled = true,
+                },
+            ],
+        };
+
+        var result = validator.ValidateMacro(settings);
+
+        result.IsValid.Should().BeFalse();
+        result.Summary.Should().Contain("conflicts");
+    }
+
+    [Fact]
+    public void ValidateMacro_ShouldAllowDistinctAssignedSavedMacroHotkeys()
+    {
+        var settings = new MacroSettings
+        {
+            PlayHotkey = new HotkeyBinding(0x70, "F1"),
+            RecordHotkey = new HotkeyBinding(0x71, "F2"),
+            AssignedHotkeys =
+            [
+                new MacroHotkeyAssignment
+                {
+                    Id = "farm",
+                    MacroDisplayName = "Farm",
+                    MacroFilePath = @"C:\Macros\Farm.acmacro.json",
+                    Hotkey = new HotkeyBinding(0x72, "F3"),
+                    PlaybackMode = MacroHotkeyPlaybackMode.PlayOnce,
+                    IsEnabled = true,
+                },
+                new MacroHotkeyAssignment
+                {
+                    Id = "mine",
+                    MacroDisplayName = "Mine",
+                    MacroFilePath = @"C:\Macros\Mine.acmacro.json",
+                    Hotkey = new HotkeyBinding(0x73, "F4"),
+                    PlaybackMode = MacroHotkeyPlaybackMode.ToggleRepeat,
+                    IsEnabled = true,
+                },
+            ],
+        };
+
+        var result = validator.ValidateMacro(settings);
+
+        result.IsValid.Should().BeTrue();
+    }
 }

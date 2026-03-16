@@ -9,4 +9,8 @@ public sealed record HardwareInventoryReport(
     string BiosSummary,
     IReadOnlyList<HardwareDisplayAdapterInfo> GraphicsAdapters,
     IReadOnlyList<HardwareStorageDriveInfo> StorageDrives,
+    IReadOnlyList<HardwarePartitionInfo> StoragePartitions,
+    IReadOnlyList<HardwareSensorInfo> Sensors,
+    IReadOnlyList<HardwarePciDeviceInfo> PciDevices,
+    IReadOnlyList<HardwareRaidInfo> RaidDetails,
     IReadOnlyList<string> Warnings);

@@ -647,15 +647,101 @@
                   <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                   </Grid.RowDefinitions>
 
                   <TextBlock Grid.Row="0"
                              Margin="4,0,4,8"
                              Foreground="{DynamicResource MutedTextBrush}"
-                             Text="{Binding SelectedSavedMacro.FileName, TargetNullValue=No saved macros found in the Macros folder yet.}"
+                             Text="{Binding SelectedSavedMacro.DisplayName, StringFormat=Selected macro: {0}, TargetNullValue=No saved macros found in the Macros folder yet.}"
                              TextWrapping="Wrap" />
 
-                  <WrapPanel Grid.Row="1"
+                  <TextBlock Grid.Row="1"
+                             Margin="4,0,4,8"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding SelectedSavedMacroHotkeySummary}"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="2"
+                             Margin="4,0,4,8"
+                             FontWeight="SemiBold"
+                             Text="{Binding AssignedMacroHotkeysSummary}"
+                             TextWrapping="Wrap" />
+
+                  <Border Grid.Row="3"
+                          Margin="4,0,4,8"
+                          Padding="8"
+                          Background="{DynamicResource SurfaceAltBrush}"
+                          BorderBrush="{DynamicResource BorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6">
+                    <Grid>
+                      <TextBlock HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 Foreground="{DynamicResource MutedTextBrush}"
+                                 Visibility="Collapsed"
+                                 Text="No keyboard shortcuts are set yet.">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding HasAssignedMacroHotkeys}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+
+                      <ScrollViewer MaxHeight="120"
+                                    VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding AssignedMacroHotkeys}">
+                          <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                              <Setter Property="Visibility" Value="Visible" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAssignedMacroHotkeys}" Value="False">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </ItemsControl.Style>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Margin="0,0,0,8"
+                                      Padding="8"
+                                      Background="{DynamicResource ControlBackgroundBrush}"
+                                      BorderBrush="{DynamicResource BorderBrush}"
+                                      BorderThickness="1"
+                                      CornerRadius="6">
+                                <StackPanel>
+                                  <TextBlock FontWeight="SemiBold"
+                                             Text="{Binding MacroDisplayName}" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Text="{Binding Hotkey.DisplayName, StringFormat=Shortcut: {0}}"
+                                             TextWrapping="Wrap" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Text="{Binding PlaybackMode, Converter={StaticResource EnumDisplayNameConverter}, StringFormat=Action: {0}}"
+                                             TextWrapping="Wrap" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Foreground="{DynamicResource MutedTextBrush}"
+                                             Text="{Binding IsEnabled, StringFormat=Turned on: {0}}"
+                                             TextWrapping="Wrap" />
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </ScrollViewer>
+                    </Grid>
+                  </Border>
+
+                  <WrapPanel Grid.Row="4"
                              HorizontalAlignment="Right">
                     <Button Margin="4"
                             Padding="12,6"
@@ -669,6 +755,14 @@
                             Padding="12,6"
                             Command="{Binding EditSelectedSavedMacroCommand}"
                             Content="Edit Selected" />
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding AssignSelectedMacroHotkeyCommand}"
+                            Content="Set Shortcut" />
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding ManageMacroHotkeysCommand}"
+                            Content="Edit Shortcuts" />
                     <Button Margin="4"
                             Padding="12,6"
                             Command="{Binding OpenSavedMacrosFolderCommand}"
@@ -758,7 +852,40 @@
                           Padding="12,6"
                           Command="{Binding UpgradeSelectedPackagesCommand}"
                           Content="Update Selected" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding UpgradeAllInstalledPackagesCommand}"
+                          Content="Update All Ready" />
                 </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource ControlBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsInstallerProgressVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding InstallerProgressText}"
+                               TextWrapping="Wrap" />
+                    <ProgressBar Margin="0,8,0,0"
+                                 Height="16"
+                                 Minimum="0"
+                                 Maximum="{Binding InstallerProgressMaximum}"
+                                 Value="{Binding InstallerProgressValue}" />
+                  </StackPanel>
+                </Border>
 
                 <Border Margin="0,12,0,0"
                         Padding="8"
@@ -851,10 +978,8 @@
                               </Expander>
 
                               <TextBlock Margin="0,8,0,0"
-                                         FontFamily="Consolas"
-                                         FontSize="11"
                                          Foreground="{DynamicResource MutedTextBrush}"
-                                         Text="{Binding PackageId}"
+                                         Text="{Binding PackageHintText}"
                                          TextWrapping="Wrap" />
 
                               <TextBlock Margin="0,8,0,0"
@@ -938,10 +1063,8 @@
                                          TextWrapping="Wrap" />
 
                               <TextBlock Margin="0,8,0,0"
-                                         FontFamily="Consolas"
-                                         FontSize="11"
                                          Foreground="{DynamicResource MutedTextBrush}"
-                                         Text="{Binding PackageId}"
+                                         Text="{Binding PackageHintText}"
                                          TextWrapping="Wrap" />
 
                               <TextBlock Margin="0,8,0,0"
@@ -1004,6 +1127,55 @@
               </StackPanel>
             </GroupBox>
 
+            <GroupBox Header="Shortcut Key Explorer" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Deep-scan fixed drives for Windows .lnk shortcut files that already have a keyboard hotkey assigned, then combine those with built-in Windows and common app shortcuts like Ctrl + C, Alt + Tab, and Win + R in one viewer."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ShowAssignedShortcutHotkeysCommand}"
+                          Content="Open Shortcut Explorer" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsShortcutHotkeyScanProgressVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding ShortcutHotkeyScanProgressSummary}"
+                               TextWrapping="Wrap" />
+                    <ProgressBar Margin="0,8,0,0"
+                                 Height="14"
+                                 Minimum="0"
+                                 Maximum="{Binding ShortcutHotkeyScanProgressMaximum}"
+                                 Value="{Binding ShortcutHotkeyScanProgressValue}" />
+                  </StackPanel>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding ShortcutHotkeyStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
             <GroupBox Header="Display Refresh" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
@@ -1048,14 +1220,8 @@
                                          Text="{Binding DisplayName}" />
 
                               <TextBlock Margin="0,6,0,0"
-                                         TextWrapping="Wrap">
-                                <Run Text="Resolution: " />
-                                <Run Text="{Binding Resolution}" />
-                                <Run Text="  |  Current: " />
-                                <Run Text="{Binding CurrentFrequencyText}" />
-                                <Run Text="  |  Top: " />
-                                <Run Text="{Binding RecommendedFrequencyText}" />
-                              </TextBlock>
+                                         Text="{Binding FrequencySummaryText}"
+                                         TextWrapping="Wrap" />
 
                               <TextBlock Margin="0,6,0,0"
                                          Text="{Binding StatusText}"
@@ -1092,10 +1258,63 @@
               </StackPanel>
             </GroupBox>
 
+            <GroupBox Header="Mouse DPI Changer" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Adjust Windows mouse sensitivity for the current account. This changes pointer speed system-wide, which is the closest generic mouse-DPI control Windows exposes without vendor-specific mouse software."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding MouseSensitivitySummary}" />
+
+                <Grid Margin="0,12,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Margin="0,0,8,0"
+                             VerticalAlignment="Center"
+                             Text="Speed" />
+                  <ComboBox Grid.Column="1"
+                            SelectedItem="{Binding SelectedMouseSensitivityLevel}"
+                            ItemsSource="{Binding MouseSensitivityLevels}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding StringFormat={}{0}/20}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </Grid>
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshMouseSensitivityStatusCommand}"
+                          Content="Refresh Mouse" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ApplyMouseSensitivityCommand}"
+                          Content="Apply Speed" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding OpenMouseSettingsCommand}"
+                          Content="Open Mouse Settings" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding MouseSensitivityStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
             <GroupBox Header="Hardware Check" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Scan the PC for core hardware details like the system model, Windows version, CPU, memory, motherboard, BIOS, graphics adapters, and storage drives."
+                           Text="Scan the PC for core hardware details like the system model, Windows version, CPU, memory, motherboard, BIOS, graphics adapters, storage health, partitions, live sensor telemetry, PCIe devices, and RAID or Storage Spaces details."
                            TextWrapping="Wrap" />
 
                 <WrapPanel Margin="0,12,0,0"
@@ -1169,9 +1388,134 @@
                                          Foreground="{DynamicResource MutedTextBrush}"
                                          TextWrapping="Wrap">
                                 <Run Text="Driver: " />
-                                <Run Text="{Binding DriverVersion}" />
+                                <Run Text="{Binding DriverVersion, Mode=OneWay}" />
                                 <Run Text="  |  Memory: " />
-                                <Run Text="{Binding AdapterMemory}" />
+                                <Run Text="{Binding AdapterMemory, Mode=OneWay}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwareSensorSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasHardwareSensors}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="180"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwareSensors}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding Name}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Category: " />
+                                <Run Text="{Binding Category, Mode=OneWay}" />
+                                <Run Text="  |  Reading: " />
+                                <Run Text="{Binding CurrentValue, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Source: " />
+                                <Run Text="{Binding Source, Mode=OneWay}" />
+                                <Run Text="  |  Status: " />
+                                <Run Text="{Binding Status, Mode=OneWay}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwarePciSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasHardwarePciDevices}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="220"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwarePciDevices}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding Name}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Class: " />
+                                <Run Text="{Binding DeviceClass, Mode=OneWay}" />
+                                <Run Text="  |  Manufacturer: " />
+                                <Run Text="{Binding Manufacturer, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Location: " />
+                                <Run Text="{Binding Location, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Status: " />
+                                <Run Text="{Binding Status, Mode=OneWay}" />
                               </TextBlock>
                             </StackPanel>
                           </Border>
@@ -1209,16 +1553,188 @@
                               <TextBlock Margin="0,6,0,0"
                                          TextWrapping="Wrap">
                                 <Run Text="Size: " />
-                                <Run Text="{Binding Size}" />
+                                <Run Text="{Binding Size, Mode=OneWay}" />
                                 <Run Text="  |  Interface: " />
-                                <Run Text="{Binding InterfaceType}" />
+                                <Run Text="{Binding InterfaceType, Mode=OneWay}" />
                               </TextBlock>
 
                               <TextBlock Margin="0,4,0,0"
                                          Foreground="{DynamicResource MutedTextBrush}"
                                          TextWrapping="Wrap">
                                 <Run Text="Media: " />
-                                <Run Text="{Binding MediaType}" />
+                                <Run Text="{Binding MediaType, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Health: " />
+                                <Run Text="{Binding HealthStatus, Mode=OneWay}" />
+                                <Run Text="  |  SMART: " />
+                                <Run Text="{Binding SmartStatus, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Firmware: " />
+                                <Run Text="{Binding FirmwareVersion, Mode=OneWay}" />
+                                <Run Text="  |  Serial: " />
+                                <Run Text="{Binding SerialNumber, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding Notes}"
+                                         TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                      <Trigger Property="Text" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                      </Trigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwarePartitionSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasHardwareStoragePartitions}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="220"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwareStoragePartitions}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding PartitionName}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Disk: " />
+                                <Run Text="{Binding DiskName, Mode=OneWay}" />
+                                <Run Text="  |  Size: " />
+                                <Run Text="{Binding Size, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Type: " />
+                                <Run Text="{Binding Type, Mode=OneWay}" />
+                                <Run Text="  |  Volume: " />
+                                <Run Text="{Binding Volume, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="File System: " />
+                                <Run Text="{Binding FileSystem, Mode=OneWay}" />
+                                <Run Text="  |  Free Space: " />
+                                <Run Text="{Binding FreeSpace, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Status: " />
+                                <Run Text="{Binding Status, Mode=OneWay}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwareRaidSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasHardwareRaidDetails}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="180"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwareRaidDetails}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding Name}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Type: " />
+                                <Run Text="{Binding Type, Mode=OneWay}" />
+                                <Run Text="  |  Status: " />
+                                <Run Text="{Binding Status, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Details: " />
+                                <Run Text="{Binding Details, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Source: " />
+                                <Run Text="{Binding Source, Mode=OneWay}" />
                               </TextBlock>
                             </StackPanel>
                           </Border>
@@ -1301,18 +1817,18 @@
                                          Foreground="{DynamicResource MutedTextBrush}"
                                          TextWrapping="Wrap">
                                 <Run Text="Manufacturer: " />
-                                <Run Text="{Binding Manufacturer}" />
+                                <Run Text="{Binding Manufacturer, Mode=OneWay}" />
                                 <Run Text="  |  Provider: " />
-                                <Run Text="{Binding DriverProvider}" />
+                                <Run Text="{Binding DriverProvider, Mode=OneWay}" />
                               </TextBlock>
 
                               <TextBlock Margin="0,4,0,0"
                                          Foreground="{DynamicResource MutedTextBrush}"
                                          TextWrapping="Wrap">
                                 <Run Text="Driver Version: " />
-                                <Run Text="{Binding DriverVersion}" />
+                                <Run Text="{Binding DriverVersion, Mode=OneWay}" />
                                 <Run Text="  |  Class: " />
-                                <Run Text="{Binding DeviceClass}" />
+                                <Run Text="{Binding DeviceClass, Mode=OneWay}" />
                               </TextBlock>
 
                               <TextBlock Margin="0,6,0,0"
@@ -1374,18 +1890,18 @@
                               <TextBlock Margin="20,6,0,0"
                                          TextWrapping="Wrap">
                                 <Run Text="Model: " />
-                                <Run Text="{Binding DriverModel}" />
+                                <Run Text="{Binding DriverModel, Mode=OneWay}" />
                                 <Run Text="  |  Manufacturer: " />
-                                <Run Text="{Binding DriverManufacturer}" />
+                                <Run Text="{Binding DriverManufacturer, Mode=OneWay}" />
                               </TextBlock>
 
                               <TextBlock Margin="20,4,0,0"
                                          Foreground="{DynamicResource MutedTextBrush}"
                                          TextWrapping="Wrap">
                                 <Run Text="Class: " />
-                                <Run Text="{Binding DriverClass}" />
+                                <Run Text="{Binding DriverClass, Mode=OneWay}" />
                                 <Run Text="  |  Driver Date: " />
-                                <Run Text="{Binding DriverDate}" />
+                                <Run Text="{Binding DriverDate, Mode=OneWay}" />
                               </TextBlock>
 
                               <TextBlock Margin="20,6,0,0"
@@ -1433,7 +1949,7 @@
             <GroupBox Header="Remove OneDrive" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Detect whether OneDrive is still present on this PC, then run Windows' built-in OneDrive uninstaller when it is available."
+                           Text="Detect whether OneDrive is still present on this PC, apply the machine-level policy that disables OneDrive file sync, and run Windows' built-in OneDrive uninstaller when it is available. Applying the policy may trigger a Windows administrator prompt."
                            TextWrapping="Wrap" />
 
                 <WrapPanel Margin="0,12,0,0"
@@ -1617,6 +2133,35 @@
                 </WrapPanel>
 
                 <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsEmptyDirectoryScanProgressVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding EmptyDirectoryScanProgressSummary}"
+                               TextWrapping="Wrap" />
+                    <ProgressBar Margin="0,8,0,0"
+                                 Height="14"
+                                 Minimum="0"
+                                 Maximum="{Binding EmptyDirectoryScanProgressMaximum}"
+                                 Value="{Binding EmptyDirectoryScanProgressValue}" />
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
                         Padding="8"
                         Background="{DynamicResource SurfaceAltBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
@@ -1683,6 +2228,9 @@
                   <CheckBox Margin="0,8,0,0"
                             Content="Ctrl + scroll resizes the window"
                             IsChecked="{Binding IsCtrlWheelResizeEnabled}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="Auto-hide to tray on startup"
+                            IsChecked="{Binding IsAutoHideOnStartupEnabled}" />
                   <WrapPanel Margin="0,10,0,0"
                              HorizontalAlignment="Right">
                     <Button Margin="4"
@@ -1692,7 +2240,7 @@
                   </WrapPanel>
                   <TextBlock Margin="0,8,0,0"
                              Foreground="{DynamicResource MutedTextBrush}"
-                             Text="On first run, the app starts in the same light or dark mode that Windows is already using. You can also let Ctrl + mouse wheel resize the whole window."
+                             Text="On first run, the app starts in the same light or dark mode that Windows is already using. You can also let Ctrl + mouse wheel resize the whole window, or have startup launches hide straight to the tray."
                              TextWrapping="Wrap" />
                   <TextBlock Margin="0,8,0,0"
                              Text="{Binding SettingsStatusMessage}"

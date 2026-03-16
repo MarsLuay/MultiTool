@@ -6,7 +6,22 @@ namespace AutoClicker.Infrastructure.Windows.Tools;
 
 public sealed class WindowsEmptyDirectoryService : IEmptyDirectoryService
 {
-    public Task<EmptyDirectoryScanResult> FindEmptyDirectoriesAsync(string rootPath, CancellationToken cancellationToken = default)
+    private readonly Func<string, int?> exactDirectoryCountResolver;
+
+    public WindowsEmptyDirectoryService()
+        : this(NtfsFolderCountProvider.TryGetExactFolderCount)
+    {
+    }
+
+    public WindowsEmptyDirectoryService(Func<string, int?> exactDirectoryCountResolver)
+    {
+        this.exactDirectoryCountResolver = exactDirectoryCountResolver ?? throw new ArgumentNullException(nameof(exactDirectoryCountResolver));
+    }
+
+    public Task<EmptyDirectoryScanResult> FindEmptyDirectoriesAsync(
+        string rootPath,
+        IProgress<EmptyDirectoryScanProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(rootPath))
         {
@@ -24,7 +39,18 @@ public sealed class WindowsEmptyDirectoryService : IEmptyDirectoryService
             {
                 var candidates = new List<EmptyDirectoryCandidate>();
                 var warnings = new List<string>();
-                ScanDirectory(fullRootPath, fullRootPath, candidates, warnings, cancellationToken);
+                int? exactDirectoryCount;
+                try
+                {
+                    exactDirectoryCount = exactDirectoryCountResolver(fullRootPath);
+                }
+                catch
+                {
+                    exactDirectoryCount = null;
+                }
+
+                var progressState = new ScanProgressState(progress, fullRootPath, exactDirectoryCount);
+                ScanDirectory(fullRootPath, fullRootPath, candidates, warnings, progressState, cancellationToken);
                 candidates.Sort(static (left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.FullPath, right.FullPath));
                 return new EmptyDirectoryScanResult(candidates, warnings);
             },
@@ -82,51 +108,61 @@ public sealed class WindowsEmptyDirectoryService : IEmptyDirectoryService
         string rootPath,
         ICollection<EmptyDirectoryCandidate> candidates,
         ICollection<string> warnings,
+        ScanProgressState progressState,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        string[] files;
         try
         {
-            files = Directory.GetFiles(currentPath);
-        }
-        catch (Exception ex)
-        {
-            warnings.Add($"Skipped files in {currentPath}: {ex.Message}");
-            return false;
-        }
-
-        string[] directories;
-        try
-        {
-            directories = Directory.GetDirectories(currentPath);
-        }
-        catch (Exception ex)
-        {
-            warnings.Add($"Skipped folders in {currentPath}: {ex.Message}");
-            return false;
-        }
-
-        var allNestedDirectoriesAreEmpty = true;
-        foreach (var directory in directories)
-        {
-            if (!ScanDirectory(directory, rootPath, candidates, warnings, cancellationToken))
+            string[] files;
+            try
             {
-                allNestedDirectoriesAreEmpty = false;
+                files = Directory.GetFiles(currentPath);
             }
-        }
+            catch (Exception ex)
+            {
+                warnings.Add($"Skipped files in {currentPath}: {ex.Message}");
+                return false;
+            }
 
-        var isRemovable = files.Length == 0 && allNestedDirectoriesAreEmpty;
-        if (isRemovable && !string.Equals(currentPath, rootPath, StringComparison.OrdinalIgnoreCase))
+            string[] directories;
+            try
+            {
+                directories = Directory.GetDirectories(currentPath);
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Skipped folders in {currentPath}: {ex.Message}");
+                return false;
+            }
+
+            progressState.AddDiscoveredDirectories(directories.Length, currentPath);
+
+            var allNestedDirectoriesAreEmpty = true;
+            foreach (var directory in directories)
+            {
+                if (!ScanDirectory(directory, rootPath, candidates, warnings, progressState, cancellationToken))
+                {
+                    allNestedDirectoriesAreEmpty = false;
+                }
+            }
+
+            var isRemovable = files.Length == 0 && allNestedDirectoriesAreEmpty;
+            if (isRemovable && !string.Equals(currentPath, rootPath, StringComparison.OrdinalIgnoreCase))
+            {
+                candidates.Add(
+                    new EmptyDirectoryCandidate(
+                        currentPath,
+                        ContainsNestedEmptyDirectories: directories.Length > 0));
+            }
+
+            return isRemovable;
+        }
+        finally
         {
-            candidates.Add(
-                new EmptyDirectoryCandidate(
-                    currentPath,
-                    ContainsNestedEmptyDirectories: directories.Length > 0));
+            progressState.MarkDirectoryCompleted(currentPath);
         }
-
-        return isRemovable;
     }
 
     private static IReadOnlyList<string> NormalizePaths(IEnumerable<string> directoryPaths)
@@ -149,5 +185,49 @@ public sealed class WindowsEmptyDirectoryService : IEmptyDirectoryService
         }
 
         return normalizedPaths;
+    }
+
+    private sealed class ScanProgressState
+    {
+        private readonly IProgress<EmptyDirectoryScanProgress>? progress;
+        private readonly string rootPath;
+        private int completedDirectoryCount;
+        private int totalDirectoryCount;
+        private readonly bool usesExactDirectoryCount;
+
+        public ScanProgressState(IProgress<EmptyDirectoryScanProgress>? progress, string rootPath, int? exactDirectoryCount)
+        {
+            this.progress = progress;
+            this.rootPath = rootPath;
+            usesExactDirectoryCount = exactDirectoryCount.HasValue && exactDirectoryCount.Value > 0;
+            totalDirectoryCount = usesExactDirectoryCount ? exactDirectoryCount!.Value : 1;
+            Report(rootPath);
+        }
+
+        public void AddDiscoveredDirectories(int count, string currentPath)
+        {
+            if (count <= 0 || usesExactDirectoryCount)
+            {
+                return;
+            }
+
+            totalDirectoryCount += count;
+            Report(currentPath);
+        }
+
+        public void MarkDirectoryCompleted(string currentPath)
+        {
+            completedDirectoryCount++;
+            Report(currentPath);
+        }
+
+        private void Report(string currentPath)
+        {
+            progress?.Report(
+                new EmptyDirectoryScanProgress(
+                    completedDirectoryCount,
+                    Math.Max(totalDirectoryCount, 1),
+                    string.IsNullOrWhiteSpace(currentPath) ? rootPath : currentPath));
+        }
     }
 }

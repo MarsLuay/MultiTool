@@ -281,4 +281,10 @@ __pycache__/
 # End of https://www.gitignore.io/api/csharp
 
 MultiTool.exe
+AutoClicker.exe
+ffmpeg.exe
 Logs/
+app/MultiTool.exe
+app/AutoClicker.exe
+app/ffmpeg.exe
+app/Logs/

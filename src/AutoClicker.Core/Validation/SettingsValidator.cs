@@ -101,6 +101,8 @@ public sealed class SettingsValidator
     public ValidationResult ValidateMacro(MacroSettings settings)
     {
         var issues = new List<ValidationIssue>();
+        var enabledAssignmentHotkeys = new Dictionary<int, string>();
+        var assignedMacroPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (!HasValidHotkeyBinding(settings.PlayHotkey))
         {
@@ -128,6 +130,63 @@ public sealed class SettingsValidator
             && settings.PlayHotkey.VirtualKey > 0)
         {
             issues.Add(new ValidationIssue(nameof(settings.RecordHotkey), "Macro play and record hotkeys must be different."));
+        }
+
+        if (settings.PlayHotkey.InputKind == Enums.HotkeyInputKind.Keyboard && settings.PlayHotkey.VirtualKey > 0)
+        {
+            enabledAssignmentHotkeys[settings.PlayHotkey.VirtualKey] = "the current macro play hotkey";
+        }
+
+        if (settings.RecordHotkey.InputKind == Enums.HotkeyInputKind.Keyboard && settings.RecordHotkey.VirtualKey > 0)
+        {
+            enabledAssignmentHotkeys[settings.RecordHotkey.VirtualKey] = "the current macro record hotkey";
+        }
+
+        foreach (var assignment in settings.AssignedHotkeys)
+        {
+            if (string.IsNullOrWhiteSpace(assignment.MacroFilePath))
+            {
+                issues.Add(new ValidationIssue(nameof(settings.AssignedHotkeys), "Each saved-macro hotkey needs a macro file path."));
+                continue;
+            }
+
+            if (!assignedMacroPaths.Add(assignment.MacroFilePath))
+            {
+                issues.Add(new ValidationIssue(nameof(settings.AssignedHotkeys), "Each saved macro can only have one assigned hotkey."));
+            }
+
+            if (string.IsNullOrWhiteSpace(assignment.MacroDisplayName))
+            {
+                issues.Add(new ValidationIssue(nameof(settings.AssignedHotkeys), "Each saved-macro hotkey needs a macro name."));
+            }
+
+            if (!HasValidHotkeyBinding(assignment.Hotkey))
+            {
+                issues.Add(new ValidationIssue(nameof(settings.AssignedHotkeys), $"Saved macro '{assignment.MacroDisplayName}' needs a hotkey."));
+                continue;
+            }
+
+            if (assignment.Hotkey.InputKind != Enums.HotkeyInputKind.Keyboard)
+            {
+                issues.Add(new ValidationIssue(nameof(settings.AssignedHotkeys), $"Saved macro '{assignment.MacroDisplayName}' must use a keyboard hotkey."));
+                continue;
+            }
+
+            if (!assignment.IsEnabled)
+            {
+                continue;
+            }
+
+            if (enabledAssignmentHotkeys.TryGetValue(assignment.Hotkey.VirtualKey, out var existingDescription))
+            {
+                issues.Add(
+                    new ValidationIssue(
+                        nameof(settings.AssignedHotkeys),
+                        $"Saved macro '{assignment.MacroDisplayName}' conflicts with {existingDescription}."));
+                continue;
+            }
+
+            enabledAssignmentHotkeys[assignment.Hotkey.VirtualKey] = $"saved macro '{assignment.MacroDisplayName}'";
         }
 
         return new ValidationResult(issues);

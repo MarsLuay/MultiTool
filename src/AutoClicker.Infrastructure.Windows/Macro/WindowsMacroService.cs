@@ -172,6 +172,17 @@ public sealed class WindowsMacroService : IMacroService
         ObjectDisposedException.ThrowIf(disposed, this);
 
         RecordedMacro macro;
+        lock (syncRoot)
+        {
+            macro = currentMacro ?? throw new InvalidOperationException("There is no recorded macro to play.");
+        }
+
+        await PlayAsync(macro, repeatCount, cancellationToken);
+    }
+
+    public async Task PlayAsync(RecordedMacro macro, int repeatCount, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
 
         lock (syncRoot)
         {
@@ -185,7 +196,6 @@ public sealed class WindowsMacroService : IMacroService
                 throw new InvalidOperationException("A macro is already playing.");
             }
 
-            macro = currentMacro ?? throw new InvalidOperationException("There is no recorded macro to play.");
             if (macro.Events.Count == 0)
             {
                 throw new InvalidOperationException("The recorded macro does not contain any input events.");

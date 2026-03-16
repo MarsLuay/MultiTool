@@ -7,4 +7,5 @@ public enum HotkeyAction
     ScreenshotOptions = 2,
     MacroPlay = 3,
     MacroRecordToggle = 4,
+    MacroAssigned = 5,
 }

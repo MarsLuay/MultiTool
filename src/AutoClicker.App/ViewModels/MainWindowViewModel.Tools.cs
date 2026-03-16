@@ -39,11 +39,21 @@ public partial class MainWindowViewModel
 
     public ObservableCollection<EmptyDirectoryItem> EmptyDirectoryCandidates { get; } = [];
 
+    public ObservableCollection<int> MouseSensitivityLevels { get; } = [];
+
     public ObservableCollection<DisplayRefreshRecommendationItem> DisplayRefreshRecommendations { get; } = [];
 
     public ObservableCollection<HardwareDisplayAdapterInfo> HardwareGraphicsAdapters { get; } = [];
 
     public ObservableCollection<HardwareStorageDriveInfo> HardwareStorageDrives { get; } = [];
+
+    public ObservableCollection<HardwarePartitionInfo> HardwareStoragePartitions { get; } = [];
+
+    public ObservableCollection<HardwareSensorInfo> HardwareSensors { get; } = [];
+
+    public ObservableCollection<HardwarePciDeviceInfo> HardwarePciDevices { get; } = [];
+
+    public ObservableCollection<HardwareRaidInfo> HardwareRaidDetails { get; } = [];
 
     public ObservableCollection<DriverHardwareInfo> DriverHardwareInventory { get; } = [];
 
@@ -57,7 +67,17 @@ public partial class MainWindowViewModel
 
     public bool HasDisplayRefreshRecommendations => DisplayRefreshRecommendations.Count > 0;
 
+    public bool HasHardwareStoragePartitions => HardwareStoragePartitions.Count > 0;
+
+    public bool HasHardwareSensors => HardwareSensors.Count > 0;
+
+    public bool HasHardwarePciDevices => HardwarePciDevices.Count > 0;
+
+    public bool HasHardwareRaidDetails => HardwareRaidDetails.Count > 0;
+
     public bool HasSelectedEmptyDirectories => EmptyDirectoryCandidates.Any(item => item.IsSelected);
+
+    public string MouseSensitivitySummary => BuildMouseSensitivitySummary();
 
     public string DisplayRefreshSummary => BuildDisplayRefreshSummary();
 
@@ -65,11 +85,23 @@ public partial class MainWindowViewModel
 
     public string HardwareStorageSummary => BuildHardwareStorageSummary();
 
+    public string HardwarePartitionSummary => BuildHardwarePartitionSummary();
+
+    public string HardwareSensorSummary => BuildHardwareSensorSummary();
+
+    public string HardwarePciSummary => BuildHardwarePciSummary();
+
+    public string HardwareRaidSummary => BuildHardwareRaidSummary();
+
     public string DriverHardwareSummary => BuildDriverHardwareSummary();
 
     public string DriverUpdateSelectionSummary => BuildDriverUpdateSelectionSummary();
 
     public string EmptyDirectorySelectionSummary => BuildEmptyDirectorySelectionSummary();
+
+    public string EmptyDirectoryScanProgressSummary => BuildEmptyDirectoryScanProgressSummary();
+
+    public string ShortcutHotkeyScanProgressSummary => BuildShortcutHotkeyScanProgressSummary();
 
     public string UsefulSitesToggleText => AreUsefulSitesVisible ? "Hide Useful Sites" : "Useful Sites";
 
@@ -78,6 +110,45 @@ public partial class MainWindowViewModel
 
     [ObservableProperty]
     private string emptyDirectoryStatusMessage = "Choose a folder tree to scan for empty directories.";
+
+    [ObservableProperty]
+    private string shortcutHotkeyStatusMessage = "Scan Windows .lnk shortcut hotkeys on this PC and include built-in Windows and common app shortcuts like Ctrl + C in one viewer.";
+
+    [ObservableProperty]
+    private bool isShortcutHotkeyScanProgressVisible;
+
+    [ObservableProperty]
+    private int shortcutHotkeyScanProgressValue;
+
+    [ObservableProperty]
+    private int shortcutHotkeyScanProgressMaximum = 1;
+
+    [ObservableProperty]
+    private int shortcutHotkeyScannedShortcutCount;
+
+    [ObservableProperty]
+    private string shortcutHotkeyScanProgressPath = string.Empty;
+
+    [ObservableProperty]
+    private bool isEmptyDirectoryScanProgressVisible;
+
+    [ObservableProperty]
+    private int emptyDirectoryScanProgressValue;
+
+    [ObservableProperty]
+    private int emptyDirectoryScanProgressMaximum = 1;
+
+    [ObservableProperty]
+    private string emptyDirectoryScanProgressPath = string.Empty;
+
+    [ObservableProperty]
+    private int currentMouseSensitivityLevel = 10;
+
+    [ObservableProperty]
+    private int selectedMouseSensitivityLevel = 10;
+
+    [ObservableProperty]
+    private string mouseSensitivityStatusMessage = "Review the current Windows mouse sensitivity and apply a different pointer-speed level.";
 
     [ObservableProperty]
     private string displayRefreshStatusMessage = "Check connected displays and set each one to the top refresh rate available at its current resolution.";
@@ -101,7 +172,7 @@ public partial class MainWindowViewModel
     private string hardwareCheckBiosSummary = "BIOS details will appear after scanning.";
 
     [ObservableProperty]
-    private string hardwareCheckStatusMessage = "Scan the PC to review core hardware details.";
+    private string hardwareCheckStatusMessage = "Scan the PC to review core hardware details, live sensor telemetry, PCIe devices, storage health, partitions, and RAID details.";
 
     [ObservableProperty]
     private string driverUpdateStatusMessage = "Scan this PC's hardware and check Windows Update for recommended and optional driver updates.";
@@ -113,7 +184,7 @@ public partial class MainWindowViewModel
     private string darkModeToolStatusMessage = "Apply Windows dark mode preferences for the shell and supported apps.";
 
     [ObservableProperty]
-    private string oneDriveToolStatusMessage = "Check whether OneDrive is present, then remove it with Windows' built-in uninstaller.";
+    private string oneDriveToolStatusMessage = "Check whether OneDrive is present, apply the system disable policy, and remove it with Windows' built-in uninstaller when available.";
 
     [ObservableProperty]
     private bool areUsefulSitesVisible;
@@ -126,6 +197,14 @@ public partial class MainWindowViewModel
 
     private void InitializeToolsState()
     {
+        if (MouseSensitivityLevels.Count == 0)
+        {
+            foreach (var level in mouseSensitivityService.GetSupportedLevels().OrderBy(static level => level))
+            {
+                MouseSensitivityLevels.Add(level);
+            }
+        }
+
         if (UsefulSites.Count == 0)
         {
             foreach (var site in DefaultUsefulSites)
@@ -134,20 +213,38 @@ public partial class MainWindowViewModel
             }
         }
 
+        RefreshMouseSensitivityStatusCore(addLogEntry: false);
         OnPropertyChanged(nameof(HasDisplayRefreshRecommendations));
+        OnPropertyChanged(nameof(MouseSensitivitySummary));
         OnPropertyChanged(nameof(DisplayRefreshSummary));
         OnPropertyChanged(nameof(HardwareGraphicsSummary));
         OnPropertyChanged(nameof(HardwareStorageSummary));
+        OnPropertyChanged(nameof(HardwarePartitionSummary));
+        OnPropertyChanged(nameof(HardwareSensorSummary));
+        OnPropertyChanged(nameof(HardwarePciSummary));
+        OnPropertyChanged(nameof(HardwareRaidSummary));
         OnPropertyChanged(nameof(HasSelectedDriverUpdates));
         OnPropertyChanged(nameof(DriverHardwareSummary));
         OnPropertyChanged(nameof(DriverUpdateSelectionSummary));
         OnPropertyChanged(nameof(HasSelectedEmptyDirectories));
         OnPropertyChanged(nameof(EmptyDirectorySelectionSummary));
+        OnPropertyChanged(nameof(ShortcutHotkeyScanProgressSummary));
+        OnPropertyChanged(nameof(EmptyDirectoryScanProgressSummary));
         OnPropertyChanged(nameof(UsefulSitesToggleText));
         RefreshOneDriveStatusCore(addLogEntry: false);
     }
 
     partial void OnEmptyDirectoryRootPathChanged(string value)
+    {
+        RefreshToolCommandStates();
+    }
+
+    partial void OnCurrentMouseSensitivityLevelChanged(int value)
+    {
+        OnPropertyChanged(nameof(MouseSensitivitySummary));
+    }
+
+    partial void OnSelectedMouseSensitivityLevelChanged(int value)
     {
         RefreshToolCommandStates();
     }
@@ -179,6 +276,37 @@ public partial class MainWindowViewModel
     }
 
     private bool CanRefreshOneDriveStatus => !IsToolBusy;
+
+    private bool CanRefreshMouseSensitivityStatus => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRefreshMouseSensitivityStatus))]
+    private void RefreshMouseSensitivityStatus()
+    {
+        RefreshMouseSensitivityStatusCore(addLogEntry: true);
+    }
+
+    private void RefreshMouseSensitivityStatusCore(bool addLogEntry)
+    {
+        try
+        {
+            var status = mouseSensitivityService.GetStatus();
+            CurrentMouseSensitivityLevel = status.CurrentLevel;
+            SelectedMouseSensitivityLevel = status.CurrentLevel;
+            MouseSensitivityStatusMessage = status.Message;
+            if (addLogEntry)
+            {
+                AddToolLog(status.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            MouseSensitivityStatusMessage = $"Unable to read the Windows mouse sensitivity: {ex.Message}";
+            if (addLogEntry)
+            {
+                AddToolLog(MouseSensitivityStatusMessage);
+            }
+        }
+    }
 
     private void RefreshOneDriveStatusCore(bool addLogEntry)
     {
@@ -225,6 +353,51 @@ public partial class MainWindowViewModel
         EmptyDirectoryRootPath = selectedPath;
         EmptyDirectoryStatusMessage = $"Empty directory scan root set to {selectedPath}.";
         AddToolLog(EmptyDirectoryStatusMessage);
+    }
+
+    private bool CanShowAssignedShortcutHotkeys => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanShowAssignedShortcutHotkeys))]
+    private async Task ShowAssignedShortcutHotkeysAsync()
+    {
+        IsToolBusy = true;
+        ShortcutHotkeyStatusMessage = "Scanning fixed drives for assigned Windows shortcut keys and loading built-in shortcut references...";
+        StartShortcutHotkeyScanProgress();
+        AddToolLog(ShortcutHotkeyStatusMessage);
+
+        try
+        {
+            var progress = new Progress<ShortcutHotkeyScanProgress>(UpdateShortcutHotkeyScanProgress);
+            var result = await shortcutHotkeyInventoryService.ScanAsync(progress).ConfigureAwait(true);
+            PersistShortcutHotkeyScanMaxFolderCount(ShortcutHotkeyScanProgressMaximum);
+            shortcutHotkeyDialogService.Show(result);
+
+            var warningSuffix = result.Warnings.Count == 0
+                ? string.Empty
+                : $" Skipped {result.Warnings.Count} folder or shortcut read{(result.Warnings.Count == 1 ? string.Empty : "s")}.";
+
+            var detectedCount = result.Shortcuts.Count(static shortcut => !shortcut.IsReferenceShortcut);
+            var referenceCount = result.Shortcuts.Count(static shortcut => shortcut.IsReferenceShortcut);
+            ShortcutHotkeyStatusMessage = detectedCount == 0 && referenceCount == 0
+                ? $"Scanned {result.ScannedShortcutCount} .lnk shortcut file{(result.ScannedShortcutCount == 1 ? string.Empty : "s")}. No shortcut keys were found.{warningSuffix}"
+                : $"Opened the shortcut viewer with {detectedCount} detected .lnk hotkey{(detectedCount == 1 ? string.Empty : "s")} and {referenceCount} built-in/common shortcut reference entr{(referenceCount == 1 ? "y" : "ies")}.{warningSuffix}";
+            AddToolLog(ShortcutHotkeyStatusMessage);
+
+            foreach (var warning in result.Warnings.Take(10))
+            {
+                AddToolLog(warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShortcutHotkeyStatusMessage = $"Shortcut hotkey scan failed: {ex.Message}";
+            AddToolLog(ShortcutHotkeyStatusMessage);
+        }
+        finally
+        {
+            ResetShortcutHotkeyScanProgress();
+            IsToolBusy = false;
+        }
     }
 
     [RelayCommand]
@@ -395,6 +568,58 @@ public partial class MainWindowViewModel
     }
 
     private bool CanScanEmptyDirectories => !IsToolBusy && !string.IsNullOrWhiteSpace(EmptyDirectoryRootPath);
+
+    private bool CanApplyMouseSensitivity =>
+        !IsToolBusy
+        && SelectedMouseSensitivityLevel > 0
+        && SelectedMouseSensitivityLevel != CurrentMouseSensitivityLevel;
+
+    [RelayCommand(CanExecute = nameof(CanApplyMouseSensitivity))]
+    private async Task ApplyMouseSensitivityAsync()
+    {
+        IsToolBusy = true;
+        MouseSensitivityStatusMessage = $"Applying mouse sensitivity {SelectedMouseSensitivityLevel}/20...";
+        AddToolLog(MouseSensitivityStatusMessage);
+
+        try
+        {
+            var result = await mouseSensitivityService.ApplyAsync(SelectedMouseSensitivityLevel).ConfigureAwait(true);
+            RefreshMouseSensitivityStatusCore(addLogEntry: false);
+            MouseSensitivityStatusMessage = result.Message;
+            AddToolLog(result.Message);
+        }
+        catch (Exception ex)
+        {
+            MouseSensitivityStatusMessage = $"Mouse sensitivity update failed: {ex.Message}";
+            AddToolLog(MouseSensitivityStatusMessage);
+        }
+        finally
+        {
+            IsToolBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenMouseSettings()
+    {
+        try
+        {
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = "main.cpl",
+                    UseShellExecute = true,
+                });
+
+            MouseSensitivityStatusMessage = "Opened Windows mouse settings.";
+            AddToolLog(MouseSensitivityStatusMessage);
+        }
+        catch (Exception ex)
+        {
+            MouseSensitivityStatusMessage = $"Unable to open Windows mouse settings: {ex.Message}";
+            AddToolLog(MouseSensitivityStatusMessage);
+        }
+    }
 
     private bool CanScanDisplayRefreshRecommendations => !IsToolBusy;
 
@@ -690,6 +915,7 @@ public partial class MainWindowViewModel
         }
 
         EmptyDirectoryStatusMessage = $"Scanning {fullRootPath} for empty directories...";
+        StartEmptyDirectoryScanProgress(fullRootPath);
         if (addLogEntry)
         {
             AddToolLog(EmptyDirectoryStatusMessage);
@@ -697,7 +923,9 @@ public partial class MainWindowViewModel
 
         try
         {
-            var scanResult = await emptyDirectoryService.FindEmptyDirectoriesAsync(fullRootPath).ConfigureAwait(true);
+            var progress = new Progress<EmptyDirectoryScanProgress>(UpdateEmptyDirectoryScanProgress);
+            var scanResult = await emptyDirectoryService.FindEmptyDirectoriesAsync(fullRootPath, progress).ConfigureAwait(true);
+            PersistEmptyDirectoryScanMaxFolderCount(fullRootPath, EmptyDirectoryScanProgressMaximum);
             ReplaceEmptyDirectoryCandidates(fullRootPath, scanResult.Candidates);
 
             var warningSuffix = scanResult.Warnings.Count == 0
@@ -726,6 +954,7 @@ public partial class MainWindowViewModel
         }
         finally
         {
+            ResetEmptyDirectoryScanProgress();
             if (manageBusyState)
             {
                 IsToolBusy = false;
@@ -810,7 +1039,7 @@ public partial class MainWindowViewModel
                 ? string.Empty
                 : $" Warnings: {report.Warnings.Count}.";
             HardwareCheckStatusMessage =
-                $"Hardware scan complete. Found {report.GraphicsAdapters.Count} graphics adapter{(report.GraphicsAdapters.Count == 1 ? string.Empty : "s")} and {report.StorageDrives.Count} storage drive{(report.StorageDrives.Count == 1 ? string.Empty : "s")}.{warningSuffix}";
+                $"Hardware scan complete. Found {report.GraphicsAdapters.Count} graphics adapter{(report.GraphicsAdapters.Count == 1 ? string.Empty : "s")}, {report.StorageDrives.Count} storage drive{(report.StorageDrives.Count == 1 ? string.Empty : "s")}, {report.StoragePartitions.Count} partition{(report.StoragePartitions.Count == 1 ? string.Empty : "s")}, {report.PciDevices.Count} PCI/PCIe device{(report.PciDevices.Count == 1 ? string.Empty : "s")}, {report.Sensors.Count} sensor reading{(report.Sensors.Count == 1 ? string.Empty : "s")}, and {report.RaidDetails.Count} RAID/storage detail{(report.RaidDetails.Count == 1 ? string.Empty : "s")}.{warningSuffix}";
 
             if (addLogEntry)
             {
@@ -896,6 +1125,10 @@ public partial class MainWindowViewModel
 
         ReplaceHardwareGraphicsAdapters(report.GraphicsAdapters);
         ReplaceHardwareStorageDrives(report.StorageDrives);
+        ReplaceHardwareStoragePartitions(report.StoragePartitions);
+        ReplaceHardwareSensors(report.Sensors);
+        ReplaceHardwarePciDevices(report.PciDevices);
+        ReplaceHardwareRaidDetails(report.RaidDetails);
     }
 
     private void ReplaceHardwareGraphicsAdapters(IReadOnlyList<HardwareDisplayAdapterInfo> adapters)
@@ -918,6 +1151,54 @@ public partial class MainWindowViewModel
         }
 
         OnPropertyChanged(nameof(HardwareStorageSummary));
+    }
+
+    private void ReplaceHardwareStoragePartitions(IReadOnlyList<HardwarePartitionInfo> partitions)
+    {
+        HardwareStoragePartitions.Clear();
+        foreach (var partition in partitions)
+        {
+            HardwareStoragePartitions.Add(partition);
+        }
+
+        OnPropertyChanged(nameof(HasHardwareStoragePartitions));
+        OnPropertyChanged(nameof(HardwarePartitionSummary));
+    }
+
+    private void ReplaceHardwareSensors(IReadOnlyList<HardwareSensorInfo> sensors)
+    {
+        HardwareSensors.Clear();
+        foreach (var sensor in sensors)
+        {
+            HardwareSensors.Add(sensor);
+        }
+
+        OnPropertyChanged(nameof(HasHardwareSensors));
+        OnPropertyChanged(nameof(HardwareSensorSummary));
+    }
+
+    private void ReplaceHardwarePciDevices(IReadOnlyList<HardwarePciDeviceInfo> devices)
+    {
+        HardwarePciDevices.Clear();
+        foreach (var device in devices)
+        {
+            HardwarePciDevices.Add(device);
+        }
+
+        OnPropertyChanged(nameof(HasHardwarePciDevices));
+        OnPropertyChanged(nameof(HardwarePciSummary));
+    }
+
+    private void ReplaceHardwareRaidDetails(IReadOnlyList<HardwareRaidInfo> raidDetails)
+    {
+        HardwareRaidDetails.Clear();
+        foreach (var detail in raidDetails)
+        {
+            HardwareRaidDetails.Add(detail);
+        }
+
+        OnPropertyChanged(nameof(HasHardwareRaidDetails));
+        OnPropertyChanged(nameof(HardwareRaidSummary));
     }
 
     private void ReplaceDisplayRefreshRecommendations(IReadOnlyList<DisplayRefreshRecommendation> recommendations)
@@ -984,8 +1265,66 @@ public partial class MainWindowViewModel
         RefreshToolCommandStates();
     }
 
+    private void StartEmptyDirectoryScanProgress(string rootPath)
+    {
+        EmptyDirectoryScanProgressValue = 0;
+        EmptyDirectoryScanProgressMaximum = GetEmptyDirectoryScanCachedMaxFolderCount(rootPath);
+        EmptyDirectoryScanProgressPath = rootPath;
+        IsEmptyDirectoryScanProgressVisible = true;
+        OnPropertyChanged(nameof(EmptyDirectoryScanProgressSummary));
+    }
+
+    private void StartShortcutHotkeyScanProgress()
+    {
+        ShortcutHotkeyScanProgressValue = 0;
+        ShortcutHotkeyScanProgressMaximum = GetShortcutHotkeyScanCachedMaxFolderCount();
+        ShortcutHotkeyScannedShortcutCount = 0;
+        ShortcutHotkeyScanProgressPath = "Preparing shortcut scan...";
+        IsShortcutHotkeyScanProgressVisible = true;
+        OnPropertyChanged(nameof(ShortcutHotkeyScanProgressSummary));
+    }
+
+    private void UpdateEmptyDirectoryScanProgress(EmptyDirectoryScanProgress progress)
+    {
+        EmptyDirectoryScanProgressMaximum = Math.Max(progress.TotalDirectoryCount, 1);
+        EmptyDirectoryScanProgressValue = Math.Min(progress.CompletedDirectoryCount, EmptyDirectoryScanProgressMaximum);
+        EmptyDirectoryScanProgressPath = progress.CurrentPath;
+        OnPropertyChanged(nameof(EmptyDirectoryScanProgressSummary));
+    }
+
+    private void UpdateShortcutHotkeyScanProgress(ShortcutHotkeyScanProgress progress)
+    {
+        ShortcutHotkeyScanProgressMaximum = Math.Max(progress.TotalFolderCount, 1);
+        ShortcutHotkeyScanProgressValue = Math.Min(progress.CompletedFolderCount, ShortcutHotkeyScanProgressMaximum);
+        ShortcutHotkeyScannedShortcutCount = Math.Max(progress.ScannedShortcutCount, 0);
+        ShortcutHotkeyScanProgressPath = progress.CurrentPath;
+        OnPropertyChanged(nameof(ShortcutHotkeyScanProgressSummary));
+    }
+
+    private void ResetEmptyDirectoryScanProgress()
+    {
+        IsEmptyDirectoryScanProgressVisible = false;
+        EmptyDirectoryScanProgressValue = 0;
+        EmptyDirectoryScanProgressMaximum = 1;
+        EmptyDirectoryScanProgressPath = string.Empty;
+        OnPropertyChanged(nameof(EmptyDirectoryScanProgressSummary));
+    }
+
+    private void ResetShortcutHotkeyScanProgress()
+    {
+        IsShortcutHotkeyScanProgressVisible = false;
+        ShortcutHotkeyScanProgressValue = 0;
+        ShortcutHotkeyScanProgressMaximum = 1;
+        ShortcutHotkeyScannedShortcutCount = 0;
+        ShortcutHotkeyScanProgressPath = string.Empty;
+        OnPropertyChanged(nameof(ShortcutHotkeyScanProgressSummary));
+    }
+
     private void RefreshToolCommandStates()
     {
+        ShowAssignedShortcutHotkeysCommand.NotifyCanExecuteChanged();
+        RefreshMouseSensitivityStatusCommand.NotifyCanExecuteChanged();
+        ApplyMouseSensitivityCommand.NotifyCanExecuteChanged();
         ScanDisplayRefreshRecommendationsCommand.NotifyCanExecuteChanged();
         ApplyDisplayRefreshRecommendationsCommand.NotifyCanExecuteChanged();
         ScanHardwareCheckCommand.NotifyCanExecuteChanged();
@@ -1010,6 +1349,85 @@ public partial class MainWindowViewModel
         return $"{selectedCount} selected  |  {EmptyDirectoryCandidates.Count} deletable folders found";
     }
 
+    private string BuildEmptyDirectoryScanProgressSummary()
+    {
+        if (!IsEmptyDirectoryScanProgressVisible)
+        {
+            return string.Empty;
+        }
+
+        return $"Scanning {EmptyDirectoryScanProgressValue}/{EmptyDirectoryScanProgressMaximum} folders...  |  Current: {EmptyDirectoryScanProgressPath}";
+    }
+
+    private string BuildShortcutHotkeyScanProgressSummary()
+    {
+        if (!IsShortcutHotkeyScanProgressVisible)
+        {
+            return string.Empty;
+        }
+
+        return $"Scanning {ShortcutHotkeyScanProgressValue}/{ShortcutHotkeyScanProgressMaximum} folders...  |  .lnk files checked: {ShortcutHotkeyScannedShortcutCount}  |  Current: {ShortcutHotkeyScanProgressPath}";
+    }
+
+    private int GetShortcutHotkeyScanCachedMaxFolderCount() =>
+        Math.Max(shortcutHotkeyScanMaxFolderCountCache, 1);
+
+    private int GetEmptyDirectoryScanCachedMaxFolderCount(string rootPath)
+    {
+        if (string.IsNullOrWhiteSpace(rootPath))
+        {
+            return 1;
+        }
+
+        var normalizedRootPath = Path.GetFullPath(rootPath);
+        return emptyDirectoryScanMaxFolderCountCache.TryGetValue(normalizedRootPath, out var cachedMaximum)
+            ? Math.Max(cachedMaximum, 1)
+            : 1;
+    }
+
+    private void PersistShortcutHotkeyScanMaxFolderCount(int maximum)
+    {
+        var normalizedMaximum = Math.Max(maximum, 0);
+        if (normalizedMaximum <= 0 || normalizedMaximum == shortcutHotkeyScanMaxFolderCountCache)
+        {
+            return;
+        }
+
+        shortcutHotkeyScanMaxFolderCountCache = normalizedMaximum;
+        ScheduleSettingsAutoSave();
+    }
+
+    private void PersistEmptyDirectoryScanMaxFolderCount(string rootPath, int maximum)
+    {
+        if (string.IsNullOrWhiteSpace(rootPath))
+        {
+            return;
+        }
+
+        var normalizedMaximum = Math.Max(maximum, 0);
+        if (normalizedMaximum <= 0)
+        {
+            return;
+        }
+
+        var normalizedRootPath = Path.GetFullPath(rootPath);
+        if (emptyDirectoryScanMaxFolderCountCache.TryGetValue(normalizedRootPath, out var existingMaximum)
+            && existingMaximum == normalizedMaximum)
+        {
+            return;
+        }
+
+        emptyDirectoryScanMaxFolderCountCache[normalizedRootPath] = normalizedMaximum;
+        ScheduleSettingsAutoSave();
+    }
+
+    private string BuildMouseSensitivitySummary()
+    {
+        return SelectedMouseSensitivityLevel == CurrentMouseSensitivityLevel
+            ? $"Current Windows speed: {CurrentMouseSensitivityLevel}/20"
+            : $"Current Windows speed: {CurrentMouseSensitivityLevel}/20  |  Selected: {SelectedMouseSensitivityLevel}/20";
+    }
+
     private string BuildDisplayRefreshSummary()
     {
         var needsChangeCount = DisplayRefreshRecommendations.Count(item => item.NeedsChange);
@@ -1021,6 +1439,26 @@ public partial class MainWindowViewModel
 
     private string BuildHardwareStorageSummary() =>
         $"{HardwareStorageDrives.Count} storage drive{(HardwareStorageDrives.Count == 1 ? string.Empty : "s")}";
+
+    private string BuildHardwarePartitionSummary() =>
+        HardwareStoragePartitions.Count == 0
+            ? "No partitions detected"
+            : $"{HardwareStoragePartitions.Count} partition{(HardwareStoragePartitions.Count == 1 ? string.Empty : "s")}";
+
+    private string BuildHardwareSensorSummary() =>
+        HardwareSensors.Count == 0
+            ? "Sensors / Temps / Fans: Windows did not expose live telemetry"
+            : $"{HardwareSensors.Count} sensor reading{(HardwareSensors.Count == 1 ? string.Empty : "s")}";
+
+    private string BuildHardwarePciSummary() =>
+        HardwarePciDevices.Count == 0
+            ? "No PCI/PCIe devices detected"
+            : $"{HardwarePciDevices.Count} PCI/PCIe device{(HardwarePciDevices.Count == 1 ? string.Empty : "s")}";
+
+    private string BuildHardwareRaidSummary() =>
+        HardwareRaidDetails.Count == 0
+            ? "RAID / Storage Spaces: none detected"
+            : $"{HardwareRaidDetails.Count} RAID/storage detail{(HardwareRaidDetails.Count == 1 ? string.Empty : "s")}";
 
     private string BuildDriverHardwareSummary() =>
         $"{DriverHardwareInventory.Count} detected component{(DriverHardwareInventory.Count == 1 ? string.Empty : "s")}";
@@ -1043,4 +1481,5 @@ public partial class MainWindowViewModel
             ToolLogEntries.RemoveAt(ToolLogEntries.Count - 1);
         }
     }
+
 }

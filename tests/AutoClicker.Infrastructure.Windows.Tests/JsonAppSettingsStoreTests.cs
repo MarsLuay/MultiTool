@@ -261,6 +261,45 @@ public sealed class JsonAppSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync_AndLoadAsync_ShouldRoundTripToolScanMaxCache()
+    {
+        Directory.CreateDirectory(workingDirectory);
+
+        var settingsFilePath = Path.Combine(workingDirectory, "settings.json");
+        var legacyFilePath = Path.Combine(workingDirectory, "AutoClicker_Settings.json");
+        var store = new JsonAppSettingsStore(settingsFilePath, legacyFilePath);
+
+        var expected = new AppSettings
+        {
+            Clicker = new ClickSettings(),
+            Hotkeys = new HotkeySettings(),
+            Screenshot = new ScreenshotSettings(),
+            Macro = new MacroSettings(),
+            Installer = new InstallerSettings(),
+            Tools = new ToolSettings
+            {
+                ShortcutHotkeyScanMaxFolderCount = 420123,
+                EmptyDirectoryScanMaxFolderCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [@"C:\Users\Marwan"] = 1250,
+                    [@"D:\Archive"] = 89,
+                },
+            },
+        };
+
+        await store.SaveAsync(expected);
+        var actual = await store.LoadAsync();
+
+        actual.Tools.ShortcutHotkeyScanMaxFolderCount.Should().Be(420123);
+        actual.Tools.EmptyDirectoryScanMaxFolderCounts.Should().BeEquivalentTo(
+            new Dictionary<string, int>
+            {
+                [@"C:\Users\Marwan"] = 1250,
+                [@"D:\Archive"] = 89,
+            });
+    }
+
+    [Fact]
     public async Task SaveAsync_AndLoadAsync_ShouldRoundTripInstallerSelections()
     {
         Directory.CreateDirectory(workingDirectory);
@@ -327,6 +366,101 @@ public sealed class JsonAppSettingsStoreTests : IDisposable
         actual.Macro.PlayHotkey.VirtualKey.Should().Be(0x6B);
         actual.Macro.PlayHotkey.DisplayName.Should().Be("+");
         actual.Macro.RecordMouseMovement.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SaveAsync_AndLoadAsync_ShouldRoundTripAssignedMacroHotkeys()
+    {
+        Directory.CreateDirectory(workingDirectory);
+
+        var settingsFilePath = Path.Combine(workingDirectory, "settings.json");
+        var legacyFilePath = Path.Combine(workingDirectory, "AutoClicker_Settings.json");
+        var store = new JsonAppSettingsStore(settingsFilePath, legacyFilePath);
+
+        var expected = new AppSettings
+        {
+            Clicker = new ClickSettings(),
+            Hotkeys = new HotkeySettings(),
+            Screenshot = new ScreenshotSettings(),
+            Macro = new MacroSettings
+            {
+                PlayHotkey = new HotkeyBinding(0x6B, "+"),
+                RecordHotkey = new HotkeyBinding(0x6F, "/"),
+                AssignedHotkeys =
+                [
+                    new MacroHotkeyAssignment
+                    {
+                        Id = "farm",
+                        MacroDisplayName = "Farm Route",
+                        MacroFilePath = @"C:\Macros\Farm Route.acmacro.json",
+                        Hotkey = new HotkeyBinding(0x74, "F5"),
+                        PlaybackMode = MacroHotkeyPlaybackMode.ToggleRepeat,
+                        IsEnabled = true,
+                    },
+                ],
+            },
+        };
+
+        await store.SaveAsync(expected);
+        var actual = await store.LoadAsync();
+
+        actual.Macro.AssignedHotkeys.Should().ContainSingle();
+        actual.Macro.AssignedHotkeys[0].Id.Should().Be("farm");
+        actual.Macro.AssignedHotkeys[0].MacroDisplayName.Should().Be("Farm Route");
+        actual.Macro.AssignedHotkeys[0].MacroFilePath.Should().Be(@"C:\Macros\Farm Route.acmacro.json");
+        actual.Macro.AssignedHotkeys[0].Hotkey.VirtualKey.Should().Be(0x74);
+        actual.Macro.AssignedHotkeys[0].Hotkey.DisplayName.Should().Be("F5");
+        actual.Macro.AssignedHotkeys[0].PlaybackMode.Should().Be(MacroHotkeyPlaybackMode.ToggleRepeat);
+        actual.Macro.AssignedHotkeys[0].IsEnabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task LoadAsync_ShouldDropInvalidAssignedMacroHotkeys()
+    {
+        Directory.CreateDirectory(workingDirectory);
+
+        var settingsFilePath = Path.Combine(workingDirectory, "settings.json");
+        var legacyFilePath = Path.Combine(workingDirectory, "AutoClicker_Settings.json");
+        var store = new JsonAppSettingsStore(settingsFilePath, legacyFilePath);
+
+        await File.WriteAllTextAsync(
+            settingsFilePath,
+            """
+            {
+              "Macro": {
+                "AssignedHotkeys": [
+                  {
+                    "Id": "bad",
+                    "MacroDisplayName": "Broken",
+                    "MacroFilePath": "C:\\Macros\\Broken.acmacro.json",
+                    "Hotkey": {
+                      "VirtualKey": 0,
+                      "DisplayName": ""
+                    },
+                    "PlaybackMode": 0,
+                    "IsEnabled": true
+                  },
+                  {
+                    "Id": "good",
+                    "MacroDisplayName": "Working",
+                    "MacroFilePath": "C:\\Macros\\Working.acmacro.json",
+                    "Hotkey": {
+                      "VirtualKey": 117,
+                      "DisplayName": "F6"
+                    },
+                    "PlaybackMode": 1,
+                    "IsEnabled": false
+                  }
+                ]
+              }
+            }
+            """);
+
+        var actual = await store.LoadAsync();
+
+        actual.Macro.AssignedHotkeys.Should().ContainSingle();
+        actual.Macro.AssignedHotkeys[0].Id.Should().Be("good");
+        actual.Macro.AssignedHotkeys[0].Hotkey.VirtualKey.Should().Be(117);
     }
 
     [Fact]

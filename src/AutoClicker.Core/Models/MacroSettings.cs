@@ -16,6 +16,8 @@ public sealed class MacroSettings
 
     public bool RecordMouseMovement { get; set; } = true;
 
+    public List<MacroHotkeyAssignment> AssignedHotkeys { get; set; } = [];
+
     public static HotkeyBinding CreateDefaultPlayBinding() => new(DefaultPlayVirtualKey, DefaultPlayDisplayName);
 
     public static HotkeyBinding CreateDefaultRecordBinding() => new(DefaultRecordVirtualKey, DefaultRecordDisplayName);
@@ -26,5 +28,6 @@ public sealed class MacroSettings
             PlayHotkey = PlayHotkey.Clone(),
             RecordHotkey = RecordHotkey.Clone(),
             RecordMouseMovement = RecordMouseMovement,
+            AssignedHotkeys = AssignedHotkeys.Select(assignment => assignment.Clone()).ToList(),
         };
 }

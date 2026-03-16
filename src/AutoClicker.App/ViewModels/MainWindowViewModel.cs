@@ -32,6 +32,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IMacroNamePromptService macroNamePromptService;
     private readonly IMacroFileDialogService macroFileDialogService;
     private readonly IHotkeySettingsDialogService hotkeySettingsDialogService;
+    private readonly IMacroHotkeyAssignmentsDialogService macroHotkeyAssignmentsDialogService;
     private readonly ICoordinateCaptureDialogService coordinateCaptureDialogService;
     private readonly IAboutWindowService aboutWindowService;
     private readonly IThemeService themeService;
@@ -42,10 +43,14 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IBrowserLauncherService browserLauncherService;
     private readonly IFirefoxExtensionService firefoxExtensionService;
     private readonly IEmptyDirectoryService emptyDirectoryService;
+    private readonly IShortcutHotkeyInventoryService shortcutHotkeyInventoryService;
+    private readonly IMouseSensitivityService mouseSensitivityService;
     private readonly IDisplayRefreshRateService displayRefreshRateService;
     private readonly IHardwareInventoryService hardwareInventoryService;
     private readonly IDriverUpdateService driverUpdateService;
     private readonly IOneDriveRemovalService oneDriveRemovalService;
+    private readonly IShortcutHotkeyDialogService shortcutHotkeyDialogService;
+    private readonly AppLaunchOptions appLaunchOptions;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private readonly SynchronizationContext? synchronizationContext;
 
@@ -53,6 +58,8 @@ public partial class MainWindowViewModel : ObservableObject
     private CancellationTokenSource? pendingAutoSaveCancellationTokenSource;
     private bool initialized;
     private bool suppressThemeChange;
+    private int shortcutHotkeyScanMaxFolderCountCache;
+    private Dictionary<string, int> emptyDirectoryScanMaxFolderCountCache = new(StringComparer.OrdinalIgnoreCase);
 
     public MainWindowViewModel(
         IAppSettingsStore settingsStore,
@@ -68,6 +75,7 @@ public partial class MainWindowViewModel : ObservableObject
         IMacroNamePromptService macroNamePromptService,
         IMacroFileDialogService macroFileDialogService,
         IHotkeySettingsDialogService hotkeySettingsDialogService,
+        IMacroHotkeyAssignmentsDialogService macroHotkeyAssignmentsDialogService,
         ICoordinateCaptureDialogService coordinateCaptureDialogService,
         IAboutWindowService aboutWindowService,
         IThemeService themeService,
@@ -78,10 +86,14 @@ public partial class MainWindowViewModel : ObservableObject
         IBrowserLauncherService browserLauncherService,
         IFirefoxExtensionService firefoxExtensionService,
         IEmptyDirectoryService emptyDirectoryService,
+        IShortcutHotkeyInventoryService shortcutHotkeyInventoryService,
+        IMouseSensitivityService mouseSensitivityService,
         IDisplayRefreshRateService displayRefreshRateService,
         IHardwareInventoryService hardwareInventoryService,
         IDriverUpdateService driverUpdateService,
-        IOneDriveRemovalService oneDriveRemovalService)
+        IOneDriveRemovalService oneDriveRemovalService,
+        IShortcutHotkeyDialogService shortcutHotkeyDialogService,
+        AppLaunchOptions appLaunchOptions)
     {
         this.settingsStore = settingsStore;
         this.settingsValidator = settingsValidator;
@@ -96,6 +108,7 @@ public partial class MainWindowViewModel : ObservableObject
         this.macroNamePromptService = macroNamePromptService;
         this.macroFileDialogService = macroFileDialogService;
         this.hotkeySettingsDialogService = hotkeySettingsDialogService;
+        this.macroHotkeyAssignmentsDialogService = macroHotkeyAssignmentsDialogService;
         this.coordinateCaptureDialogService = coordinateCaptureDialogService;
         this.aboutWindowService = aboutWindowService;
         this.themeService = themeService;
@@ -106,10 +119,14 @@ public partial class MainWindowViewModel : ObservableObject
         this.browserLauncherService = browserLauncherService;
         this.firefoxExtensionService = firefoxExtensionService;
         this.emptyDirectoryService = emptyDirectoryService;
+        this.shortcutHotkeyInventoryService = shortcutHotkeyInventoryService;
+        this.mouseSensitivityService = mouseSensitivityService;
         this.displayRefreshRateService = displayRefreshRateService;
         this.hardwareInventoryService = hardwareInventoryService;
         this.driverUpdateService = driverUpdateService;
         this.oneDriveRemovalService = oneDriveRemovalService;
+        this.shortcutHotkeyDialogService = shortcutHotkeyDialogService;
+        this.appLaunchOptions = appLaunchOptions;
         synchronizationContext = SynchronizationContext.Current;
 
         MouseButtons =
@@ -295,7 +312,12 @@ public partial class MainWindowViewModel : ObservableObject
     private bool isCtrlWheelResizeEnabled = true;
 
     [ObservableProperty]
+    private bool isAutoHideOnStartupEnabled;
+
+    [ObservableProperty]
     private string settingsStatusMessage = "Dark mode will match Windows the first time the app runs.";
+
+    public bool ShouldAutoHideOnStartup => appLaunchOptions.IsStartupLaunch && IsAutoHideOnStartupEnabled;
 
     public async Task InitializeAsync()
     {
@@ -643,6 +665,7 @@ public partial class MainWindowViewModel : ObservableObject
 
             macroService.SetCurrentMacro(editedMacro);
             ApplyLoadedMacro(editedMacro);
+            UpdateAssignedMacroHotkeyPath(originalPath, updatedPath, editedMacro.Name);
             RefreshSavedMacrosInternal(updatedPath);
             MacroStatusMessage = $"Saved edits to '{editedMacro.Name}'.";
             AddMacroLog($"Saved edited macro to {updatedPath}.");
@@ -784,7 +807,7 @@ public partial class MainWindowViewModel : ObservableObject
         StatusMessage = message;
     }
 
-    public async Task HandleHotkeyAsync(HotkeyAction action)
+    public async Task HandleHotkeyAsync(HotkeyAction action, string? payload = null)
     {
         switch (action)
         {
@@ -807,6 +830,9 @@ public partial class MainWindowViewModel : ObservableObject
                 return;
             case HotkeyAction.MacroRecordToggle:
                 await ToggleMacroRecordingAsync();
+                return;
+            case HotkeyAction.MacroAssigned:
+                await HandleAssignedMacroHotkeyAsync(payload);
                 return;
             default:
                 throw new NotSupportedException($"Hotkey action {action} is not supported.");
@@ -841,10 +867,16 @@ public partial class MainWindowViewModel : ObservableObject
         MacroRecordHotkeyVirtualKey = settings.Macro.RecordHotkey.VirtualKey;
         MacroRecordHotkeyDisplay = settings.Macro.RecordHotkey.DisplayName;
         RecordMacroMouseMovement = settings.Macro.RecordMouseMovement;
+        SetMacroHotkeyAssignments(settings.Macro.AssignedHotkeys);
         ApplyInstallerSettings(settings.Installer);
+        shortcutHotkeyScanMaxFolderCountCache = Math.Max(settings.Tools.ShortcutHotkeyScanMaxFolderCount, 0);
+        emptyDirectoryScanMaxFolderCountCache = new Dictionary<string, int>(
+            settings.Tools.EmptyDirectoryScanMaxFolderCounts,
+            StringComparer.OrdinalIgnoreCase);
         suppressThemeChange = true;
         IsDarkMode = settings.Ui.IsDarkMode ?? themeService.GetSystemPrefersDarkMode();
         IsCtrlWheelResizeEnabled = settings.Ui.EnableCtrlWheelResize;
+        IsAutoHideOnStartupEnabled = settings.Ui.AutoHideOnStartup;
         suppressThemeChange = false;
         themeService.ApplyTheme(IsDarkMode);
         SettingsStatusMessage = IsDarkMode ? "Dark mode is on." : "Dark mode is off.";
@@ -880,10 +912,12 @@ public partial class MainWindowViewModel : ObservableObject
             Screenshot = BuildScreenshotSettings(),
             Macro = BuildMacroSettings(),
             Installer = BuildInstallerSettings(),
+            Tools = BuildToolSettings(),
             Ui = new UiSettings
             {
                 IsDarkMode = IsDarkMode,
                 EnableCtrlWheelResize = IsCtrlWheelResizeEnabled,
+                AutoHideOnStartup = IsAutoHideOnStartupEnabled,
             },
         };
 
@@ -907,6 +941,16 @@ public partial class MainWindowViewModel : ObservableObject
                 virtualKey: MacroRecordHotkeyVirtualKey <= 0 ? MacroSettings.DefaultRecordVirtualKey : MacroRecordHotkeyVirtualKey,
                 displayName: string.IsNullOrWhiteSpace(MacroRecordHotkeyDisplay) ? MacroSettings.DefaultRecordDisplayName : MacroRecordHotkeyDisplay),
             RecordMouseMovement = RecordMacroMouseMovement,
+            AssignedHotkeys = macroHotkeyAssignments.Select(assignment => assignment.Clone()).ToList(),
+        };
+
+    private ToolSettings BuildToolSettings() =>
+        new()
+        {
+            ShortcutHotkeyScanMaxFolderCount = Math.Max(shortcutHotkeyScanMaxFolderCountCache, 0),
+            EmptyDirectoryScanMaxFolderCounts = new Dictionary<string, int>(
+                emptyDirectoryScanMaxFolderCountCache,
+                StringComparer.OrdinalIgnoreCase),
         };
 
     private void RefreshHotkeyLabels()
@@ -1048,6 +1092,9 @@ public partial class MainWindowViewModel : ObservableObject
     {
         LoadSelectedSavedMacroCommand.NotifyCanExecuteChanged();
         EditSelectedSavedMacroCommand.NotifyCanExecuteChanged();
+        AssignSelectedMacroHotkeyCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(HasSelectedSavedMacroHotkey));
+        OnPropertyChanged(nameof(SelectedSavedMacroHotkeySummary));
     }
 
     partial void OnLatestScreenshotPreviewChanged(ImageSource? value)
@@ -1107,6 +1154,26 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    partial void OnIsAutoHideOnStartupEnabledChanged(bool value)
+    {
+        if (suppressThemeChange)
+        {
+            return;
+        }
+
+        SettingsStatusMessage = value
+            ? "Auto-hide on startup is on."
+            : "Auto-hide on startup is off.";
+        ScheduleSettingsAutoSave();
+
+        if (initialized)
+        {
+            AddActivityLog(value
+                ? "Enabled auto-hide on startup."
+                : "Disabled auto-hide on startup.");
+        }
+    }
+
     private void RefreshMacroCommandStates()
     {
         StartMacroRecordingCommand.NotifyCanExecuteChanged();
@@ -1116,6 +1183,8 @@ public partial class MainWindowViewModel : ObservableObject
         LoadMacroCommand.NotifyCanExecuteChanged();
         LoadSelectedSavedMacroCommand.NotifyCanExecuteChanged();
         EditSelectedSavedMacroCommand.NotifyCanExecuteChanged();
+        ManageMacroHotkeysCommand.NotifyCanExecuteChanged();
+        AssignSelectedMacroHotkeyCommand.NotifyCanExecuteChanged();
     }
 
     private string GetCustomKeyDisplayName() =>
@@ -1222,6 +1291,9 @@ public partial class MainWindowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasSavedMacros));
         LoadSelectedSavedMacroCommand.NotifyCanExecuteChanged();
+        ManageMacroHotkeysCommand.NotifyCanExecuteChanged();
+        AssignSelectedMacroHotkeyCommand.NotifyCanExecuteChanged();
+        SynchronizeAssignedMacroHotkeysWithSavedMacros();
     }
 
     [RelayCommand]

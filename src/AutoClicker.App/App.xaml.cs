@@ -35,11 +35,16 @@ public partial class App : System.Windows.Application
         {
             AppLog.Info("Startup begin.");
             base.OnStartup(e);
+            var launchOptions = new AppLaunchOptions
+            {
+                IsStartupLaunch = e.Args.Any(argument => string.Equals(argument, "--startup-launch", StringComparison.OrdinalIgnoreCase)),
+            };
 
             host = Host.CreateDefaultBuilder()
                 .ConfigureServices(
                     (_, services) =>
                     {
+                        services.AddSingleton(launchOptions);
                         services.AddSingleton<SettingsValidator>();
                         services.AddSingleton<IAppSettingsStore, JsonAppSettingsStore>();
                         services.AddSingleton<ICursorService, WindowsCursorService>();
@@ -51,6 +56,8 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IBrowserLauncherService, WindowsBrowserLauncherService>();
                         services.AddSingleton<IFirefoxExtensionService, WindowsFirefoxExtensionService>();
                         services.AddSingleton<IEmptyDirectoryService, WindowsEmptyDirectoryService>();
+                        services.AddSingleton<IShortcutHotkeyInventoryService, WindowsShortcutHotkeyInventoryService>();
+                        services.AddSingleton<IMouseSensitivityService, WindowsMouseSensitivityService>();
                         services.AddSingleton<IDisplayRefreshRateService, WindowsDisplayRefreshRateService>();
                         services.AddSingleton<IHardwareInventoryService, WindowsHardwareInventoryService>();
                         services.AddSingleton<IDriverUpdateService, WindowsDriverUpdateService>();
@@ -60,6 +67,7 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<ITrayIconService, NotifyIconTrayService>();
 
                         services.AddSingleton<IHotkeySettingsDialogService, HotkeySettingsDialogService>();
+                        services.AddSingleton<IMacroHotkeyAssignmentsDialogService, MacroHotkeyAssignmentsDialogService>();
                         services.AddSingleton<ICoordinateCaptureDialogService, CoordinateCaptureDialogService>();
                         services.AddSingleton<IFolderPickerService, FolderPickerService>();
                         services.AddSingleton<IMacroLibraryService, MacroLibraryService>();
@@ -69,6 +77,7 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IScreenshotOptionsDialogService, ScreenshotOptionsDialogService>();
                         services.AddSingleton<IScreenshotAreaSelectionService, ScreenshotAreaSelectionService>();
                         services.AddSingleton<IAboutWindowService, AboutWindowService>();
+                        services.AddSingleton<IShortcutHotkeyDialogService, ShortcutHotkeyDialogService>();
                         services.AddSingleton<IThemeService, ThemeService>();
                         services.AddSingleton<IClipboardTextService, ClipboardTextService>();
 

@@ -2,7 +2,7 @@ namespace AutoClicker.Core.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 9;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -16,6 +16,8 @@ public sealed class AppSettings
 
     public InstallerSettings Installer { get; set; } = new();
 
+    public ToolSettings Tools { get; set; } = new();
+
     public UiSettings Ui { get; set; } = new();
 
     public AppSettings Clone() =>
@@ -27,6 +29,7 @@ public sealed class AppSettings
             Screenshot = Screenshot.Clone(),
             Macro = Macro.Clone(),
             Installer = Installer.Clone(),
+            Tools = Tools.Clone(),
             Ui = Ui.Clone(),
         };
 }

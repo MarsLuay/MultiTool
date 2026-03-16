@@ -21,13 +21,28 @@ public partial class InstallerPackageItem : ObservableObject
 
     public string Description => Package.Description;
 
+    public string PackageHintText =>
+        UsesCustomInstallFlow
+            ? "Handled by MultiTool"
+            : string.Equals(Package.Source, "msstore", StringComparison.OrdinalIgnoreCase)
+                ? "Microsoft Store app"
+                : UsesGuidedInstall
+                    ? "Official setup page"
+                    : "Windows app";
+
     public bool IsRecommended => Package.IsRecommended;
 
     public bool IsDeveloperTool => Package.IsDeveloperTool;
 
+    public bool UsesCustomInstallFlow => Package.UsesCustomInstallFlow;
+
     public bool UsesGuidedInstall => !Package.UsesCustomInstallFlow && !string.IsNullOrWhiteSpace(Package.InstallUrl);
 
-    public bool UsesGuidedUpdate => !string.IsNullOrWhiteSpace(Package.UpdateUrl) || UsesGuidedInstall;
+    public bool UsesGuidedUpdate => !Package.UsesCustomInstallFlow && (!string.IsNullOrWhiteSpace(Package.UpdateUrl) || UsesGuidedInstall);
+
+    public bool CanInstallWithoutWinget => UsesGuidedInstall || UsesCustomInstallFlow;
+
+    public bool CanUpdateWithoutWinget => UsesGuidedUpdate || UsesCustomInstallFlow;
 
     public ObservableCollection<InstallerPackageOptionItem> Options { get; } = [];
 

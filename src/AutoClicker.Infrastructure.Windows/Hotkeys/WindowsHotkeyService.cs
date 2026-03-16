@@ -19,8 +19,8 @@ public sealed class WindowsHotkeyService : IHotkeyService
         HotkeyModifiers.Shift,
     ];
 
-    private readonly Dictionary<int, HotkeyAction> idToAction = new();
-    private readonly Dictionary<ClickMouseButton, HotkeyAction> mouseButtonActions = new();
+    private readonly Dictionary<int, RegisteredHotkeyAction> idToAction = new();
+    private readonly Dictionary<ClickMouseButton, RegisteredHotkeyAction> mouseButtonActions = new();
     private readonly User32.HookProc mouseHookCallback;
 
     private HwndSource? source;
@@ -99,12 +99,23 @@ public sealed class WindowsHotkeyService : IHotkeyService
 
         if (macroSettings.PlayHotkey.InputKind == HotkeyInputKind.Keyboard)
         {
-            results.AddRange(RegisterKeyboardBinding(HotkeyAction.MacroPlay, macroSettings.PlayHotkey, [HotkeyModifiers.None]));
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.MacroPlay, macroSettings.PlayHotkey, [HotkeyModifiers.None], actionLabel: "Macro play"));
         }
 
         if (macroSettings.RecordHotkey.InputKind == HotkeyInputKind.Keyboard)
         {
-            results.AddRange(RegisterKeyboardBinding(HotkeyAction.MacroRecordToggle, macroSettings.RecordHotkey, [HotkeyModifiers.None]));
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.MacroRecordToggle, macroSettings.RecordHotkey, [HotkeyModifiers.None], actionLabel: "Macro record"));
+        }
+
+        foreach (var assignment in macroSettings.AssignedHotkeys.Where(assignment => assignment.IsEnabled && assignment.Hotkey.InputKind == HotkeyInputKind.Keyboard))
+        {
+            results.AddRange(
+                RegisterKeyboardBinding(
+                    HotkeyAction.MacroAssigned,
+                    assignment.Hotkey,
+                    [HotkeyModifiers.None],
+                    payload: assignment.Id,
+                    actionLabel: $"Saved macro '{assignment.MacroDisplayName}'"));
         }
 
         return results;
@@ -143,7 +154,9 @@ public sealed class WindowsHotkeyService : IHotkeyService
     private IEnumerable<HotkeyRegistrationResult> RegisterKeyboardBinding(
         HotkeyAction action,
         HotkeyBinding binding,
-        IEnumerable<HotkeyModifiers> modifiers)
+        IEnumerable<HotkeyModifiers> modifiers,
+        string? payload = null,
+        string? actionLabel = null)
     {
         foreach (var modifier in modifiers)
         {
@@ -151,10 +164,10 @@ public sealed class WindowsHotkeyService : IHotkeyService
             var succeeded = User32.RegisterHotKey(handle, hotkeyId, (uint)modifier, (uint)binding.VirtualKey);
             if (succeeded)
             {
-                idToAction[hotkeyId] = action;
+                idToAction[hotkeyId] = new RegisteredHotkeyAction(action, payload);
             }
 
-            yield return new HotkeyRegistrationResult(action, binding.Clone(), modifier, succeeded);
+            yield return new HotkeyRegistrationResult(action, binding.Clone(), modifier, succeeded, actionLabel);
         }
     }
 
@@ -163,7 +176,7 @@ public sealed class WindowsHotkeyService : IHotkeyService
         var succeeded = InstallMouseHook();
         if (succeeded)
         {
-            mouseButtonActions[binding.MouseButton] = action;
+            mouseButtonActions[binding.MouseButton] = new RegisteredHotkeyAction(action, null);
         }
 
         return new HotkeyRegistrationResult(action, binding.Clone(), HotkeyModifiers.None, succeeded);
@@ -183,7 +196,7 @@ public sealed class WindowsHotkeyService : IHotkeyService
         }
 
         handled = true;
-        HotkeyPressed?.Invoke(this, new HotkeyPressedEventArgs(action));
+        HotkeyPressed?.Invoke(this, new HotkeyPressedEventArgs(action.Action, action.Payload));
         return nint.Zero;
     }
 
@@ -218,7 +231,7 @@ public sealed class WindowsHotkeyService : IHotkeyService
             var mouseButton = TranslateMouseButton(wParam, lParam);
             if (mouseButton is not null && mouseButtonActions.TryGetValue(mouseButton.Value, out var action))
             {
-                HotkeyPressed?.Invoke(this, new HotkeyPressedEventArgs(action));
+                HotkeyPressed?.Invoke(this, new HotkeyPressedEventArgs(action.Action, action.Payload));
                 return 1;
             }
         }
@@ -249,4 +262,6 @@ public sealed class WindowsHotkeyService : IHotkeyService
             _ => null,
         };
     }
+
+    private readonly record struct RegisteredHotkeyAction(HotkeyAction Action, string? Payload);
 }

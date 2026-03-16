@@ -143,6 +143,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
             Screenshot = new ScreenshotSettings(),
             Macro = new MacroSettings(),
             Installer = new InstallerSettings(),
+            Tools = new ToolSettings(),
             Ui = new UiSettings(),
         };
     }
@@ -154,20 +155,31 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         settings.Screenshot ??= new ScreenshotSettings();
         settings.Macro ??= new MacroSettings();
         settings.Installer ??= new InstallerSettings();
+        settings.Tools ??= new ToolSettings();
         settings.Ui ??= new UiSettings();
         settings.Hotkeys.Toggle ??= HotkeySettings.CreateDefaultToggleBinding();
         settings.Screenshot.CaptureHotkey ??= ScreenshotSettings.CreateDefaultCaptureBinding();
         settings.Macro.PlayHotkey ??= MacroSettings.CreateDefaultPlayBinding();
         settings.Macro.RecordHotkey ??= MacroSettings.CreateDefaultRecordBinding();
+        settings.Macro.AssignedHotkeys ??= [];
         settings.Installer.SelectedPackageIds ??= [];
         settings.Installer.SelectedCleanupPackageIds ??= [];
         settings.Installer.PackageOptions ??= [];
+        settings.Tools.EmptyDirectoryScanMaxFolderCounts ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var packageOptions in settings.Installer.PackageOptions)
         {
             packageOptions.PackageId ??= string.Empty;
             packageOptions.SelectedOptionIds ??= [];
         }
+
+        settings.Tools.ShortcutHotkeyScanMaxFolderCount = Math.Max(settings.Tools.ShortcutHotkeyScanMaxFolderCount, 0);
+        settings.Tools.EmptyDirectoryScanMaxFolderCounts = settings.Tools.EmptyDirectoryScanMaxFolderCounts
+            .Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && entry.Value > 0)
+            .ToDictionary(
+                static entry => entry.Key,
+                static entry => entry.Value,
+                StringComparer.OrdinalIgnoreCase);
 
         if (!HasValidHotkeyBinding(settings.Hotkeys.Toggle))
         {
@@ -196,6 +208,8 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         {
             settings.Macro.RecordHotkey = MacroSettings.CreateDefaultRecordBinding();
         }
+
+        settings.Macro.AssignedHotkeys = NormalizeMacroHotkeyAssignments(settings.Macro.AssignedHotkeys);
 
         if (string.IsNullOrWhiteSpace(settings.Screenshot.SaveFolderPath))
         {
@@ -244,6 +258,40 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
                 && !string.IsNullOrWhiteSpace(binding.DisplayName),
             _ => false,
         };
+
+    private static List<MacroHotkeyAssignment> NormalizeMacroHotkeyAssignments(IEnumerable<MacroHotkeyAssignment> assignments)
+    {
+        var normalizedAssignments = new List<MacroHotkeyAssignment>();
+        var seenMacroPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var assignment in assignments)
+        {
+            if (assignment is null)
+            {
+                continue;
+            }
+
+            assignment.Id = string.IsNullOrWhiteSpace(assignment.Id)
+                ? Guid.NewGuid().ToString("N")
+                : assignment.Id.Trim();
+            assignment.MacroFilePath ??= string.Empty;
+            assignment.MacroDisplayName ??= string.Empty;
+            assignment.Hotkey ??= new HotkeyBinding();
+
+            if (string.IsNullOrWhiteSpace(assignment.MacroFilePath)
+                || string.IsNullOrWhiteSpace(assignment.MacroDisplayName)
+                || !seenMacroPaths.Add(assignment.MacroFilePath)
+                || !HasValidHotkeyBinding(assignment.Hotkey)
+                || assignment.Hotkey.InputKind != HotkeyInputKind.Keyboard)
+            {
+                continue;
+            }
+
+            normalizedAssignments.Add(assignment.Clone());
+        }
+
+        return normalizedAssignments;
+    }
 
     private static TEnum ParseEnum<TEnum>(int value, TEnum fallback)
         where TEnum : struct, Enum =>
