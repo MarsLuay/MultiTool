@@ -1,0 +1,6 @@
+namespace AutoClicker.Core.Models;
+
+public sealed record WindowsSearchReplacementResult(
+    bool Succeeded,
+    bool Changed,
+    string Message);

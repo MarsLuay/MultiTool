@@ -14,6 +14,7 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
 {
     private const string RecommendedDriverCriteria = "IsInstalled=0 and Type='Driver' and IsHidden=0 and BrowseOnly=0";
     private const string OptionalDriverCriteria = "IsInstalled=0 and Type='Driver' and IsHidden=0 and BrowseOnly=1";
+    private const string InteractiveInstallRequiredMessage = "This driver needs Windows Update's own interactive install flow. Open Windows Update > Advanced options > Optional updates, or use the device maker's updater.";
 
     private readonly DriverHardwareInventoryReader hardwareInventoryReader;
     private readonly DriverUpdateSearcher driverUpdateSearcher;
@@ -89,6 +90,7 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
                         false,
                         false,
                         false,
+                        false,
                         $"Driver install failed: {ex.Message}")),
             ];
         }
@@ -153,15 +155,31 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
         var missingIds = updateIds
             .Where(updateId => !availableUpdates.ContainsKey(updateId))
             .ToArray();
+        var interactiveEntries = selectedEntries
+            .Where(static entry => entry.RequiresUserInput)
+            .ToArray();
+        selectedEntries = selectedEntries
+            .Where(static entry => !entry.RequiresUserInput)
+            .ToArray();
 
         if (selectedEntries.Length == 0)
         {
             return
             [
+                .. interactiveEntries.Select(
+                    static entry => new DriverUpdateInstallResult(
+                        entry.UpdateId,
+                        entry.Title,
+                        false,
+                        false,
+                        false,
+                        true,
+                        InteractiveInstallRequiredMessage)),
                 .. missingIds.Select(
                     updateId => new DriverUpdateInstallResult(
                         updateId,
                         updateId,
+                        false,
                         false,
                         false,
                         false,
@@ -191,11 +209,22 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
                         false,
                         false,
                         false,
+                        false,
                         "Windows Update could not download this driver.")),
+                .. interactiveEntries.Select(
+                    static entry => new DriverUpdateInstallResult(
+                        entry.UpdateId,
+                        entry.Title,
+                        false,
+                        false,
+                        false,
+                        true,
+                        InteractiveInstallRequiredMessage)),
                 .. missingIds.Select(
                     updateId => new DriverUpdateInstallResult(
                         updateId,
                         updateId,
+                        false,
                         false,
                         false,
                         false,
@@ -232,14 +261,27 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
                     succeeded,
                     succeeded,
                     requiresRestart,
+                    false,
                     message));
         }
+
+        results.AddRange(
+            interactiveEntries.Select(
+                static entry => new DriverUpdateInstallResult(
+                    entry.UpdateId,
+                    entry.Title,
+                    false,
+                    false,
+                    false,
+                    true,
+                    InteractiveInstallRequiredMessage)));
 
         results.AddRange(
             missingIds.Select(
                 updateId => new DriverUpdateInstallResult(
                     updateId,
                     updateId,
+                    false,
                     false,
                     false,
                     false,
@@ -266,7 +308,13 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
             var updateId = BuildUpdateId(update);
             if (!updates.ContainsKey(updateId))
             {
-                updates.Add(updateId, new AvailableDriverUpdateEntry(updateId, SafeGetString(update, "Title", updateId), update));
+                updates.Add(
+                    updateId,
+                    new AvailableDriverUpdateEntry(
+                        updateId,
+                        SafeGetString(update, "Title", updateId),
+                        update,
+                        SafeGetInstallationRequiresUserInput(update)));
             }
         }
     }
@@ -298,7 +346,8 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
                     SafeGetString(update, "DriverClass"),
                     SafeGetDateString(update, "DriverVerDate"),
                     SafeGetString(update, "Description"),
-                    isOptional));
+                    isOptional,
+                    SafeGetInstallationRequiresUserInput(update)));
         }
     }
 
@@ -402,6 +451,24 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
         }
     }
 
+    private static bool SafeGetInstallationRequiresUserInput(dynamic update)
+    {
+        try
+        {
+            return Convert.ToBoolean(
+                update.InstallationBehavior.GetType().InvokeMember(
+                    "CanRequestUserInput",
+                    System.Reflection.BindingFlags.GetProperty,
+                    null,
+                    update.InstallationBehavior,
+                    null));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string DescribeOperationResult(int resultCode) =>
         resultCode switch
         {
@@ -447,5 +514,5 @@ public sealed class WindowsDriverUpdateService : IDriverUpdateService
         return completion.Task;
     }
 
-    private sealed record AvailableDriverUpdateEntry(string UpdateId, string Title, dynamic Update);
+    private sealed record AvailableDriverUpdateEntry(string UpdateId, string Title, dynamic Update, bool RequiresUserInput);
 }

@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
@@ -63,6 +62,12 @@ public sealed class WindowsWingetInstallerService : IInstallerService
     private const string Rpcs3LatestReleaseApiUrl = "https://api.github.com/repos/RPCS3/rpcs3-binaries-win/releases/latest";
     private const string InstalledReleaseMarkerFileName = ".multitool-installed-release.txt";
     private const int RestartRequiredExitCode = 3010;
+    private const uint ProcessQueryLimitedInformation = 0x1000;
+    private const uint TokenAssignPrimary = 0x0001;
+    private const uint TokenDuplicate = 0x0002;
+    private const uint TokenQuery = 0x0008;
+    private const uint MaximumAllowed = 0x02000000;
+    private const int LogonWithProfile = 0x00000001;
 
     private static readonly InstallerCatalogItem Automatic1111PythonPackage =
         new("Python.Python.3.10", "Python 3.10", "Developer", "Python 3.10 for older Torch-based apps.");
@@ -77,6 +82,9 @@ public sealed class WindowsWingetInstallerService : IInstallerService
         {
             [FirefoxPackageId] = ["Mozilla Firefox"],
             [PowerShellPackageId] = ["PowerShell 7", "PowerShell"],
+            ["Python.Python.3.10"] = ["Python 3.10"],
+            ["Python.Python.3.11"] = ["Python 3.11"],
+            ["Python.Python.3.14"] = ["Python 3.14"],
             [QbittorrentPackageId] = ["qBittorrent"],
             [EverythingPackageId] = ["Everything"],
             [TorBrowserPackageId] = ["Tor Browser"],
@@ -181,10 +189,12 @@ public sealed class WindowsWingetInstallerService : IInstallerService
         new("AutoHotkey.AutoHotkey", "AutoHotkey", "Utilities", "Automation and hotkey scripting.", true, true),
         new("CrystalDewWorld.CrystalDiskMark", "CrystalDiskMark", "Utilities", "Storage benchmark tool."),
         new("Guru3D.Afterburner", "MSI Afterburner", "Utilities", "GPU tuning and monitoring tool.", true, true),
+        new("TechPowerUp.NVCleanstall", "NVCleanstall", "Utilities", "Custom NVIDIA driver installer and debloater."),
         new("OpenRGB.OpenRGB", "OpenRGB", "Utilities", "Open-source RGB control app."),
         new("voidtools.Everything", "Everything", "Utilities", "Instant file search.", true),
         new("Mozilla.Firefox", "Firefox", "Browsers", "Mozilla web browser.", true),
         new("Git.Git", "Git", "Developer", "Version control CLI.", true, true),
+        new("Microsoft.DotNet.SDK.10", "Microsoft .NET SDK", "Developer", "Latest stable .NET SDK and CLI tools.", false, true),
         new("OpenJS.NodeJS.LTS", "Node.js", "Developer", "Node.js LTS runtime.", true, true),
         new("Mojang.MinecraftLauncher", "Minecraft Launcher", "Games", "Official Minecraft launcher.", true),
         new("EpicGames.EpicGamesLauncher", "Epic Games Launcher", "Games", "Epic Games launcher and store.", true),
@@ -316,6 +326,16 @@ public sealed class WindowsWingetInstallerService : IInstallerService
 
     public IReadOnlyList<InstallerCatalogItem> GetCleanupCatalog() => CleanupCatalog;
 
+    public InstallerPackageCapabilities GetPackageCapabilities(string packageId)
+    {
+        if (!catalogById.TryGetValue(packageId, out var package))
+        {
+            return new InstallerPackageCapabilities();
+        }
+
+        return BuildPackageCapabilities(package);
+    }
+
     public async Task<InstallerEnvironmentInfo> GetEnvironmentInfoAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -404,6 +424,51 @@ public sealed class WindowsWingetInstallerService : IInstallerService
         ];
     }
 
+    public async Task<IReadOnlyList<InstallerOperationResult>> RunPackageOperationAsync(
+        string packageId,
+        InstallerPackageAction action,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(packageId))
+        {
+            return [];
+        }
+
+        if (!catalogById.TryGetValue(packageId.Trim(), out var package))
+        {
+            return
+            [
+                new InstallerOperationResult(
+                    packageId.Trim(),
+                    packageId.Trim(),
+                    false,
+                    false,
+                    "This package is not in the current installer catalog.",
+                    string.Empty),
+            ];
+        }
+
+        return action switch
+        {
+            InstallerPackageAction.Install => await InstallPackagesAsync([package.PackageId], cancellationToken).ConfigureAwait(false),
+            InstallerPackageAction.Update => await UpgradePackagesAsync([package.PackageId], cancellationToken).ConfigureAwait(false),
+            InstallerPackageAction.Uninstall => await UninstallPackagesAsync([package.PackageId], cancellationToken).ConfigureAwait(false),
+            InstallerPackageAction.InstallInteractive => await RunInteractiveInstallAsync(package, cancellationToken).ConfigureAwait(false),
+            InstallerPackageAction.UpdateInteractive => await RunInteractiveUpgradeAsync(package, cancellationToken).ConfigureAwait(false),
+            InstallerPackageAction.Reinstall => await RunReinstallAsync(package, cancellationToken).ConfigureAwait(false),
+            _ =>
+            [
+                new InstallerOperationResult(
+                    package.PackageId,
+                    package.DisplayName,
+                    false,
+                    false,
+                    "That installer action is not supported yet.",
+                    string.Empty),
+            ],
+        };
+    }
+
     public async Task<IReadOnlyList<InstallerOperationResult>> InstallPackagesAsync(IEnumerable<string> packageIds, CancellationToken cancellationToken = default)
     {
         var expandedPackageIds = await ExpandPackageIdsForInstallAsync(packageIds, cancellationToken).ConfigureAwait(false);
@@ -434,24 +499,27 @@ public sealed class WindowsWingetInstallerService : IInstallerService
 
             if (statusesById.TryGetValue(packageId, out var status) && status.IsInstalled)
             {
-                results.Add(CreateSkippedInstallResult(package, status));
+                results.Add(ApplyGuidance(package, InstallerPackageAction.Install, CreateSkippedInstallResult(package, status)));
                 continue;
             }
 
             try
             {
-                results.Add(await InstallPackageAsync(package, cancellationToken).ConfigureAwait(false));
+                results.Add(ApplyGuidance(package, InstallerPackageAction.Install, await InstallPackageAsync(package, cancellationToken).ConfigureAwait(false)));
             }
             catch (Exception ex)
             {
                 results.Add(
-                    new InstallerOperationResult(
+                    ApplyGuidance(
+                        package,
+                        InstallerPackageAction.Install,
+                        new InstallerOperationResult(
                         package.PackageId,
                         package.DisplayName,
                         false,
                         false,
                         ex.Message,
-                        ex.ToString()));
+                        ex.ToString())));
             }
         }
 
@@ -462,17 +530,20 @@ public sealed class WindowsWingetInstallerService : IInstallerService
         RunBatchAsync(
             NormalizePackageIds(packageIds),
             UpgradePackageAsync,
+            InstallerPackageAction.Update,
             cancellationToken);
 
     public Task<IReadOnlyList<InstallerOperationResult>> UninstallPackagesAsync(IEnumerable<string> packageIds, CancellationToken cancellationToken = default) =>
         RunBatchAsync(
             NormalizePackageIds(packageIds),
             UninstallPackageAsync,
+            InstallerPackageAction.Uninstall,
             cancellationToken);
 
     private async Task<IReadOnlyList<InstallerOperationResult>> RunBatchAsync(
         IReadOnlyList<string> packageIds,
         Func<InstallerCatalogItem, CancellationToken, Task<InstallerOperationResult>> executePackageAsync,
+        InstallerPackageAction action,
         CancellationToken cancellationToken)
     {
         if (packageIds.Count == 0)
@@ -499,18 +570,21 @@ public sealed class WindowsWingetInstallerService : IInstallerService
 
             try
             {
-                results.Add(await executePackageAsync(package, cancellationToken).ConfigureAwait(false));
+                results.Add(ApplyGuidance(package, action, await executePackageAsync(package, cancellationToken).ConfigureAwait(false)));
             }
             catch (Exception ex)
             {
                 results.Add(
-                    new InstallerOperationResult(
+                    ApplyGuidance(
+                        package,
+                        action,
+                        new InstallerOperationResult(
                         package.PackageId,
                         package.DisplayName,
                         false,
                         false,
                         ex.Message,
-                        ex.ToString()));
+                        ex.ToString())));
             }
         }
 
@@ -660,6 +734,141 @@ public sealed class WindowsWingetInstallerService : IInstallerService
     {
         var result = await RunWingetAsync(BuildPackageCommand("uninstall", package), cancellationToken).ConfigureAwait(false);
         return InterpretUninstallResult(package, result);
+    }
+
+    private async Task<IReadOnlyList<InstallerOperationResult>> RunInteractiveInstallAsync(
+        InstallerCatalogItem package,
+        CancellationToken cancellationToken)
+    {
+        if (!package.TrackStatusWithWinget || package.UsesCustomInstallFlow)
+        {
+            return
+            [
+                ApplyGuidance(
+                    package,
+                    InstallerPackageAction.InstallInteractive,
+                    new InstallerOperationResult(
+                        package.PackageId,
+                        package.DisplayName,
+                        false,
+                        false,
+                        "Interactive install is only available for winget-managed packages.",
+                        string.Empty)),
+            ];
+        }
+
+        var status = (await GetPackageStatusesAsync([package.PackageId], cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+        if (status?.IsInstalled == true)
+        {
+            return
+            [
+                ApplyGuidance(
+                    package,
+                    InstallerPackageAction.InstallInteractive,
+                    new InstallerOperationResult(
+                        package.PackageId,
+                        package.DisplayName,
+                        true,
+                        false,
+                        "Already installed. Use Update or Reinstall if you want to run setup again.",
+                        status.StatusText)),
+            ];
+        }
+
+        var result = await RunWingetAsync(
+            BuildPackageCommand(
+                "install",
+                package,
+                interactive: true,
+                force: false,
+                noUpgrade: false),
+            cancellationToken).ConfigureAwait(false);
+
+        return
+        [
+            ApplyGuidance(package, InstallerPackageAction.InstallInteractive, InterpretInstallResult(package, result)),
+        ];
+    }
+
+    private async Task<IReadOnlyList<InstallerOperationResult>> RunInteractiveUpgradeAsync(
+        InstallerCatalogItem package,
+        CancellationToken cancellationToken)
+    {
+        if (!package.TrackStatusWithWinget || package.UsesCustomInstallFlow)
+        {
+            return
+            [
+                ApplyGuidance(
+                    package,
+                    InstallerPackageAction.UpdateInteractive,
+                    new InstallerOperationResult(
+                        package.PackageId,
+                        package.DisplayName,
+                        false,
+                        false,
+                        "Interactive update is only available for winget-managed packages.",
+                        string.Empty)),
+            ];
+        }
+
+        var result = await RunWingetAsync(
+            BuildPackageCommand(
+                "upgrade",
+                package,
+                interactive: true,
+                force: false,
+                noUpgrade: false),
+            cancellationToken).ConfigureAwait(false);
+
+        return
+        [
+            ApplyGuidance(package, InstallerPackageAction.UpdateInteractive, InterpretUpgradeResult(package, result)),
+        ];
+    }
+
+    private async Task<IReadOnlyList<InstallerOperationResult>> RunReinstallAsync(
+        InstallerCatalogItem package,
+        CancellationToken cancellationToken)
+    {
+        if (!package.TrackStatusWithWinget || package.UsesCustomInstallFlow)
+        {
+            return
+            [
+                ApplyGuidance(
+                    package,
+                    InstallerPackageAction.Reinstall,
+                    new InstallerOperationResult(
+                        package.PackageId,
+                        package.DisplayName,
+                        false,
+                        false,
+                        "Reinstall is only available for winget-managed packages.",
+                        string.Empty)),
+            ];
+        }
+
+        var result = await RunWingetAsync(
+            BuildPackageCommand(
+                "install",
+                package,
+                interactive: false,
+                force: true,
+                noUpgrade: true),
+            cancellationToken).ConfigureAwait(false);
+
+        var interpretedResult = InterpretInstallResult(package, result);
+        return
+        [
+            ApplyGuidance(
+                package,
+                InstallerPackageAction.Reinstall,
+                interpretedResult with
+                {
+                    Message = result.ExitCode == 0
+                        ? "Reinstall completed."
+                        : interpretedResult.Message,
+                }),
+        ];
     }
 
     private async Task<InstallerOperationResult> RunSpotifyInstallerFallbackAsync(
@@ -2511,6 +2720,116 @@ public sealed class WindowsWingetInstallerService : IInstallerService
         return new InstallerOperationResult(package.PackageId, package.DisplayName, false, false, SummarizeFailure(output, "Removal failed."), output);
     }
 
+    private static InstallerOperationResult ApplyGuidance(
+        InstallerCatalogItem package,
+        InstallerPackageAction action,
+        InstallerOperationResult result)
+    {
+        var guidance = string.Empty;
+        var requiresManualStep = false;
+        var output = result.Output ?? string.Empty;
+        var message = result.Message ?? string.Empty;
+
+        if (result.Succeeded)
+        {
+            if (message.Contains("Restart Windows", StringComparison.OrdinalIgnoreCase))
+            {
+                guidance = "Restart Windows to finish the change cleanly.";
+                requiresManualStep = true;
+            }
+            else if (!result.Changed && action == InstallerPackageAction.Update)
+            {
+                guidance = "Use Reinstall if the app still feels broken even though it is current.";
+            }
+            else if (!result.Changed && action is InstallerPackageAction.Install or InstallerPackageAction.InstallInteractive)
+            {
+                guidance = "Use Update or Reinstall if you want to force setup to run again.";
+            }
+        }
+        else
+        {
+            if (message.Contains("not installed yet", StringComparison.OrdinalIgnoreCase))
+            {
+                guidance = "Install the app first, then run update.";
+            }
+            else if (message.Contains("Already installed", StringComparison.OrdinalIgnoreCase))
+            {
+                guidance = "Use Update or Reinstall instead of Install.";
+            }
+            else if (message.Contains("could not find this package", StringComparison.OrdinalIgnoreCase))
+            {
+                guidance = "Refresh the installer status, then try again. If it still fails, winget's source list may be stale.";
+                requiresManualStep = true;
+            }
+            else if (Contains(output, "hash does not match"))
+            {
+                guidance = "The package source looks out of sync. Try again later or use the vendor page instead.";
+                requiresManualStep = true;
+            }
+            else if (Contains(output, "Access is denied")
+                     || Contains(output, "administrator")
+                     || Contains(output, "0x80070005")
+                     || Contains(output, "0x8a15000f"))
+            {
+                var capabilities = BuildPackageCapabilities(package);
+                guidance = capabilities.SupportsInteractiveInstall
+                    || capabilities.SupportsInteractiveUpdate
+                    ? "Try the interactive action so the installer can show its own prompts, or run MultiTool as administrator if Windows blocks access."
+                    : "Run MultiTool as administrator or switch to the vendor installer flow if this app needs a different context.";
+                requiresManualStep = true;
+            }
+            else if (Contains(output, "403")
+                     || Contains(output, "1603")
+                     || Contains(output, "forbidden")
+                     || message.Contains("fallback", StringComparison.OrdinalIgnoreCase))
+            {
+                guidance = !string.IsNullOrWhiteSpace(package.UpdateUrl) || !string.IsNullOrWhiteSpace(package.InstallUrl)
+                    ? "Use the official page action if the quiet installer path keeps failing."
+                    : "Try the interactive action so the installer can surface its own prompts.";
+                requiresManualStep = true;
+            }
+            else if ((action is InstallerPackageAction.Install or InstallerPackageAction.Update or InstallerPackageAction.Reinstall)
+                     && (BuildPackageCapabilities(package).SupportsInteractiveInstall
+                         || BuildPackageCapabilities(package).SupportsInteractiveUpdate))
+            {
+                guidance = "Try the interactive action next so the installer can prompt for anything it could not do silently.";
+            }
+            else if (!string.IsNullOrWhiteSpace(package.UpdateUrl) || !string.IsNullOrWhiteSpace(package.InstallUrl))
+            {
+                guidance = "Use the official page action if the quiet installer path keeps failing.";
+            }
+        }
+
+        return result with
+        {
+            Guidance = guidance,
+            RequiresManualStep = requiresManualStep,
+        };
+    }
+
+    private static InstallerPackageCapabilities BuildPackageCapabilities(InstallerCatalogItem package)
+    {
+        var supportsInteractiveWinget = package.TrackStatusWithWinget
+            && !package.UsesCustomInstallFlow
+            && package.Dependencies is null;
+        var supportsOpenInstallPage = !string.IsNullOrWhiteSpace(package.InstallUrl);
+        var supportsOpenUpdatePage = !string.IsNullOrWhiteSpace(package.UpdateUrl) || supportsOpenInstallPage;
+
+        return new InstallerPackageCapabilities(
+            SupportsInstall: true,
+            SupportsUpdate: true,
+            SupportsUninstall: CleanupCatalog.Any(
+                cleanup => string.Equals(cleanup.PackageId, package.PackageId, StringComparison.OrdinalIgnoreCase)),
+            SupportsInteractiveInstall: supportsInteractiveWinget,
+            SupportsInteractiveUpdate: supportsInteractiveWinget,
+            SupportsReinstall: package.TrackStatusWithWinget && !package.UsesCustomInstallFlow,
+            SupportsOpenInstallPage: supportsOpenInstallPage,
+            SupportsOpenUpdatePage: supportsOpenUpdatePage,
+            UsesWinget: package.TrackStatusWithWinget,
+            UsesCustomFlow: package.UsesCustomInstallFlow,
+            HasGuidedFallback: IsSpotifyPackage(package) || UsesGuidedInstall(package));
+    }
+
     private HashSet<string> FindPackageIdsInOutput(string output, IReadOnlyList<string> packageIds)
     {
         var matches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -2559,11 +2878,6 @@ public sealed class WindowsWingetInstallerService : IInstallerService
 
     private IEnumerable<string> GetWingetOutputMatchTokens(string packageId)
     {
-        if (catalogById.TryGetValue(packageId, out var package) && !string.IsNullOrWhiteSpace(package.DisplayName))
-        {
-            yield return package.DisplayName;
-        }
-
         if (WingetOutputAliases.TryGetValue(packageId, out var aliases))
         {
             foreach (var alias in aliases)
@@ -2573,6 +2887,13 @@ public sealed class WindowsWingetInstallerService : IInstallerService
                     yield return alias;
                 }
             }
+
+            yield break;
+        }
+
+        if (catalogById.TryGetValue(packageId, out var package) && !string.IsNullOrWhiteSpace(package.DisplayName))
+        {
+            yield return package.DisplayName;
         }
     }
 
@@ -2691,7 +3012,12 @@ public sealed class WindowsWingetInstallerService : IInstallerService
         }
     }
 
-    private static string BuildPackageCommand(string verb, InstallerCatalogItem package)
+    private static string BuildPackageCommand(
+        string verb,
+        InstallerCatalogItem package,
+        bool interactive = false,
+        bool force = false,
+        bool noUpgrade = false)
     {
         var sourceSegment = string.IsNullOrWhiteSpace(package.Source)
             ? string.Empty
@@ -2700,8 +3026,15 @@ public sealed class WindowsWingetInstallerService : IInstallerService
         var packageAgreementSegment = verb.Equals("uninstall", StringComparison.OrdinalIgnoreCase)
             ? string.Empty
             : " --accept-package-agreements";
+        var forceSegment = force ? " --force" : string.Empty;
+        var noUpgradeSegment = noUpgrade && verb.Equals("install", StringComparison.OrdinalIgnoreCase)
+            ? " --no-upgrade"
+            : string.Empty;
+        var executionModeSegment = interactive
+            ? " --interactive"
+            : " --disable-interactivity --silent";
 
-        return $"{verb} --exact --id {QuoteArgument(package.PackageId)}{sourceSegment}{packageAgreementSegment} --accept-source-agreements --disable-interactivity --silent";
+        return $"{verb} --exact --id {QuoteArgument(package.PackageId)}{sourceSegment}{packageAgreementSegment}{forceSegment}{noUpgradeSegment} --accept-source-agreements{executionModeSegment}";
     }
 
     private static string NormalizeOutput(InstallerCommandResult result)
@@ -4465,7 +4798,7 @@ popd
 
         if (preferUnelevated && IsCurrentProcessElevated())
         {
-            LaunchInstallerViaShellApplication(startInfo);
+            LaunchInstallerViaShellProcessToken(startInfo);
             return Task.CompletedTask;
         }
 
@@ -4473,38 +4806,115 @@ popd
         return Task.CompletedTask;
     }
 
-    private static void LaunchInstallerViaShellApplication(ProcessStartInfo startInfo)
+    private static void LaunchInstallerViaShellProcessToken(ProcessStartInfo startInfo)
     {
-        var shellType = Type.GetTypeFromProgID("Shell.Application")
-            ?? throw new InvalidOperationException("Windows Shell automation is unavailable.");
+        var shellWindow = GetShellWindow();
+        if (shellWindow == IntPtr.Zero)
+        {
+            throw new InvalidOperationException("Windows Explorer is not available to launch the installer without admin rights.");
+        }
 
-        object? shell = null;
+        _ = GetWindowThreadProcessId(shellWindow, out var shellProcessId);
+        if (shellProcessId == 0)
+        {
+            throw new InvalidOperationException("Windows Explorer could not be resolved for an unelevated installer launch.");
+        }
+
+        IntPtr shellProcessHandle = IntPtr.Zero;
+        IntPtr shellTokenHandle = IntPtr.Zero;
+        IntPtr primaryTokenHandle = IntPtr.Zero;
 
         try
         {
-            shell = Activator.CreateInstance(shellType)
-                ?? throw new InvalidOperationException("Windows Shell automation could not be created.");
-            shellType.InvokeMember(
-                "ShellExecute",
-                BindingFlags.InvokeMethod,
-                binder: null,
-                target: shell,
-                args:
-                [
+            shellProcessHandle = OpenProcess(ProcessQueryLimitedInformation, false, shellProcessId);
+            if (shellProcessHandle == IntPtr.Zero)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows Explorer could not be opened for an unelevated installer launch.");
+            }
+
+            if (!OpenProcessToken(shellProcessHandle, TokenAssignPrimary | TokenDuplicate | TokenQuery, out shellTokenHandle))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows Explorer's user token could not be opened for an unelevated installer launch.");
+            }
+
+            if (!DuplicateTokenEx(
+                    shellTokenHandle,
+                    MaximumAllowed,
+                    IntPtr.Zero,
+                    SecurityImpersonationLevel.SecurityImpersonation,
+                    TokenType.TokenPrimary,
+                    out primaryTokenHandle))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows Explorer's user token could not be duplicated for an unelevated installer launch.");
+            }
+
+            var startupInfo = new StartupInfo
+            {
+                cb = Marshal.SizeOf<StartupInfo>(),
+            };
+            var commandLine = new StringBuilder(BuildCreateProcessCommandLine(startInfo));
+            var currentDirectory = string.IsNullOrWhiteSpace(startInfo.WorkingDirectory)
+                ? null
+                : startInfo.WorkingDirectory;
+
+            if (!CreateProcessWithTokenW(
+                    primaryTokenHandle,
+                    LogonWithProfile,
                     startInfo.FileName,
-                    startInfo.Arguments ?? string.Empty,
-                    startInfo.WorkingDirectory ?? string.Empty,
-                    "open",
-                    1,
-                ]);
+                    commandLine,
+                    0,
+                    IntPtr.Zero,
+                    currentDirectory,
+                    ref startupInfo,
+                    out var processInformation))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "The installer could not be launched from Windows Explorer's unelevated user context.");
+            }
+
+            try
+            {
+            }
+            finally
+            {
+                if (processInformation.hThread != IntPtr.Zero)
+                {
+                    _ = CloseHandle(processInformation.hThread);
+                }
+
+                if (processInformation.hProcess != IntPtr.Zero)
+                {
+                    _ = CloseHandle(processInformation.hProcess);
+                }
+            }
         }
         finally
         {
-            if (shell is not null && Marshal.IsComObject(shell))
+            if (primaryTokenHandle != IntPtr.Zero)
             {
-                Marshal.FinalReleaseComObject(shell);
+                _ = CloseHandle(primaryTokenHandle);
+            }
+
+            if (shellTokenHandle != IntPtr.Zero)
+            {
+                _ = CloseHandle(shellTokenHandle);
+            }
+
+            if (shellProcessHandle != IntPtr.Zero)
+            {
+                _ = CloseHandle(shellProcessHandle);
             }
         }
+    }
+
+    private static string BuildCreateProcessCommandLine(ProcessStartInfo startInfo)
+    {
+        var fileName = QuoteArgument(startInfo.FileName);
+        if (string.IsNullOrWhiteSpace(startInfo.Arguments))
+        {
+            return fileName;
+        }
+
+        return $"{fileName} {startInfo.Arguments}";
     }
 
     private static bool IsCurrentProcessElevated()
@@ -4512,6 +4922,92 @@ popd
         using var identity = WindowsIdentity.GetCurrent();
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfo
+    {
+        public int cb;
+        public string? lpReserved;
+        public string? lpDesktop;
+        public string? lpTitle;
+        public int dwX;
+        public int dwY;
+        public int dwXSize;
+        public int dwYSize;
+        public int dwXCountChars;
+        public int dwYCountChars;
+        public int dwFillAttribute;
+        public int dwFlags;
+        public short wShowWindow;
+        public short cbReserved2;
+        public IntPtr lpReserved2;
+        public IntPtr hStdInput;
+        public IntPtr hStdOutput;
+        public IntPtr hStdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation
+    {
+        public IntPtr hProcess;
+        public IntPtr hThread;
+        public uint dwProcessId;
+        public uint dwThreadId;
+    }
+
+    private enum SecurityImpersonationLevel
+    {
+        Anonymous = 0,
+        Identification = 1,
+        SecurityImpersonation = 2,
+        Delegation = 3,
+    }
+
+    private enum TokenType
+    {
+        TokenPrimary = 1,
+        TokenImpersonation = 2,
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint processAccess, bool inheritHandle, uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetShellWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DuplicateTokenEx(
+        IntPtr existingTokenHandle,
+        uint desiredAccess,
+        IntPtr tokenAttributes,
+        SecurityImpersonationLevel impersonationLevel,
+        TokenType tokenType,
+        out IntPtr duplicatedTokenHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateProcessWithTokenW(
+        IntPtr tokenHandle,
+        int logonFlags,
+        string applicationName,
+        StringBuilder commandLine,
+        int creationFlags,
+        IntPtr environment,
+        string? currentDirectory,
+        ref StartupInfo startupInfo,
+        out ProcessInformation processInformation);
 
     private static Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken) =>
         Task.Delay(delay, cancellationToken);

@@ -61,6 +61,8 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IDisplayRefreshRateService, WindowsDisplayRefreshRateService>();
                         services.AddSingleton<IHardwareInventoryService, WindowsHardwareInventoryService>();
                         services.AddSingleton<IDriverUpdateService, WindowsDriverUpdateService>();
+                        services.AddSingleton<IWindows11EeaMediaService, Windows11EeaMediaService>();
+                        services.AddSingleton<IWindowsSearchReplacementService, WindowsSearchReplacementService>();
                         services.AddSingleton<IOneDriveRemovalService, WindowsOneDriveRemovalService>();
                         services.AddSingleton<IAutoClickerController, AutoClickerController>();
                         services.AddSingleton<IHotkeyService, WindowsHotkeyService>();

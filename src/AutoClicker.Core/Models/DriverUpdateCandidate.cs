@@ -8,4 +8,5 @@ public sealed record DriverUpdateCandidate(
     string DriverClass,
     string DriverDate,
     string Description,
-    bool IsOptional);
+    bool IsOptional,
+    bool RequiresUserInput);

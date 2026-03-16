@@ -12,6 +12,7 @@
         ShowInTaskbar="False"
         WindowStyle="None"
         PreviewMouseDown="MainWindow_OnPreviewMouseDown"
+        PreviewKeyDown="MainWindow_OnPreviewKeyDown"
         PreviewMouseWheel="MainWindow_OnPreviewMouseWheel"
         Topmost="{Binding IsTopMost}">
   <shell:WindowChrome.WindowChrome>
@@ -98,23 +99,164 @@
         </Trigger>
       </Style.Triggers>
     </Style>
+    <Style x:Key="InstallerInlineExpanderToggleStyle" TargetType="ToggleButton">
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="HeaderBorder"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="6"
+                    SnapsToDevicePixels="True">
+              <Grid Margin="{TemplateBinding Padding}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Path x:Name="Chevron"
+                      Grid.Column="0"
+                      Width="10"
+                      Height="6"
+                      Margin="0,0,8,0"
+                      VerticalAlignment="Center"
+                      Data="M 0 0 L 5 5 L 10 0"
+                      Stroke="{TemplateBinding Foreground}"
+                      StrokeThickness="2"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round">
+                  <Path.RenderTransform>
+                    <RotateTransform Angle="0" CenterX="5" CenterY="3" />
+                  </Path.RenderTransform>
+                </Path>
+
+                <ContentPresenter Grid.Column="1"
+                                  VerticalAlignment="Center"
+                                  RecognizesAccessKey="True" />
+              </Grid>
+            </Border>
+
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                <Setter TargetName="Chevron" Property="RenderTransform">
+                  <Setter.Value>
+                    <RotateTransform Angle="180" CenterX="5" CenterY="3" />
+                  </Setter.Value>
+                </Setter>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource DisabledBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="InstallerInlineExpanderStyle" TargetType="Expander">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Expander">
+            <StackPanel>
+              <ToggleButton x:Name="HeaderSite"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            Content="{TemplateBinding Header}"
+                            Foreground="{TemplateBinding Foreground}"
+                            IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                            Style="{StaticResource InstallerInlineExpanderToggleStyle}" />
+              <Border x:Name="ContentBorder"
+                      Margin="0,8,0,0"
+                      Padding="10"
+                      Background="{DynamicResource ControlBackgroundBrush}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Visibility="Collapsed">
+                <ContentPresenter />
+              </Border>
+            </StackPanel>
+
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsExpanded" Value="True">
+                <Setter TargetName="ContentBorder" Property="Visibility" Value="Visible" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="InstallerActionButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style x:Key="InstallerActionPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+      <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SelectionBackgroundBrush}" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="{DynamicResource InputActiveBackgroundBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource InputActiveBackgroundBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource InputActiveTextBrush}" />
+        </Trigger>
+        <Trigger Property="IsPressed" Value="True">
+          <Setter Property="Background" Value="{DynamicResource InputActiveBackgroundBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource InputActiveBackgroundBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource InputActiveTextBrush}" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Background" Value="{DynamicResource DisabledBackgroundBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
   </Window.Resources>
 
   <Border BorderBrush="{DynamicResource BorderBrush}"
           BorderThickness="1"
           Background="{DynamicResource WindowBackgroundBrush}">
-    <Grid x:Name="MainRootGrid"
+      <Grid x:Name="MainRootGrid"
           Margin="0"
           Focusable="True"
           FocusVisualStyle="{x:Null}">
       <Grid.RowDefinitions>
         <RowDefinition Height="34" />
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
       <Grid Grid.Row="0"
             Background="{DynamicResource SurfaceAltBrush}"
-            MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown">
+            MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown"
+            MouseMove="TitleBar_OnMouseMove"
+            MouseLeftButtonUp="TitleBar_OnMouseLeftButtonUp"
+            LostMouseCapture="TitleBar_OnLostMouseCapture">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />
@@ -151,9 +293,36 @@
                 Content="X" />
       </Grid>
 
-      <Grid Grid.Row="1"
-            Margin="16">
+      <Border Grid.Row="1"
+              Margin="16,12,16,0"
+              Padding="10,8"
+              Background="{DynamicResource SurfaceAltBrush}"
+              BorderBrush="{DynamicResource AccentBrush}"
+              BorderThickness="1"
+              CornerRadius="6">
+        <Border.Style>
+          <Style TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding ShouldShowAdminModeBanner}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+
+        <TextBlock Text="{Binding AdminModeBannerText}"
+                   TextWrapping="Wrap" />
+      </Border>
+
+      <Grid Grid.Row="2"
+            Margin="16,12,16,16">
         <TabControl>
+          <TabControl.LayoutTransform>
+            <ScaleTransform x:Name="MainContentScaleTransform"
+                            ScaleX="1"
+                            ScaleY="1" />
+          </TabControl.LayoutTransform>
       <TabItem Header="Clicker">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Grid Margin="0,12,0,0">
@@ -293,7 +462,8 @@
                 </ComboBox>
 
                 <TextBlock Grid.Row="2" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Custom Input" />
-                <TextBox Grid.Row="2"
+                <TextBox x:Name="CustomKeyTextBox"
+                         Grid.Row="2"
                          Grid.Column="1"
                          Margin="4"
                          IsReadOnly="True"
@@ -481,7 +651,6 @@
             <Grid.RowDefinitions>
               <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
-              <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
             <GroupBox Header="Macro Controls" Margin="0,0,0,12">
@@ -612,7 +781,6 @@
                   <Button Margin="4" Padding="12,6" Command="{Binding PlayMacroCommand}" Content="Play" />
                   <Button Margin="4" Padding="12,6" Command="{Binding SaveMacroCommand}" Content="Save" />
                   <Button Margin="4" Padding="12,6" Command="{Binding LoadMacroCommand}" Content="Load" />
-                  <Button Margin="4" Padding="12,6" Command="{Binding ClearMacroLogCommand}" Content="Clear Log" />
                 </WrapPanel>
               </Grid>
             </GroupBox>
@@ -772,10 +940,6 @@
               </Grid>
             </GroupBox>
 
-            <GroupBox Grid.Row="2" Header="Log">
-              <ListBox MinHeight="180"
-                       ItemsSource="{Binding MacroLogEntries}" />
-            </GroupBox>
           </Grid>
         </ScrollViewer>
       </TabItem>
@@ -893,6 +1057,97 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasInstallerOperations}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Left"
+                                 FontWeight="SemiBold"
+                                 Text="{Binding InstallerOperationQueueSummary}" />
+                      <Button DockPanel.Dock="Right"
+                              Margin="8,0,0,0"
+                              Padding="10,4"
+                              Command="{Binding ClearCompletedInstallerOperationsCommand}"
+                              Content="Clear Finished" />
+                    </DockPanel>
+
+                    <ScrollViewer Margin="0,10,0,0"
+                                  MaxHeight="180"
+                                  VerticalScrollBarVisibility="Auto">
+                      <ItemsControl ItemsSource="{Binding InstallerOperations}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Border Margin="0,0,0,8"
+                                    Padding="8"
+                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                              <StackPanel>
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding HeaderText}"
+                                           TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding StatusText}"
+                                           TextWrapping="Wrap">
+                                  <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                      <Style.Triggers>
+                                        <DataTrigger Binding="{Binding State}" Value="Queued">
+                                          <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="Running">
+                                          <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                        </DataTrigger>
+                                      </Style.Triggers>
+                                    </Style>
+                                  </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           Text="{Binding GuidanceText}"
+                                           TextWrapping="Wrap">
+                                  <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                      <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GuidanceText}" Value="">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding GuidanceText}" Value="{x:Null}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                      </Style.Triggers>
+                                    </Style>
+                                  </TextBlock.Style>
+                                </TextBlock>
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </ScrollViewer>
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
                   <ScrollViewer MaxHeight="340"
                                 VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding InstallerPackagesView}">
@@ -941,7 +1196,7 @@
                               <Expander Margin="0,8,0,0"
                                         Header="Firefox Add-ons">
                                 <Expander.Style>
-                                  <Style TargetType="Expander">
+                                  <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                       <DataTrigger Binding="{Binding HasOptions}" Value="True">
@@ -982,6 +1237,97 @@
                                          Text="{Binding PackageHintText}"
                                          TextWrapping="Wrap" />
 
+                              <TextBlock Margin="0,6,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         FontSize="11"
+                                         Text="{Binding CapabilitySummaryText}"
+                                         TextWrapping="Wrap" />
+
+                              <Expander Margin="0,8,0,0"
+                                        Header="Quick Actions">
+                                <Expander.Style>
+                                  <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                      </DataTrigger>
+                                      <DataTrigger Binding="{Binding HasAdvancedActions}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </Expander.Style>
+
+                                <StackPanel Margin="0,8,0,0">
+                                  <TextBlock Margin="0,0,0,8"
+                                             Foreground="{DynamicResource MutedTextBrush}"
+                                             FontSize="11"
+                                             Text="Use the quickest path below for this app."
+                                             TextWrapping="Wrap" />
+
+                                  <StackPanel>
+                                    <Button Command="{Binding DataContext.QueuePrimaryInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding PrimaryActionText}">
+                                      <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionPrimaryButtonStyle}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                          <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
+                                              <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                          </Style.Triggers>
+                                        </Style>
+                                      </Button.Style>
+                                    </Button>
+                                    <Button Command="{Binding DataContext.QueueInteractiveInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding InteractiveActionText}">
+                                      <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                          <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanQueueInteractiveAction}" Value="True">
+                                              <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                          </Style.Triggers>
+                                        </Style>
+                                      </Button.Style>
+                                    </Button>
+                                    <Button Command="{Binding DataContext.QueueReinstallInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="Reinstall">
+                                      <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                          <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanQueueReinstallAction}" Value="True">
+                                              <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                          </Style.Triggers>
+                                        </Style>
+                                      </Button.Style>
+                                    </Button>
+                                    <Button Command="{Binding DataContext.OpenInstallerPackagePageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding PageActionText}">
+                                      <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                          <Setter Property="Margin" Value="0" />
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                          <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanOpenRelevantPage}" Value="True">
+                                              <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                          </Style.Triggers>
+                                        </Style>
+                                      </Button.Style>
+                                    </Button>
+                                  </StackPanel>
+                                </StackPanel>
+                              </Expander>
+
                               <TextBlock Margin="0,8,0,0"
                                          FontWeight="SemiBold"
                                          Text="{Binding StatusText}">
@@ -1006,6 +1352,10 @@
                     </ItemsControl>
                   </ScrollViewer>
                 </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding InstallerStatusMessage}"
+                           TextWrapping="Wrap" />
               </StackPanel>
             </GroupBox>
 
@@ -1095,23 +1445,6 @@
               </StackPanel>
             </GroupBox>
 
-            <GroupBox Header="Run Log">
-              <Grid Margin="12">
-                <Grid.RowDefinitions>
-                  <RowDefinition Height="Auto" />
-                  <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <TextBlock Grid.Row="0"
-                           Margin="0,0,0,10"
-                           Text="{Binding InstallerStatusMessage}"
-                           TextWrapping="Wrap" />
-
-                <ListBox Grid.Row="1"
-                         MinHeight="180"
-                         ItemsSource="{Binding InstallerLogEntries}" />
-              </Grid>
-            </GroupBox>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
@@ -1162,6 +1495,13 @@
                     <TextBlock FontWeight="SemiBold"
                                Text="{Binding ShortcutHotkeyScanProgressSummary}"
                                TextWrapping="Wrap" />
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding ShortcutHotkeyScanProgressPath}">
+                      <Run Text="Current folder: " />
+                      <Run Text="{Binding ShortcutHotkeyScanProgressPath}" />
+                    </TextBlock>
                     <ProgressBar Margin="0,8,0,0"
                                  Height="14"
                                  Minimum="0"
@@ -1258,17 +1598,27 @@
               </StackPanel>
             </GroupBox>
 
-            <GroupBox Header="Mouse DPI Changer" Margin="0,0,0,12">
+            <GroupBox Header="Mouse Speed (DPI Helper)" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Adjust Windows mouse sensitivity for the current account. This changes pointer speed system-wide, which is the closest generic mouse-DPI control Windows exposes without vendor-specific mouse software."
+                           Text="Make the mouse pointer feel slower or faster for this Windows account. This changes Windows pointer speed, which is the closest built-in option to a generic DPI change when your mouse does not have its own software."
                            TextWrapping="Wrap" />
 
                 <TextBlock Margin="0,8,0,0"
                            FontWeight="SemiBold"
                            Text="{Binding MouseSensitivitySummary}" />
 
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding MouseSensitivitySelectionGuidance}"
+                           TextWrapping="Wrap" />
+
                 <Grid Margin="0,12,0,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -1277,16 +1627,49 @@
                   <TextBlock Grid.Column="0"
                              Margin="0,0,8,0"
                              VerticalAlignment="Center"
-                             Text="Speed" />
-                  <ComboBox Grid.Column="1"
-                            SelectedItem="{Binding SelectedMouseSensitivityLevel}"
-                            ItemsSource="{Binding MouseSensitivityLevels}">
-                    <ComboBox.ItemTemplate>
-                      <DataTemplate>
-                        <TextBlock Text="{Binding StringFormat={}{0}/20}" />
-                      </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                  </ComboBox>
+                             Text="Pointer Feel" />
+                  <Slider Grid.Column="1"
+                          Minimum="1"
+                          Maximum="20"
+                          SmallChange="1"
+                          LargeChange="1"
+                          TickFrequency="1"
+                          IsSnapToTickEnabled="True"
+                          AutoToolTipPlacement="TopLeft"
+                          AutoToolTipPrecision="0"
+                          Value="{Binding SelectedMouseSensitivityLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                  <TextBlock Grid.Row="1"
+                             Grid.Column="1"
+                             Margin="0,8,0,0"
+                             FontWeight="SemiBold"
+                             Text="{Binding MouseSensitivitySelectedLevelLabel}" />
+
+                  <UniformGrid Grid.Row="2"
+                               Grid.Column="1"
+                               Margin="0,8,0,0"
+                               Columns="5">
+                    <TextBlock HorizontalAlignment="Left"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Very Slow" />
+                    <TextBlock HorizontalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Slow" />
+                    <TextBlock HorizontalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Balanced" />
+                    <TextBlock HorizontalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Fast" />
+                    <TextBlock HorizontalAlignment="Right"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Very Fast" />
+                  </UniformGrid>
                 </Grid>
 
                 <WrapPanel Margin="0,12,0,0"
@@ -1294,15 +1677,15 @@
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding RefreshMouseSensitivityStatusCommand}"
-                          Content="Refresh Mouse" />
+                          Content="Check Current Speed" />
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding ApplyMouseSensitivityCommand}"
-                          Content="Apply Speed" />
+                          Content="Use This Speed" />
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding OpenMouseSettingsCommand}"
-                          Content="Open Mouse Settings" />
+                          Content="Open Windows Mouse Settings" />
                 </WrapPanel>
 
                 <TextBlock Margin="0,10,0,0"
@@ -1323,6 +1706,10 @@
                           Padding="12,6"
                           Command="{Binding ScanHardwareCheckCommand}"
                           Content="Scan Hardware" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding CopyHardwareCheckInfoCommand}"
+                          Content="Copy Info" />
                 </WrapPanel>
 
                 <Border Margin="0,12,0,0"
@@ -1753,7 +2140,7 @@
             <GroupBox Header="Driver Updates" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Detect this PC's hardware, scan Windows Update for matching driver updates, preselect recommended items, show optional ones separately, and install only the drivers you confirm."
+                           Text="Detect this PC's hardware, scan Windows Update for matching driver updates, preselect recommended items, show optional ones separately, and install only the drivers you confirm. Some driver offers can only be finished through Windows Update's own Optional Updates flow."
                            TextWrapping="Wrap" />
 
                 <TextBlock Margin="0,8,0,0"
@@ -1770,6 +2157,10 @@
                           Padding="12,6"
                           Command="{Binding ScanDriverUpdatesCommand}"
                           Content="Scan Drivers" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding OpenWindowsUpdateOptionalUpdatesCommand}"
+                          Content="Open Optional Updates" />
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding SelectRecommendedDriverUpdatesCommand}"
@@ -1887,6 +2278,21 @@
                                 </TextBlock.Style>
                               </TextBlock>
 
+                              <TextBlock Margin="20,4,0,0"
+                                         Text="{Binding InstallFlowText}"
+                                         TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding RequiresUserInput}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+
                               <TextBlock Margin="20,6,0,0"
                                          TextWrapping="Wrap">
                                 <Run Text="Model: " />
@@ -1946,6 +2352,39 @@
               </StackPanel>
             </GroupBox>
 
+            <GroupBox Header="Replace Windows Search" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Install Flow Launcher, Everything, and AutoHotkey, then reroute Win + S into Flow Launcher and disable the Windows Search service. Reverse removes the helper, restores Windows Search, and leaves the apps installed in case you still want them."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="This may show a Windows administrator prompt when the Windows Search service is being turned off or turned back on."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshSearchReplacementStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ApplySearchReplacementCommand}"
+                          Content="Use Flow Search" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RestoreSearchReplacementCommand}"
+                          Content="Reverse" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding SearchReplacementStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
             <GroupBox Header="Remove OneDrive" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
@@ -1970,26 +2409,23 @@
               </StackPanel>
             </GroupBox>
 
-            <GroupBox Header="Windows 11 EEA Install Helper" Margin="0,0,0,12">
+            <GroupBox Header="Windows 11 EEA Media Prep" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Microsoft does not publish a separate Europe-only Windows 11 image. Use the official Windows 11 download page, then choose an EEA country or region during setup if you want the EEA behavior Microsoft enables there, including Edge being removable where Microsoft supports it."
+                           Text="Microsoft does not publish a separate Europe-only Windows 11 image. This button downloads the official Windows 11 Media Creation Tool, builds an Ireland-based EEA answer file, opens the prep folder, and watches for the finished USB so MultiTool can copy the file onto it automatically."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="If you want English International media, choose it in the Microsoft tool when the language step appears."
                            TextWrapping="Wrap" />
 
                 <WrapPanel Margin="0,12,0,0"
                            HorizontalAlignment="Right">
                   <Button Margin="4"
                           Padding="12,6"
-                          Command="{Binding OpenWindows11DownloadPageCommand}"
-                          Content="Open Download Page" />
-                  <Button Margin="4"
-                          Padding="12,6"
-                          Command="{Binding OpenWindows11EeaNotesCommand}"
-                          Content="Open EEA Notes" />
-                  <Button Margin="4"
-                          Padding="12,6"
-                          Command="{Binding CopyWindows11EeaInstallChecklistCommand}"
-                          Content="Copy Checklist" />
+                          Command="{Binding PrepareWindows11EeaMediaCommand}"
+                          Content="Prepare EEA Media" />
                 </WrapPanel>
 
                 <TextBlock Margin="0,10,0,0"
@@ -2208,11 +2644,6 @@
                            TextWrapping="Wrap" />
               </StackPanel>
             </GroupBox>
-
-            <GroupBox Header="Run Log">
-              <ListBox MinHeight="180"
-                       ItemsSource="{Binding ToolLogEntries}" />
-            </GroupBox>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
@@ -2226,7 +2657,7 @@
                   <CheckBox Content="Dark mode"
                             IsChecked="{Binding IsDarkMode}" />
                   <CheckBox Margin="0,8,0,0"
-                            Content="Ctrl + scroll resizes the window"
+                            Content="Ctrl + scroll zooms the UI"
                             IsChecked="{Binding IsCtrlWheelResizeEnabled}" />
                   <CheckBox Margin="0,8,0,0"
                             Content="Auto-hide to tray on startup"
@@ -2240,7 +2671,7 @@
                   </WrapPanel>
                   <TextBlock Margin="0,8,0,0"
                              Foreground="{DynamicResource MutedTextBrush}"
-                             Text="On first run, the app starts in the same light or dark mode that Windows is already using. You can also let Ctrl + mouse wheel resize the whole window, or have startup launches hide straight to the tray."
+                             Text="On first run, the app starts in the same light or dark mode that Windows is already using. You can also let Ctrl + mouse wheel zoom the app UI, or have startup launches hide straight to the tray."
                              TextWrapping="Wrap" />
                   <TextBlock Margin="0,8,0,0"
                              Text="{Binding SettingsStatusMessage}"

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Principal;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -48,6 +49,8 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IDisplayRefreshRateService displayRefreshRateService;
     private readonly IHardwareInventoryService hardwareInventoryService;
     private readonly IDriverUpdateService driverUpdateService;
+    private readonly IWindows11EeaMediaService windows11EeaMediaService;
+    private readonly IWindowsSearchReplacementService windowsSearchReplacementService;
     private readonly IOneDriveRemovalService oneDriveRemovalService;
     private readonly IShortcutHotkeyDialogService shortcutHotkeyDialogService;
     private readonly AppLaunchOptions appLaunchOptions;
@@ -91,6 +94,8 @@ public partial class MainWindowViewModel : ObservableObject
         IDisplayRefreshRateService displayRefreshRateService,
         IHardwareInventoryService hardwareInventoryService,
         IDriverUpdateService driverUpdateService,
+        IWindows11EeaMediaService windows11EeaMediaService,
+        IWindowsSearchReplacementService windowsSearchReplacementService,
         IOneDriveRemovalService oneDriveRemovalService,
         IShortcutHotkeyDialogService shortcutHotkeyDialogService,
         AppLaunchOptions appLaunchOptions)
@@ -124,10 +129,13 @@ public partial class MainWindowViewModel : ObservableObject
         this.displayRefreshRateService = displayRefreshRateService;
         this.hardwareInventoryService = hardwareInventoryService;
         this.driverUpdateService = driverUpdateService;
+        this.windows11EeaMediaService = windows11EeaMediaService;
+        this.windowsSearchReplacementService = windowsSearchReplacementService;
         this.oneDriveRemovalService = oneDriveRemovalService;
         this.shortcutHotkeyDialogService = shortcutHotkeyDialogService;
         this.appLaunchOptions = appLaunchOptions;
         synchronizationContext = SynchronizationContext.Current;
+        this.windows11EeaMediaService.StatusChanged += Windows11EeaMediaService_OnStatusChanged;
 
         MouseButtons =
         [
@@ -155,6 +163,7 @@ public partial class MainWindowViewModel : ObservableObject
             $"{DateTime.Now:HH:mm:ss}  Activity log ready.",
         ];
 
+        RefreshAdminModeState();
         RefreshHotkeyLabels();
     }
 
@@ -185,6 +194,13 @@ public partial class MainWindowViewModel : ObservableObject
 
     public bool HasSavedMacros => SavedMacros.Count > 0;
 
+    public bool ShouldShowAdminModeBanner => !IsRunningAsAdministrator;
+
+    public string AdminModeBannerText =>
+        IsRunningAsAdministrator
+            ? "MultiTool is running as administrator."
+            : "Running without administrator access. Open MultiTool as administrator for installs, hardware sensors, drivers, and Windows changes that need elevated access.";
+
     [ObservableProperty]
     private string windowTitle = "MultiTool";
 
@@ -192,7 +208,7 @@ public partial class MainWindowViewModel : ObservableObject
     private string statusMessage = "Loading settings...";
 
     [ObservableProperty]
-    private string toggleButtonText = "Toggle On (-)";
+    private string toggleButtonText = "Start Clicking (-)";
 
     [ObservableProperty]
     private int hours;
@@ -316,6 +332,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string settingsStatusMessage = "Dark mode will match Windows the first time the app runs.";
+
+    [ObservableProperty]
+    private bool isRunningAsAdministrator;
 
     public bool ShouldAutoHideOnStartup => appLaunchOptions.IsStartupLaunch && IsAutoHideOnStartupEnabled;
 
@@ -798,7 +817,7 @@ public partial class MainWindowViewModel : ObservableObject
     public void UpdateRunningState(bool running)
     {
         IsRunning = running;
-        WindowTitle = running ? "MultiTool - Running..." : "MultiTool";
+        RefreshWindowTitle();
         RefreshHotkeyLabels();
     }
 
@@ -955,7 +974,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void RefreshHotkeyLabels()
     {
-        var actionText = IsRunning ? "Toggle Off" : "Toggle On";
+        var actionText = IsRunning ? "Stop Clicking" : "Start Clicking";
         ToggleButtonText = $"{actionText} ({hotkeySettings.Toggle.DisplayName})";
     }
 
@@ -1142,15 +1161,15 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         SettingsStatusMessage = value
-            ? "Ctrl + mouse wheel window resize is on."
-            : "Ctrl + mouse wheel window resize is off.";
+            ? "Ctrl + mouse wheel UI zoom is on."
+            : "Ctrl + mouse wheel UI zoom is off.";
         ScheduleSettingsAutoSave();
 
         if (initialized)
         {
             AddActivityLog(value
-                ? "Enabled Ctrl + mouse wheel window resize."
-                : "Disabled Ctrl + mouse wheel window resize.");
+                ? "Enabled Ctrl + mouse wheel UI zoom."
+                : "Disabled Ctrl + mouse wheel UI zoom.");
         }
     }
 
@@ -1172,6 +1191,13 @@ public partial class MainWindowViewModel : ObservableObject
                 ? "Enabled auto-hide on startup."
                 : "Disabled auto-hide on startup.");
         }
+    }
+
+    partial void OnIsRunningAsAdministratorChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShouldShowAdminModeBanner));
+        OnPropertyChanged(nameof(AdminModeBannerText));
+        RefreshWindowTitle();
     }
 
     private void RefreshMacroCommandStates()
@@ -1227,6 +1253,34 @@ public partial class MainWindowViewModel : ObservableObject
         {
             ActivityLogEntries.RemoveAt(ActivityLogEntries.Count - 1);
         }
+    }
+
+    private void RefreshAdminModeState()
+    {
+        IsRunningAsAdministrator = GetIsCurrentProcessElevated();
+        RefreshWindowTitle();
+        if (!IsRunningAsAdministrator)
+        {
+            AddActivityLog("Running without administrator access. Open MultiTool as administrator for full access to elevated features.");
+        }
+    }
+
+    private void RefreshWindowTitle()
+    {
+        WindowTitle = IsRunning
+            ? "MultiTool - Running..."
+            : "MultiTool";
+
+        if (!IsRunningAsAdministrator)
+        {
+            WindowTitle += " (Not Admin)";
+        }
+    }
+
+    private static bool GetIsCurrentProcessElevated()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        return identity is not null && new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
     private void UpdateLatestScreenshotPreview(string filePath, string fileName)

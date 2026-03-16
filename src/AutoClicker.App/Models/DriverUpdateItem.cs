@@ -29,7 +29,13 @@ public partial class DriverUpdateItem : ObservableObject
 
     public bool IsOptional => Update.IsOptional;
 
+    public bool RequiresUserInput => Update.RequiresUserInput;
+
     public string ClassificationText => IsOptional ? "Optional" : "Recommended";
+
+    public string InstallFlowText => RequiresUserInput
+        ? "Needs Windows Update's own interactive install flow"
+        : "Can install directly in MultiTool";
 
     [ObservableProperty]
     private bool isSelected;

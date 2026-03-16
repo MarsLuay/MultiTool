@@ -13,6 +13,10 @@ namespace AutoClicker.App.Views;
 
 public partial class MainWindow : Window
 {
+    private const double MinimumUiScale = 0.8;
+    private const double MaximumUiScale = 1.8;
+    private const double UiScaleStep = 1.08;
+    private const double DefaultTitleBarHeight = 34d;
     private readonly MainWindowViewModel viewModel;
     private readonly IHotkeyService hotkeyService;
     private readonly ITrayIconService trayIconService;
@@ -22,6 +26,7 @@ public partial class MainWindow : Window
     private bool allowMacroRecordHotkeyFocusFromClick;
     private bool isClosingAfterAutoSave;
     private bool isTransitioningToTray;
+    private System.Windows.Point? pendingMaximizedTitleBarDragPoint;
 
     public MainWindow(
         MainWindowViewModel viewModel,
@@ -86,14 +91,63 @@ public partial class MainWindow : Window
     {
         if (e.ClickCount == 2)
         {
+            ClearPendingTitleBarDrag(sender as UIElement);
             ToggleMaximizeRestore();
             return;
         }
 
         if (e.ButtonState == MouseButtonState.Pressed)
         {
+            if (WindowState == WindowState.Maximized)
+            {
+                pendingMaximizedTitleBarDragPoint = e.GetPosition(this);
+                (sender as UIElement)?.CaptureMouse();
+                return;
+            }
+
             DragMove();
         }
+    }
+
+    private void TitleBar_OnMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (WindowState != WindowState.Maximized
+            || pendingMaximizedTitleBarDragPoint is null
+            || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var currentPoint = e.GetPosition(this);
+        var dragStartPoint = pendingMaximizedTitleBarDragPoint.Value;
+        if (Math.Abs(currentPoint.X - dragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(currentPoint.Y - dragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        RestoreFromMaximizedForDrag(sender as FrameworkElement, dragStartPoint);
+        ClearPendingTitleBarDrag(sender as UIElement);
+
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        e.Handled = true;
+    }
+
+    private void TitleBar_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        ClearPendingTitleBarDrag(sender as UIElement);
+    }
+
+    private void TitleBar_OnLostMouseCapture(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        ClearPendingTitleBarDrag(sender as UIElement, releaseCapture: false);
     }
 
     private void MinimizeButton_OnClick(object sender, RoutedEventArgs e)
@@ -334,42 +388,67 @@ public partial class MainWindow : Window
     private void MainWindow_OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control
-            || !viewModel.IsCtrlWheelResizeEnabled
-            || WindowState != WindowState.Normal)
+            || !viewModel.IsCtrlWheelResizeEnabled)
         {
             return;
         }
 
-        const double zoomStep = 1.08;
-        const double minimumGrowthThreshold = 0.5;
         var stepCount = e.Delta / (double)Mouse.MouseWheelDeltaForOneLine;
         if (Math.Abs(stepCount) < double.Epsilon)
         {
             return;
         }
 
-        var scale = Math.Pow(zoomStep, stepCount);
-        var workArea = SystemParameters.WorkArea;
-        var currentWidth = ActualWidth > 0 ? ActualWidth : Width;
-        var currentHeight = ActualHeight > 0 ? ActualHeight : Height;
-        var targetWidth = Clamp(currentWidth * scale, MinWidth, workArea.Width);
-        var targetHeight = Clamp(currentHeight * scale, MinHeight, workArea.Height);
+        ApplyMainContentScaleStep(stepCount);
+        e.Handled = true;
+    }
 
-        if (Math.Abs(targetWidth - currentWidth) < minimumGrowthThreshold
-            && Math.Abs(targetHeight - currentHeight) < minimumGrowthThreshold)
+    private void MainWindow_OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control
+            || !viewModel.IsCtrlWheelResizeEnabled
+            || ShouldIgnoreZoomShortcut(e.OriginalSource as DependencyObject))
         {
-            e.Handled = true;
             return;
         }
 
-        var centerX = Left + (currentWidth / 2d);
-        var centerY = Top + (currentHeight / 2d);
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var stepCount = key switch
+        {
+            Key.OemPlus => 1d,
+            Key.Add => 1d,
+            Key.OemMinus => -1d,
+            Key.Subtract => -1d,
+            _ => 0d,
+        };
 
-        Width = targetWidth;
-        Height = targetHeight;
-        Left = Clamp(centerX - (targetWidth / 2d), workArea.Left, workArea.Right - targetWidth);
-        Top = Clamp(centerY - (targetHeight / 2d), workArea.Top, workArea.Bottom - targetHeight);
+        if (Math.Abs(stepCount) < double.Epsilon)
+        {
+            return;
+        }
+
+        ApplyMainContentScaleStep(stepCount);
         e.Handled = true;
+    }
+
+    private bool ShouldIgnoreZoomShortcut(DependencyObject? originalSource) =>
+        IsDescendantOf(originalSource, CustomKeyTextBox)
+        || IsDescendantOf(originalSource, ScreenshotHotkeyTextBox)
+        || IsDescendantOf(originalSource, MacroHotkeyTextBox)
+        || IsDescendantOf(originalSource, MacroRecordHotkeyTextBox);
+
+    private void ApplyMainContentScaleStep(double stepCount)
+    {
+        var currentScale = MainContentScaleTransform.ScaleX;
+        var requestedScale = currentScale * Math.Pow(UiScaleStep, stepCount);
+        var targetScale = Clamp(requestedScale, MinimumUiScale, MaximumUiScale);
+        if (Math.Abs(targetScale - currentScale) < 0.0001d)
+        {
+            return;
+        }
+
+        MainContentScaleTransform.ScaleX = targetScale;
+        MainContentScaleTransform.ScaleY = targetScale;
     }
 
     private void CaptureButton_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -463,6 +542,55 @@ public partial class MainWindow : Window
         DisarmCaptureBox(ScreenshotHotkeyTextBox);
         DisarmCaptureBox(MacroHotkeyTextBox);
         DisarmCaptureBox(MacroRecordHotkeyTextBox);
+    }
+
+    private void RestoreFromMaximizedForDrag(FrameworkElement? titleBar, System.Windows.Point dragStartPoint)
+    {
+        var restoreBounds = RestoreBounds;
+        if (restoreBounds.Width <= 0 || restoreBounds.Height <= 0)
+        {
+            WindowState = WindowState.Normal;
+            return;
+        }
+
+        var screenPoint = PointToScreen(dragStartPoint);
+        var restorePoint = ConvertFromDevicePoint(screenPoint);
+        var horizontalRatio = ActualWidth <= 0
+            ? 0.5d
+            : Clamp(dragStartPoint.X / ActualWidth, 0d, 1d);
+        var restoredLeft = restorePoint.X - (restoreBounds.Width * horizontalRatio);
+        var titleBarHeight = titleBar is { ActualHeight: > 0 } ? titleBar.ActualHeight : DefaultTitleBarHeight;
+        var restoredTop = restorePoint.Y - Math.Min(dragStartPoint.Y, titleBarHeight);
+
+        WindowState = WindowState.Normal;
+        Left = Clamp(
+            restoredLeft,
+            SystemParameters.VirtualScreenLeft,
+            SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - Width);
+        Top = Clamp(
+            restoredTop,
+            SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - titleBarHeight);
+    }
+
+    private System.Windows.Point ConvertFromDevicePoint(System.Windows.Point devicePoint)
+    {
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget is null)
+        {
+            return devicePoint;
+        }
+
+        return source.CompositionTarget.TransformFromDevice.Transform(devicePoint);
+    }
+
+    private void ClearPendingTitleBarDrag(UIElement? titleBar, bool releaseCapture = true)
+    {
+        pendingMaximizedTitleBarDragPoint = null;
+        if (releaseCapture && titleBar?.IsMouseCaptured == true)
+        {
+            titleBar.ReleaseMouseCapture();
+        }
     }
 
     private static bool IsDescendantOf(DependencyObject? source, DependencyObject target)

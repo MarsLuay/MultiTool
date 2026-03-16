@@ -6,4 +6,5 @@ public sealed record DriverUpdateInstallResult(
     bool Succeeded,
     bool Changed,
     bool RequiresRestart,
+    bool RequiresUserInput,
     string Message);

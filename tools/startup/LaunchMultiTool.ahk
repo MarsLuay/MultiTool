@@ -12,19 +12,13 @@ if !FileExist(appPath)
     ExitApp
 }
 
-if A_IsAdmin
-{
-    Run '"' appPath '" --startup-launch', rootDir
-    ExitApp
-}
-
 try
 {
-    Run '*RunAs "' appPath '" --startup-launch', rootDir
+    Run '"' appPath '" --startup-launch', rootDir
 }
 catch
 {
-    MsgBox "MultiTool needs administrator access to read protected hardware telemetry on this PC.`n`nIf you canceled the Windows prompt, launch it again and allow the elevation request.", "MultiTool Startup", "Icon!"
+    MsgBox "MultiTool could not be started from the Startup shortcut.`n`nTry launching MultiTool.exe directly to confirm the app is still present.", "MultiTool Startup", "Icon!"
 }
 
 ExitApp

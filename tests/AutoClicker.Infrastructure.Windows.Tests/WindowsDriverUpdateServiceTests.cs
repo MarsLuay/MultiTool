@@ -16,7 +16,7 @@ public sealed class WindowsDriverUpdateServiceTests
             ],
             () =>
             [
-                new DriverUpdateCandidate("update-1", "NVIDIA Display Driver", "RTX 4080", "NVIDIA", "Display", "2026-03-01", "Recommended display update.", false),
+                new DriverUpdateCandidate("update-1", "NVIDIA Display Driver", "RTX 4080", "NVIDIA", "Display", "2026-03-01", "Recommended display update.", false, true),
             ],
             _ => []);
 
@@ -26,6 +26,7 @@ public sealed class WindowsDriverUpdateServiceTests
         result.Hardware.Should().ContainSingle();
         result.Updates.Should().ContainSingle();
         result.Updates[0].Title.Should().Be("NVIDIA Display Driver");
+        result.Updates[0].RequiresUserInput.Should().BeTrue();
     }
 
     [Fact]
@@ -53,12 +54,31 @@ public sealed class WindowsDriverUpdateServiceTests
             updateIds =>
             [
                 .. updateIds.Select(
-                    static updateId => new DriverUpdateInstallResult(updateId, $"Title {updateId}", true, true, false, "Installed.")),
+                    static updateId => new DriverUpdateInstallResult(updateId, $"Title {updateId}", true, true, false, false, "Installed.")),
             ]);
 
         var result = await service.InstallAsync(["driver-a", "driver-b"]);
 
         result.Should().HaveCount(2);
         result.Should().OnlyContain(item => item.Succeeded && item.Changed);
+    }
+
+    [Fact]
+    public async Task InstallAsync_ShouldPreserveInteractiveInstallRequirement()
+    {
+        var service = new WindowsDriverUpdateService(
+            () => [],
+            () => [],
+            updateIds =>
+            [
+                .. updateIds.Select(
+                    static updateId => new DriverUpdateInstallResult(updateId, $"Title {updateId}", false, false, false, true, "Needs Windows Update UI.")),
+            ]);
+
+        var result = await service.InstallAsync(["driver-a"]);
+
+        result.Should().ContainSingle();
+        result[0].RequiresUserInput.Should().BeTrue();
+        result[0].Succeeded.Should().BeFalse();
     }
 }

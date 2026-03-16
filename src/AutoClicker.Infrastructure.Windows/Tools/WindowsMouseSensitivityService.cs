@@ -52,7 +52,7 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
     public MouseSensitivityStatus GetStatus()
     {
         var level = NormalizeLevel(levelReader());
-        var message = $"Current Windows mouse sensitivity is {level}/20. This changes pointer speed, not vendor-specific onboard mouse DPI.";
+        var message = $"Current mouse speed: {DescribeLevel(level)}. This changes pointer speed, not vendor-specific onboard mouse DPI.";
         return new MouseSensitivityStatus(level, message);
     }
 
@@ -75,7 +75,7 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
                 true,
                 false,
                 normalizedLevel,
-                $"Windows mouse sensitivity is already set to {normalizedLevel}/20.");
+                $"Mouse speed is already set to {DescribeLevel(normalizedLevel)}.");
         }
 
         try
@@ -85,7 +85,7 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
                 true,
                 true,
                 normalizedLevel,
-                $"Applied Windows mouse sensitivity {normalizedLevel}/20. This affects pointer speed immediately, but hardware DPI buttons or vendor mouse software can still override the physical DPI on some mice.");
+                $"Mouse speed set to {DescribeLevel(normalizedLevel)}. This affects pointer speed immediately, but hardware DPI buttons or vendor mouse software can still override the physical DPI on some mice.");
         }
         catch (OperationCanceledException)
         {
@@ -167,6 +167,23 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
         }
 
         return level;
+    }
+
+    private static string DescribeLevel(int level)
+    {
+        var normalizedLevel = NormalizeLevel(level);
+        var feelLabel = normalizedLevel switch
+        {
+            <= 4 => "Very Slow",
+            <= 8 => "Slow",
+            <= 12 => "Balanced",
+            <= 16 => "Fast",
+            _ => "Very Fast",
+        };
+
+        return normalizedLevel == DefaultLevel
+            ? $"{feelLabel} ({normalizedLevel}/20, Windows middle)"
+            : $"{feelLabel} ({normalizedLevel}/20)";
     }
 
     private static int ReadRegistryInt(object? value) =>

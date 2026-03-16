@@ -168,6 +168,13 @@ public sealed class WindowsWingetInstallerServiceTests
         service.GetCatalog().Should().ContainEquivalentOf(
             new
             {
+                PackageId = "Microsoft.DotNet.SDK.10",
+                DisplayName = "Microsoft .NET SDK",
+                Category = "Developer",
+            });
+        service.GetCatalog().Should().ContainEquivalentOf(
+            new
+            {
                 PackageId = "9MV0B5HZVK9Z",
                 DisplayName = "Xbox",
                 Category = "Games",
@@ -217,6 +224,13 @@ public sealed class WindowsWingetInstallerServiceTests
         service.GetCatalog().Should().ContainEquivalentOf(
             new
             {
+                PackageId = "TechPowerUp.NVCleanstall",
+                DisplayName = "NVCleanstall",
+                Category = "Utilities",
+            });
+        service.GetCatalog().Should().ContainEquivalentOf(
+            new
+            {
                 PackageId = "OpenRGB.OpenRGB",
                 DisplayName = "OpenRGB",
                 Category = "Utilities",
@@ -249,6 +263,123 @@ public sealed class WindowsWingetInstallerServiceTests
                 DisplayName = "Python",
                 Category = "Developer",
             });
+    }
+
+    [Fact]
+    public void GetPackageCapabilities_ShouldExposeInteractiveAndReinstallForWingetPackages()
+    {
+        var service = new WindowsWingetInstallerService(CreateRunner());
+
+        var capabilities = service.GetPackageCapabilities("Microsoft.VisualStudioCode");
+
+        capabilities.SupportsInstall.Should().BeTrue();
+        capabilities.SupportsUpdate.Should().BeTrue();
+        capabilities.SupportsInteractiveInstall.Should().BeTrue();
+        capabilities.SupportsInteractiveUpdate.Should().BeTrue();
+        capabilities.SupportsReinstall.Should().BeTrue();
+        capabilities.UsesWinget.Should().BeTrue();
+        capabilities.UsesCustomFlow.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetPackageCapabilities_ShouldExposeOfficialPageForCustomPackages()
+    {
+        var service = new WindowsWingetInstallerService(CreateRunner());
+
+        var capabilities = service.GetPackageCapabilities("AUTOMATIC1111.StableDiffusionWebUI");
+
+        capabilities.SupportsInteractiveInstall.Should().BeFalse();
+        capabilities.SupportsReinstall.Should().BeFalse();
+        capabilities.SupportsOpenInstallPage.Should().BeTrue();
+        capabilities.SupportsOpenUpdatePage.Should().BeTrue();
+        capabilities.UsesCustomFlow.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunPackageOperationAsync_ShouldUseInteractiveWingetInstallCommand()
+    {
+        var commands = new List<string>();
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                commands.Add(startInfo.Arguments);
+
+                var result = startInfo.Arguments switch
+                {
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(0, "Name Id Version Source", string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(0, "Name Id Version Available Source", string.Empty),
+                    "install --exact --id \"Microsoft.VisualStudioCode\" --accept-package-agreements --accept-source-agreements --interactive" => new InstallerCommandResult(0, "Successfully installed", string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            localPackageStatusResolver: _ => null);
+
+        var results = await service.RunPackageOperationAsync("Microsoft.VisualStudioCode", InstallerPackageAction.InstallInteractive);
+
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeTrue();
+        results[0].Changed.Should().BeTrue();
+        commands.Should().Contain("install --exact --id \"Microsoft.VisualStudioCode\" --accept-package-agreements --accept-source-agreements --interactive");
+        commands.Should().NotContain(argument => argument.Contains("--silent", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RunPackageOperationAsync_ShouldUseForceAndNoUpgradeForReinstall()
+    {
+        var commands = new List<string>();
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                commands.Add(startInfo.Arguments);
+
+                var result = startInfo.Arguments switch
+                {
+                    "install --exact --id \"Microsoft.VisualStudioCode\" --accept-package-agreements --force --no-upgrade --accept-source-agreements --disable-interactivity --silent" => new InstallerCommandResult(0, "Successfully installed", string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            });
+
+        var results = await service.RunPackageOperationAsync("Microsoft.VisualStudioCode", InstallerPackageAction.Reinstall);
+
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeTrue();
+        results[0].Changed.Should().BeTrue();
+        results[0].Message.Should().Be("Reinstall completed.");
+        commands.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task UpgradePackagesAsync_ShouldAddInteractiveGuidanceForAccessDeniedFailures()
+    {
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                var result = startInfo.Arguments switch
+                {
+                    "upgrade --exact --id \"Microsoft.VisualStudioCode\" --accept-package-agreements --accept-source-agreements --disable-interactivity --silent" => new InstallerCommandResult(
+                        1,
+                        """
+                        An unexpected error occurred while executing the command:
+                        Access is denied.
+                        0x80070005
+                        """,
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            });
+
+        var results = await service.UpgradePackagesAsync(["Microsoft.VisualStudioCode"]);
+
+        results.Should().ContainSingle();
+        results[0].Succeeded.Should().BeFalse();
+        results[0].Guidance.Should().Contain("interactive action");
+        results[0].RequiresManualStep.Should().BeTrue();
     }
 
     [Fact]
@@ -1045,6 +1176,57 @@ public sealed class WindowsWingetInstallerServiceTests
         statuses[0].IsInstalled.Should().BeFalse();
         statuses[0].HasUpdateAvailable.Should().BeFalse();
         statuses[0].StatusText.Should().Be("Not installed");
+    }
+
+    [Fact]
+    public async Task GetPackageStatusesAsync_ShouldNotConfuseLatestPythonWithDifferentInstalledPythonVersions()
+    {
+        var service = new WindowsWingetInstallerService(
+            (startInfo, _) =>
+            {
+                var result = startInfo.Arguments switch
+                {
+                    "--version" => new InstallerCommandResult(0, "v1.28.220", string.Empty),
+                    "list --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name                    Id                 Version
+                        ----------------------------------------------------------
+                        Python 3.10.11 (64-bit) Python.Python.3.10 3.10.11
+                        Python 3.14.3 (64-bit)  Python.Python.3.14 3.14.3
+                        """,
+                        string.Empty),
+                    "list --upgrade-available --accept-source-agreements --disable-interactivity" => new InstallerCommandResult(
+                        0,
+                        """
+                        Name                    Id                 Version Available Source
+                        -------------------------------------------------------------------
+                        Python 3.10.11 (64-bit) Python.Python.3.10 3.10.11 3.10.12  winget
+                        """,
+                        string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected command: {startInfo.FileName} {startInfo.Arguments}"),
+                };
+
+                return Task.FromResult(result);
+            },
+            localPackageStatusResolver: _ => null);
+
+        var statuses = await service.GetPackageStatusesAsync(["Python.Python.3.10", "Python.Python.3.14"]);
+
+        statuses.Should().ContainEquivalentOf(new
+        {
+            PackageId = "Python.Python.3.10",
+            IsInstalled = true,
+            HasUpdateAvailable = true,
+            StatusText = "Update available",
+        });
+        statuses.Should().ContainEquivalentOf(new
+        {
+            PackageId = "Python.Python.3.14",
+            IsInstalled = true,
+            HasUpdateAvailable = false,
+            StatusText = "Installed",
+        });
     }
 
     [Fact]

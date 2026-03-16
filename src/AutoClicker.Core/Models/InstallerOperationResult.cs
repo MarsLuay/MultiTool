@@ -6,4 +6,6 @@ public sealed record InstallerOperationResult(
     bool Succeeded,
     bool Changed,
     string Message,
-    string Output);
+    string Output,
+    string Guidance = "",
+    bool RequiresManualStep = false);

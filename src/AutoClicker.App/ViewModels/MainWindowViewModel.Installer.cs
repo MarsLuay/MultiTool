@@ -11,10 +11,16 @@ namespace AutoClicker.App.ViewModels;
 public partial class MainWindowViewModel
 {
     private const string FirefoxPackageId = "Mozilla.Firefox";
+    private const int MaxInstallerOperationHistory = 24;
+
+    private int nextInstallerOperationSequenceNumber = 1;
+    private bool isInstallerQueueProcessing;
 
     public ObservableCollection<InstallerPackageItem> InstallerPackages { get; } = [];
 
     public ObservableCollection<InstallerPackageItem> CleanupPackages { get; } = [];
+
+    public ObservableCollection<InstallerOperationItem> InstallerOperations { get; } = [];
 
     public ObservableCollection<string> InstallerLogEntries { get; } = [];
 
@@ -23,6 +29,10 @@ public partial class MainWindowViewModel
     public bool HasSelectedInstallerPackages => InstallerPackages.Any(item => item.IsSelected);
 
     public bool HasSelectedCleanupPackages => CleanupPackages.Any(item => item.IsSelected);
+
+    public bool HasInstallerOperations => InstallerOperations.Count > 0;
+
+    public string InstallerOperationQueueSummary => BuildInstallerOperationQueueSummary();
 
     public string InstallerSelectionSummary => BuildInstallerSelectionSummary();
 
@@ -67,9 +77,11 @@ public partial class MainWindowViewModel
 
     private void InitializeInstallerState()
     {
+        InstallerOperations.CollectionChanged += InstallerOperations_OnCollectionChanged;
+
         foreach (var package in installerService.GetCatalog().OrderBy(item => item.Category).ThenBy(item => item.DisplayName))
         {
-            var packageItem = new InstallerPackageItem(package)
+            var packageItem = new InstallerPackageItem(package, installerService.GetPackageCapabilities(package.PackageId))
             {
                 StatusText = "Checking status...",
             };
@@ -90,7 +102,7 @@ public partial class MainWindowViewModel
 
         foreach (var package in installerService.GetCleanupCatalog().OrderBy(item => item.DisplayName))
         {
-            var packageItem = new InstallerPackageItem(package)
+            var packageItem = new InstallerPackageItem(package, installerService.GetPackageCapabilities(package.PackageId))
             {
                 StatusText = "Checking status...",
             };
@@ -104,6 +116,13 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(InstallerSelectionSummary));
         OnPropertyChanged(nameof(InstallerUpdateSummary));
         OnPropertyChanged(nameof(CleanupSelectionSummary));
+    }
+
+    private void InstallerOperations_OnCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasInstallerOperations));
+        OnPropertyChanged(nameof(InstallerOperationQueueSummary));
+        ClearCompletedInstallerOperationsCommand.NotifyCanExecuteChanged();
     }
 
     private void ApplyInstallerSettings(InstallerSettings? settings)
@@ -331,10 +350,9 @@ public partial class MainWindowViewModel
     [RelayCommand(CanExecute = nameof(CanInstallSelectedPackages))]
     private async Task InstallSelectedPackagesAsync()
     {
-        await RunInstallerBatchAsync(
+        await QueueInstallerBatchAsync(
             actionLabel: "install",
-            changedLabel: "installed",
-            packageIds => installerService.InstallPackagesAsync(packageIds),
+            action: InstallerPackageAction.Install,
             requireInstalledSelection: false,
             syncFirefoxExtensions: true,
             canRunWithoutWinget: item => item.CanInstallWithoutWinget);
@@ -349,10 +367,9 @@ public partial class MainWindowViewModel
     [RelayCommand(CanExecute = nameof(CanUpgradeSelectedPackages))]
     private async Task UpgradeSelectedPackagesAsync()
     {
-        await RunInstallerBatchAsync(
+        await QueueInstallerBatchAsync(
             actionLabel: "update",
-            changedLabel: "updated",
-            packageIds => installerService.UpgradePackagesAsync(packageIds),
+            action: InstallerPackageAction.Update,
             requireInstalledSelection: true,
             syncFirefoxExtensions: false,
             canRunWithoutWinget: item => item.IsInstalled && item.CanUpdateWithoutWinget);
@@ -366,62 +383,119 @@ public partial class MainWindowViewModel
     private async Task UpgradeAllInstalledPackagesAsync()
     {
         await RefreshInstallerStatusCoreAsync(addLogEntry: false);
+        await QueueInstallerBatchAsync(
+            actionLabel: "update",
+            action: InstallerPackageAction.Update,
+            requireInstalledSelection: true,
+            syncFirefoxExtensions: false,
+            canRunWithoutWinget: item => item.IsInstalled && item.CanUpdateWithoutWinget,
+            packageFilter: item => item.IsInstalled && item.HasUpdateAvailable && (IsWingetAvailable || item.CanUpdateWithoutWinget),
+            emptySelectionMessage: "There are no apps with updates ready.");
+    }
 
-        var installedPackages = InstallerPackages
-            .Where(item => item.IsInstalled && item.HasUpdateAvailable && (IsWingetAvailable || item.CanUpdateWithoutWinget))
-            .ToArray();
+    private bool CanQueuePrimaryInstallerPackageAction(InstallerPackageItem? package) =>
+        !IsInstallerBusy && package?.CanQueuePrimaryAction == true;
 
-        if (installedPackages.Length == 0)
+    [RelayCommand(CanExecute = nameof(CanQueuePrimaryInstallerPackageAction))]
+    private async Task QueuePrimaryInstallerPackageActionAsync(InstallerPackageItem? package)
+    {
+        if (package is null)
         {
-            InstallerStatusMessage = "There are no apps with updates ready.";
+            return;
+        }
+
+        var action = package.IsInstalled ? InstallerPackageAction.Update : InstallerPackageAction.Install;
+        await QueueInstallerOperationsAsync(
+            [package],
+            action,
+            syncFirefoxExtensions: !package.IsInstalled && string.Equals(package.PackageId, FirefoxPackageId, StringComparison.OrdinalIgnoreCase),
+            sourceLabel: package.DisplayName,
+            addedLabel: action == InstallerPackageAction.Install ? "Queued install." : "Queued update.").ConfigureAwait(true);
+    }
+
+    private bool CanQueueInteractiveInstallerPackageAction(InstallerPackageItem? package) =>
+        !IsInstallerBusy && package?.CanQueueInteractiveAction == true;
+
+    [RelayCommand(CanExecute = nameof(CanQueueInteractiveInstallerPackageAction))]
+    private async Task QueueInteractiveInstallerPackageActionAsync(InstallerPackageItem? package)
+    {
+        if (package is null)
+        {
+            return;
+        }
+
+        var action = package.IsInstalled ? InstallerPackageAction.UpdateInteractive : InstallerPackageAction.InstallInteractive;
+        await QueueInstallerOperationsAsync(
+            [package],
+            action,
+            syncFirefoxExtensions: false,
+            sourceLabel: package.DisplayName,
+            addedLabel: action == InstallerPackageAction.InstallInteractive
+                ? "Queued interactive install."
+                : "Queued interactive update.").ConfigureAwait(true);
+    }
+
+    private bool CanQueueReinstallInstallerPackageAction(InstallerPackageItem? package) =>
+        !IsInstallerBusy && package?.CanQueueReinstallAction == true;
+
+    [RelayCommand(CanExecute = nameof(CanQueueReinstallInstallerPackageAction))]
+    private async Task QueueReinstallInstallerPackageActionAsync(InstallerPackageItem? package)
+    {
+        if (package is null)
+        {
+            return;
+        }
+
+        await QueueInstallerOperationsAsync(
+            [package],
+            InstallerPackageAction.Reinstall,
+            syncFirefoxExtensions: false,
+            sourceLabel: package.DisplayName,
+            addedLabel: "Queued reinstall.").ConfigureAwait(true);
+    }
+
+    [RelayCommand]
+    private void OpenInstallerPackagePage(InstallerPackageItem? package)
+    {
+        if (package is null)
+        {
+            return;
+        }
+
+        var targetUrl = package.IsInstalled && !string.IsNullOrWhiteSpace(package.Package.UpdateUrl)
+            ? package.Package.UpdateUrl
+            : package.Package.InstallUrl ?? package.Package.UpdateUrl;
+        if (string.IsNullOrWhiteSpace(targetUrl))
+        {
+            InstallerStatusMessage = $"{package.DisplayName} does not have an official page linked yet.";
             AddInstallerLog(InstallerStatusMessage);
             return;
         }
 
-        IsInstallerBusy = true;
-        StartInstallerProgress(installedPackages.Length, $"Preparing updates for {installedPackages.Length} app{(installedPackages.Length == 1 ? string.Empty : "s")}...");
-        InstallerStatusMessage = $"Running update for {installedPackages.Length} app{(installedPackages.Length == 1 ? string.Empty : "s")}...";
-        AddInstallerLog(InstallerStatusMessage);
-
         try
         {
-            var results = new List<InstallerOperationResult>();
-
-            for (var index = 0; index < installedPackages.Length; index++)
-            {
-                var package = installedPackages[index];
-                UpdateInstallerProgress(index, installedPackages.Length, package.DisplayName);
-                package.StatusText = $"Updating ({index + 1}/{installedPackages.Length})...";
-
-                var packageResults = await installerService.UpgradePackagesAsync([package.PackageId]);
-                results.AddRange(packageResults);
-
-                foreach (var result in packageResults)
-                {
-                    AddInstallerLog($"{result.DisplayName}: {result.Message}");
-                }
-
-                InstallerProgressValue = index + 1;
-            }
-
-            var changedCount = results.Count(result => result.Succeeded && result.Changed);
-            var unchangedCount = results.Count(result => result.Succeeded && !result.Changed);
-            var failedCount = results.Count(result => !result.Succeeded);
-            var completionMessage = $"{changedCount} updated, {unchangedCount} already current, {failedCount} failed.";
-
-            InstallerProgressText = $"Completed {installedPackages.Length}/{installedPackages.Length} updates.";
-            await RefreshInstallerStatusCoreAsync(addLogEntry: false);
-            InstallerStatusMessage = completionMessage;
+            var launchResult = browserLauncherService.OpenUrl(targetUrl);
+            InstallerStatusMessage = $"Opened {package.DisplayName}'s official page in {launchResult.BrowserDisplayName}.";
+            AddInstallerLog($"{package.DisplayName}: opened {targetUrl} in {launchResult.BrowserDisplayName}.");
         }
         catch (Exception ex)
         {
-            InstallerStatusMessage = $"Installer update failed: {ex.Message}";
+            InstallerStatusMessage = $"Unable to open {package.DisplayName}'s official page: {ex.Message}";
             AddInstallerLog(InstallerStatusMessage);
         }
-        finally
+    }
+
+    private bool CanClearCompletedInstallerOperations => InstallerOperations.Any(item => item.IsCompleted);
+
+    [RelayCommand(CanExecute = nameof(CanClearCompletedInstallerOperations))]
+    private void ClearCompletedInstallerOperations()
+    {
+        for (var index = InstallerOperations.Count - 1; index >= 0; index--)
         {
-            ResetInstallerProgress();
-            IsInstallerBusy = false;
+            if (InstallerOperations[index].IsCompleted)
+            {
+                InstallerOperations.RemoveAt(index);
+            }
         }
     }
 
@@ -471,14 +545,14 @@ public partial class MainWindowViewModel
         }
     }
 
-    private async Task RunInstallerBatchAsync(
+    private async Task QueueInstallerBatchAsync(
         string actionLabel,
-        string changedLabel,
-        Func<IReadOnlyList<string>, Task<IReadOnlyList<InstallerOperationResult>>> runBatchAsync,
+        InstallerPackageAction action,
         bool requireInstalledSelection,
         bool syncFirefoxExtensions,
         Func<InstallerPackageItem, bool>? canRunWithoutWinget = null,
-        Func<InstallerPackageItem, bool>? packageFilter = null)
+        Func<InstallerPackageItem, bool>? packageFilter = null,
+        string? emptySelectionMessage = null)
     {
         canRunWithoutWinget ??= item => item.CanInstallWithoutWinget || item.CanUpdateWithoutWinget;
         packageFilter ??= item => item.IsSelected;
@@ -491,64 +565,167 @@ public partial class MainWindowViewModel
 
         if (selectedPackages.Length == 0)
         {
-            InstallerStatusMessage = requireInstalledSelection
-                ? "There are no installed apps ready to update."
-                : "Select at least one app first.";
+            InstallerStatusMessage = emptySelectionMessage
+                ?? (requireInstalledSelection
+                    ? "There are no installed apps ready to update."
+                    : "Select at least one app first.");
             AddInstallerLog(InstallerStatusMessage);
             return;
         }
 
-        IsInstallerBusy = true;
-        InstallerStatusMessage = $"Running {actionLabel} for {selectedPackages.Length} app{(selectedPackages.Length == 1 ? string.Empty : "s")}...";
+        await QueueInstallerOperationsAsync(
+            selectedPackages,
+            action,
+            syncFirefoxExtensions,
+            "Installer queue",
+            BuildInstallerQueuedBatchMessage(actionLabel, selectedPackages.Length)).ConfigureAwait(true);
+    }
+
+    private async Task QueueInstallerOperationsAsync(
+        IReadOnlyList<InstallerPackageItem> packages,
+        InstallerPackageAction action,
+        bool syncFirefoxExtensions,
+        string sourceLabel,
+        string addedLabel)
+    {
+        if (packages.Count == 0)
+        {
+            return;
+        }
+
+        var addedCount = 0;
+        var duplicateCount = 0;
+
+        foreach (var package in packages)
+        {
+            if (InstallerOperations.Any(item => !item.IsCompleted && string.Equals(item.DeduplicationKey, BuildInstallerOperationDeduplicationKey(package.PackageId, action), StringComparison.OrdinalIgnoreCase)))
+            {
+                duplicateCount++;
+                continue;
+            }
+
+            var operation = new InstallerOperationItem(
+                nextInstallerOperationSequenceNumber++,
+                package,
+                action,
+                syncFirefoxExtensions && string.Equals(package.PackageId, FirefoxPackageId, StringComparison.OrdinalIgnoreCase));
+            InstallerOperations.Add(operation);
+            package.StatusText = $"#{operation.SequenceNumber} queued";
+            addedCount++;
+        }
+
+        TrimInstallerOperationHistory();
+
+        if (addedCount == 0)
+        {
+            InstallerStatusMessage = duplicateCount > 0
+                ? $"{sourceLabel}: that action is already queued or running."
+                : $"{sourceLabel}: nothing new was added to the installer queue.";
+            AddInstallerLog(InstallerStatusMessage);
+            return;
+        }
+
+        InstallerStatusMessage = duplicateCount > 0
+            ? $"{addedLabel} Skipped {duplicateCount} duplicate request{(duplicateCount == 1 ? string.Empty : "s")}."
+            : addedLabel;
         AddInstallerLog(InstallerStatusMessage);
+
+        await ProcessInstallerQueueAsync().ConfigureAwait(true);
+    }
+
+    private async Task ProcessInstallerQueueAsync()
+    {
+        if (isInstallerQueueProcessing)
+        {
+            return;
+        }
+
+        var pendingOperation = InstallerOperations.FirstOrDefault(item => item.State == InstallerOperationQueueState.Queued);
+        if (pendingOperation is null)
+        {
+            return;
+        }
+
+        isInstallerQueueProcessing = true;
+        IsInstallerBusy = true;
+        var refreshedStatusAtEnd = false;
+        var currentRunOperations = InstallerOperations
+            .Where(item => item.State == InstallerOperationQueueState.Queued)
+            .ToArray();
 
         try
         {
-            var results = await runBatchAsync(selectedPackages.Select(item => item.PackageId).ToArray());
-            foreach (var result in results)
+            while ((pendingOperation = InstallerOperations.FirstOrDefault(item => item.State == InstallerOperationQueueState.Queued)) is not null)
             {
-                AddInstallerLog($"{result.DisplayName}: {result.Message}");
+                RefreshInstallerProgress(pendingOperation);
+                pendingOperation.State = InstallerOperationQueueState.Running;
+                pendingOperation.StatusText = BuildInstallerOperationActiveStatusText(pendingOperation.Action);
+                pendingOperation.Package.StatusText = pendingOperation.StatusText;
+
+                var packageResults = await installerService
+                    .RunPackageOperationAsync(pendingOperation.PackageId, pendingOperation.Action)
+                    .ConfigureAwait(true);
+                var supplementalResults = pendingOperation.SyncFirefoxExtensions
+                    ? (await SyncFirefoxExtensionsAsync([pendingOperation.Package], packageResults).ConfigureAwait(true)).ToList()
+                    : [];
+
+                LogInstallerOperationResults(pendingOperation, packageResults);
+                if (supplementalResults.Count > 0)
+                {
+                    LogInstallerOperationResults(pendingOperation, supplementalResults);
+                }
+
+                var primaryResult = GetPrimaryPackageResult(pendingOperation.PackageId, packageResults);
+                if (primaryResult is null)
+                {
+                    pendingOperation.State = InstallerOperationQueueState.Failed;
+                    pendingOperation.StatusText = "The installer did not return a result.";
+                    pendingOperation.GuidanceText = "Check the activity log, then try the action again.";
+                    pendingOperation.RequiresManualStep = true;
+                    pendingOperation.Package.StatusText = pendingOperation.StatusText;
+                    continue;
+                }
+
+                pendingOperation.State = GetInstallerOperationQueueState(primaryResult);
+                pendingOperation.StatusText = primaryResult.Message;
+                pendingOperation.GuidanceText = BuildInstallerOperationGuidance(primaryResult, supplementalResults);
+                pendingOperation.RequiresManualStep = primaryResult.RequiresManualStep;
+                pendingOperation.Package.StatusText = pendingOperation.StatusText;
             }
 
-            var firefoxExtensionResults = syncFirefoxExtensions
-                ? await SyncFirefoxExtensionsAsync(selectedPackages, results)
-                : [];
-            foreach (var result in firefoxExtensionResults)
+            if (currentRunOperations.Any(item => item.IsCompleted))
             {
-                AddInstallerLog($"{result.DisplayName}: {result.Message}");
+                await RefreshInstallerStatusCoreAsync(addLogEntry: false, preserveBusyState: true).ConfigureAwait(true);
+                refreshedStatusAtEnd = true;
             }
-
-            var changedCount = results.Count(result => result.Succeeded && result.Changed);
-            var unchangedCount = results.Count(result => result.Succeeded && !result.Changed);
-            var failedCount = results.Count(result => !result.Succeeded);
-            var firefoxSummarySuffix = BuildSupplementalResultSummary(firefoxExtensionResults, "Firefox add-ons");
-
-            if (results.Count == 1 && failedCount == 1 && changedCount == 0 && unchangedCount == 0)
-            {
-                var failedResult = results[0];
-                InstallerStatusMessage = $"{failedResult.DisplayName}: {failedResult.Message}{firefoxSummarySuffix}";
-            }
-            else
-            {
-                InstallerStatusMessage = $"{changedCount} {changedLabel}, {unchangedCount} already current, {failedCount} failed.{firefoxSummarySuffix}";
-            }
-
-            await RefreshInstallerStatusCoreAsync(addLogEntry: false);
         }
         catch (Exception ex)
         {
-            InstallerStatusMessage = $"Installer {actionLabel} failed: {ex.Message}";
+            InstallerStatusMessage = $"Installer queue failed: {ex.Message}";
             AddInstallerLog(InstallerStatusMessage);
         }
         finally
         {
+            ResetInstallerProgress();
+            isInstallerQueueProcessing = false;
             IsInstallerBusy = false;
+
+            if (refreshedStatusAtEnd)
+            {
+                InstallerStatusMessage = BuildInstallerQueueCompletionSummary(currentRunOperations);
+                AddInstallerLog(InstallerStatusMessage);
+            }
+
+            RefreshInstallerCommandStates();
         }
     }
 
-    private async Task RefreshInstallerStatusCoreAsync(bool addLogEntry, bool addDetailedUpdateLog = false)
+    private async Task RefreshInstallerStatusCoreAsync(bool addLogEntry, bool addDetailedUpdateLog = false, bool preserveBusyState = false)
     {
-        IsInstallerBusy = true;
+        if (!preserveBusyState)
+        {
+            IsInstallerBusy = true;
+        }
 
         try
         {
@@ -627,7 +804,10 @@ public partial class MainWindowViewModel
             OnPropertyChanged(nameof(InstallerSelectionSummary));
             OnPropertyChanged(nameof(InstallerUpdateSummary));
             OnPropertyChanged(nameof(CleanupSelectionSummary));
-            IsInstallerBusy = false;
+            if (!preserveBusyState)
+            {
+                IsInstallerBusy = false;
+            }
         }
     }
 
@@ -640,22 +820,23 @@ public partial class MainWindowViewModel
         InstallSelectedPackagesCommand.NotifyCanExecuteChanged();
         UpgradeSelectedPackagesCommand.NotifyCanExecuteChanged();
         UpgradeAllInstalledPackagesCommand.NotifyCanExecuteChanged();
+        QueuePrimaryInstallerPackageActionCommand.NotifyCanExecuteChanged();
+        QueueInteractiveInstallerPackageActionCommand.NotifyCanExecuteChanged();
+        QueueReinstallInstallerPackageActionCommand.NotifyCanExecuteChanged();
+        ClearCompletedInstallerOperationsCommand.NotifyCanExecuteChanged();
         UninstallSelectedCleanupPackagesCommand.NotifyCanExecuteChanged();
     }
 
-    private void StartInstallerProgress(int totalCount, string initialMessage)
+    private void RefreshInstallerProgress(InstallerOperationItem operation)
     {
-        InstallerProgressMaximum = Math.Max(totalCount, 1);
-        InstallerProgressValue = 0;
-        InstallerProgressText = initialMessage;
-        IsInstallerProgressVisible = true;
-    }
+        var trackedOperations = InstallerOperations.ToArray();
+        var totalCount = trackedOperations.Length;
+        var completedCount = trackedOperations.Count(item => item.IsCompleted);
 
-    private void UpdateInstallerProgress(int completedCount, int totalCount, string displayName)
-    {
         InstallerProgressMaximum = Math.Max(totalCount, 1);
         InstallerProgressValue = completedCount;
-        InstallerProgressText = $"Updating {displayName} ({completedCount + 1}/{totalCount})...";
+        InstallerProgressText = $"{BuildInstallerOperationActionLabel(operation.Action)} {operation.DisplayName} [{Math.Min(completedCount + 1, Math.Max(totalCount, 1))}/{Math.Max(totalCount, 1)}]...";
+        IsInstallerProgressVisible = true;
     }
 
     private void ResetInstallerProgress()
@@ -746,6 +927,89 @@ public partial class MainWindowViewModel
         };
     }
 
+    private string BuildInstallerOperationQueueSummary()
+    {
+        var queuedCount = InstallerOperations.Count(item => item.State == InstallerOperationQueueState.Queued);
+        var runningCount = InstallerOperations.Count(item => item.State == InstallerOperationQueueState.Running);
+        var completedCount = InstallerOperations.Count(item => item.IsCompleted);
+        var attentionCount = InstallerOperations.Count(item => item.RequiresAttention);
+
+        return $"Queue: {queuedCount} queued  |  {runningCount} running  |  {completedCount} finished  |  {attentionCount} attention";
+    }
+
+    private static string BuildInstallerQueueCompletionSummary(IReadOnlyList<InstallerOperationItem> completedOperations)
+    {
+        var changedCount = completedOperations.Count(item => item.State == InstallerOperationQueueState.Succeeded);
+        var unchangedCount = completedOperations.Count(item => item.State == InstallerOperationQueueState.Skipped);
+        var failedCount = completedOperations.Count(item => item.State == InstallerOperationQueueState.Failed);
+        return $"{changedCount} applied, {unchangedCount} already current, {failedCount} need attention.";
+    }
+
+    private static string BuildInstallerOperationActionLabel(InstallerPackageAction action) =>
+        action switch
+        {
+            InstallerPackageAction.Install => "Installing",
+            InstallerPackageAction.Update => "Updating",
+            InstallerPackageAction.Uninstall => "Removing",
+            InstallerPackageAction.InstallInteractive => "Running interactive install for",
+            InstallerPackageAction.UpdateInteractive => "Running interactive update for",
+            InstallerPackageAction.Reinstall => "Reinstalling",
+            _ => "Working on",
+        };
+
+    private static string BuildInstallerOperationActiveStatusText(InstallerPackageAction action) =>
+        action switch
+        {
+            InstallerPackageAction.Install => "Installing...",
+            InstallerPackageAction.Update => "Updating...",
+            InstallerPackageAction.Uninstall => "Removing...",
+            InstallerPackageAction.InstallInteractive => "Interactive install running...",
+            InstallerPackageAction.UpdateInteractive => "Interactive update running...",
+            InstallerPackageAction.Reinstall => "Reinstalling...",
+            _ => "Working...",
+        };
+
+    private static string BuildInstallerOperationDeduplicationKey(string packageId, InstallerPackageAction action) =>
+        action switch
+        {
+            InstallerPackageAction.Install or InstallerPackageAction.InstallInteractive or InstallerPackageAction.Reinstall => $"{packageId}|install",
+            InstallerPackageAction.Update or InstallerPackageAction.UpdateInteractive => $"{packageId}|update",
+            InstallerPackageAction.Uninstall => $"{packageId}|remove",
+            _ => $"{packageId}|{action}",
+        };
+
+    private static InstallerOperationQueueState GetInstallerOperationQueueState(InstallerOperationResult result)
+    {
+        if (!result.Succeeded)
+        {
+            return InstallerOperationQueueState.Failed;
+        }
+
+        return result.Changed
+            ? InstallerOperationQueueState.Succeeded
+            : InstallerOperationQueueState.Skipped;
+    }
+
+    private static string BuildInstallerOperationGuidance(
+        InstallerOperationResult result,
+        IReadOnlyList<InstallerOperationResult> supplementalResults)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(result.Guidance))
+        {
+            parts.Add(result.Guidance.Trim());
+        }
+
+        var supplementalSummary = BuildSupplementalResultSummary(supplementalResults, "Firefox add-ons").Trim();
+        if (!string.IsNullOrWhiteSpace(supplementalSummary))
+        {
+            parts.Add(supplementalSummary);
+        }
+
+        return string.Join(" ", parts);
+    }
+
     private async Task<IReadOnlyList<InstallerOperationResult>> SyncFirefoxExtensionsAsync(
         IReadOnlyList<InstallerPackageItem> selectedPackages,
         IReadOnlyList<InstallerOperationResult> packageResults)
@@ -809,6 +1073,34 @@ public partial class MainWindowViewModel
         return $" {label}: {changedCount} applied, {unchangedCount} already ready, {failedCount} failed.";
     }
 
+    private void LogInstallerOperationResults(InstallerOperationItem operation, IReadOnlyList<InstallerOperationResult> results)
+    {
+        foreach (var result in results)
+        {
+            var guidanceSuffix = string.IsNullOrWhiteSpace(result.Guidance)
+                ? string.Empty
+                : $" Next: {result.Guidance}";
+            AddInstallerLog($"#{operation.SequenceNumber} {result.DisplayName}: {result.Message}{guidanceSuffix}");
+        }
+    }
+
+    private void TrimInstallerOperationHistory()
+    {
+        while (InstallerOperations.Count > MaxInstallerOperationHistory)
+        {
+            var completedEntry = InstallerOperations
+                .Select((item, index) => new { item, index })
+                .FirstOrDefault(pair => pair.item.IsCompleted);
+
+            if (completedEntry is null)
+            {
+                break;
+            }
+
+            InstallerOperations.RemoveAt(completedEntry.index);
+        }
+    }
+
     private static void ApplyStatuses(IEnumerable<InstallerPackageItem> packages, IReadOnlyDictionary<string, InstallerPackageStatus> statusLookup)
     {
         foreach (var package in packages)
@@ -837,4 +1129,22 @@ public partial class MainWindowViewModel
             InstallerLogEntries.RemoveAt(InstallerLogEntries.Count - 1);
         }
     }
+
+    private static InstallerOperationResult? GetPrimaryPackageResult(
+        string packageId,
+        IReadOnlyList<InstallerOperationResult> results) =>
+        results.FirstOrDefault(result => string.Equals(result.PackageId, packageId, StringComparison.OrdinalIgnoreCase))
+        ?? results.LastOrDefault();
+
+    private static string BuildInstallerQueuedBatchMessage(string actionLabel, int count) =>
+        $"Queued {count} {BuildInstallerActionNoun(actionLabel, count)}.";
+
+    private static string BuildInstallerActionNoun(string actionLabel, int count) =>
+        actionLabel.ToUpperInvariant() switch
+        {
+            "INSTALL" => count == 1 ? "install" : "installs",
+            "UPDATE" => count == 1 ? "update" : "updates",
+            "REMOVE" => count == 1 ? "removal" : "removals",
+            _ => count == 1 ? "task" : "tasks",
+        };
 }

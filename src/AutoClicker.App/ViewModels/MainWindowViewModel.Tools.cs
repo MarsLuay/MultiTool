@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using AutoClicker.App.Models;
 using AutoClicker.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,15 +12,8 @@ namespace AutoClicker.App.ViewModels;
 
 public partial class MainWindowViewModel
 {
-    private const string Windows11DownloadUrl = "https://www.microsoft.com/software-download/windows11";
-    private const string Windows11EeaGuidanceUrl = "https://blogs.windows.com/windows-insider/2023/11/16/previewing-changes-in-windows-to-comply-with-the-digital-markets-act-in-the-european-economic-area/";
-    private const string Windows11EeaInstallChecklist = """
-        Use Microsoft's official Windows 11 download page.
-        Create the USB installer or ISO from that page.
-        During Windows setup, choose an EEA country or region.
-        Finish setup with that region if you want EEA Windows behavior.
-        Microsoft says changing the DMA region later requires resetting the PC.
-        """;
+    private const string WindowsUpdateOptionalUpdatesSettingsUri = "ms-settings:windowsupdate-optionalupdates";
+    private const string WindowsUpdateSettingsUri = "ms-settings:windowsupdate";
 
     private static readonly IReadOnlyList<UsefulSiteItem> DefaultUsefulSites =
     [
@@ -78,6 +72,10 @@ public partial class MainWindowViewModel
     public bool HasSelectedEmptyDirectories => EmptyDirectoryCandidates.Any(item => item.IsSelected);
 
     public string MouseSensitivitySummary => BuildMouseSensitivitySummary();
+
+    public string MouseSensitivitySelectedLevelLabel => BuildMouseSensitivityLevelText(SelectedMouseSensitivityLevel);
+
+    public string MouseSensitivitySelectionGuidance => BuildMouseSensitivitySelectionGuidance();
 
     public string DisplayRefreshSummary => BuildDisplayRefreshSummary();
 
@@ -148,7 +146,7 @@ public partial class MainWindowViewModel
     private int selectedMouseSensitivityLevel = 10;
 
     [ObservableProperty]
-    private string mouseSensitivityStatusMessage = "Review the current Windows mouse sensitivity and apply a different pointer-speed level.";
+    private string mouseSensitivityStatusMessage = "Pick a slower or faster mouse speed. 10/20 is the normal middle setting in Windows, so it is a good place to start if you are unsure.";
 
     [ObservableProperty]
     private string displayRefreshStatusMessage = "Check connected displays and set each one to the top refresh rate available at its current resolution.";
@@ -175,13 +173,16 @@ public partial class MainWindowViewModel
     private string hardwareCheckStatusMessage = "Scan the PC to review core hardware details, live sensor telemetry, PCIe devices, storage health, partitions, and RAID details.";
 
     [ObservableProperty]
-    private string driverUpdateStatusMessage = "Scan this PC's hardware and check Windows Update for recommended and optional driver updates.";
+    private string driverUpdateStatusMessage = "Scan this PC's hardware and check Windows Update for recommended and optional driver updates. Some driver offers can only be finished through Windows Update's own Optional Updates page.";
 
     [ObservableProperty]
     private bool isToolBusy;
 
     [ObservableProperty]
     private string darkModeToolStatusMessage = "Apply Windows dark mode preferences for the shell and supported apps.";
+
+    [ObservableProperty]
+    private string searchReplacementStatusMessage = "Install Flow Launcher + Everything, reroute Win + S into Flow Launcher, and disable Windows Search indexing. Reverse removes the helper and turns Windows Search back on.";
 
     [ObservableProperty]
     private string oneDriveToolStatusMessage = "Check whether OneDrive is present, apply the system disable policy, and remove it with Windows' built-in uninstaller when available.";
@@ -193,7 +194,7 @@ public partial class MainWindowViewModel
     private string usefulSitesStatusMessage = "Open a curated list of useful sites from inside MultiTool.";
 
     [ObservableProperty]
-    private string windows11EeaInstallStatusMessage = "Open Microsoft's Windows 11 download page, then use an EEA region during setup if you want the EEA Windows behavior.";
+    private string windows11EeaInstallStatusMessage = "Build the official Windows 11 media prep files with Ireland as the EEA regional default, then let MultiTool watch for the finished USB and copy the answer file automatically.";
 
     private void InitializeToolsState()
     {
@@ -216,6 +217,8 @@ public partial class MainWindowViewModel
         RefreshMouseSensitivityStatusCore(addLogEntry: false);
         OnPropertyChanged(nameof(HasDisplayRefreshRecommendations));
         OnPropertyChanged(nameof(MouseSensitivitySummary));
+        OnPropertyChanged(nameof(MouseSensitivitySelectedLevelLabel));
+        OnPropertyChanged(nameof(MouseSensitivitySelectionGuidance));
         OnPropertyChanged(nameof(DisplayRefreshSummary));
         OnPropertyChanged(nameof(HardwareGraphicsSummary));
         OnPropertyChanged(nameof(HardwareStorageSummary));
@@ -232,6 +235,7 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(EmptyDirectoryScanProgressSummary));
         OnPropertyChanged(nameof(UsefulSitesToggleText));
         RefreshOneDriveStatusCore(addLogEntry: false);
+        RefreshSearchReplacementStatusCore(addLogEntry: false);
     }
 
     partial void OnEmptyDirectoryRootPathChanged(string value)
@@ -246,6 +250,9 @@ public partial class MainWindowViewModel
 
     partial void OnSelectedMouseSensitivityLevelChanged(int value)
     {
+        OnPropertyChanged(nameof(MouseSensitivitySummary));
+        OnPropertyChanged(nameof(MouseSensitivitySelectedLevelLabel));
+        OnPropertyChanged(nameof(MouseSensitivitySelectionGuidance));
         RefreshToolCommandStates();
     }
 
@@ -327,6 +334,46 @@ public partial class MainWindowViewModel
                 AddToolLog(OneDriveToolStatusMessage);
             }
         }
+    }
+
+    private void RefreshSearchReplacementStatusCore(bool addLogEntry)
+    {
+        try
+        {
+            var status = windowsSearchReplacementService.GetStatus();
+            SearchReplacementStatusMessage = status.Message;
+            if (addLogEntry)
+            {
+                AddToolLog(status.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            SearchReplacementStatusMessage = $"Unable to check the Flow Launcher search replacement: {ex.Message}";
+            if (addLogEntry)
+            {
+                AddToolLog(SearchReplacementStatusMessage);
+            }
+        }
+    }
+
+    private void Windows11EeaMediaService_OnStatusChanged(object? sender, string message)
+    {
+        void ApplyStatus()
+        {
+            Windows11EeaInstallStatusMessage = message;
+            AddToolLog(message);
+        }
+
+        if (synchronizationContext is null)
+        {
+            ApplyStatus();
+            return;
+        }
+
+        synchronizationContext.Post(
+            _ => ApplyStatus(),
+            null);
     }
 
     private void EmptyDirectoryItem_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -432,67 +479,93 @@ public partial class MainWindowViewModel
         }
     }
 
-    [RelayCommand]
-    private void OpenWindows11DownloadPage()
+    private bool CanPrepareWindows11EeaMedia => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanPrepareWindows11EeaMedia))]
+    private async Task PrepareWindows11EeaMediaAsync()
     {
+        IsToolBusy = true;
+        Windows11EeaInstallStatusMessage = "Downloading Microsoft's Windows 11 Media Creation Tool and preparing the EEA setup files...";
+        AddToolLog(Windows11EeaInstallStatusMessage);
+
         try
         {
-            Process.Start(
-                new ProcessStartInfo
-                {
-                    FileName = Windows11DownloadUrl,
-                    UseShellExecute = true,
-                });
-
-            Windows11EeaInstallStatusMessage = "Opened Microsoft's official Windows 11 download page.";
-            AddToolLog(Windows11EeaInstallStatusMessage);
+            var result = await windows11EeaMediaService.PrepareAsync().ConfigureAwait(true);
+            Windows11EeaInstallStatusMessage = result.Message;
+            AddToolLog(result.Message);
         }
         catch (Exception ex)
         {
-            Windows11EeaInstallStatusMessage = $"Unable to open the Windows 11 download page: {ex.Message}";
+            Windows11EeaInstallStatusMessage = $"Windows 11 EEA media prep failed: {ex.Message}";
             AddToolLog(Windows11EeaInstallStatusMessage);
         }
-    }
-
-    [RelayCommand]
-    private void OpenWindows11EeaNotes()
-    {
-        try
+        finally
         {
-            Process.Start(
-                new ProcessStartInfo
-                {
-                    FileName = Windows11EeaGuidanceUrl,
-                    UseShellExecute = true,
-                });
-
-            Windows11EeaInstallStatusMessage = "Opened Microsoft's EEA Windows setup notes.";
-            AddToolLog(Windows11EeaInstallStatusMessage);
-        }
-        catch (Exception ex)
-        {
-            Windows11EeaInstallStatusMessage = $"Unable to open the EEA Windows notes: {ex.Message}";
-            AddToolLog(Windows11EeaInstallStatusMessage);
-        }
-    }
-
-    [RelayCommand]
-    private void CopyWindows11EeaInstallChecklist()
-    {
-        try
-        {
-            clipboardTextService.SetText(Windows11EeaInstallChecklist);
-            Windows11EeaInstallStatusMessage = "Copied the Windows 11 EEA install checklist to the clipboard.";
-            AddToolLog(Windows11EeaInstallStatusMessage);
-        }
-        catch (Exception ex)
-        {
-            Windows11EeaInstallStatusMessage = $"Unable to copy the Windows 11 EEA install checklist: {ex.Message}";
-            AddToolLog(Windows11EeaInstallStatusMessage);
+            IsToolBusy = false;
         }
     }
 
     private bool CanApplySystemDarkMode => !IsToolBusy;
+
+    private bool CanRefreshSearchReplacementStatus => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRefreshSearchReplacementStatus))]
+    private void RefreshSearchReplacementStatus()
+    {
+        RefreshSearchReplacementStatusCore(addLogEntry: true);
+    }
+
+    private bool CanApplySearchReplacement => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanApplySearchReplacement))]
+    private async Task ApplySearchReplacementAsync()
+    {
+        IsToolBusy = true;
+        SearchReplacementStatusMessage = "Setting up Flow Launcher + Everything as the Win + S search replacement...";
+        AddToolLog(SearchReplacementStatusMessage);
+
+        try
+        {
+            var result = await windowsSearchReplacementService.ApplyAsync().ConfigureAwait(true);
+            SearchReplacementStatusMessage = result.Message;
+            AddToolLog(result.Message);
+        }
+        catch (Exception ex)
+        {
+            SearchReplacementStatusMessage = $"Search replacement setup failed: {ex.Message}";
+            AddToolLog(SearchReplacementStatusMessage);
+        }
+        finally
+        {
+            IsToolBusy = false;
+        }
+    }
+
+    private bool CanRestoreSearchReplacement => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRestoreSearchReplacement))]
+    private async Task RestoreSearchReplacementAsync()
+    {
+        IsToolBusy = true;
+        SearchReplacementStatusMessage = "Restoring Windows Search and removing the Flow Launcher Win + S replacement...";
+        AddToolLog(SearchReplacementStatusMessage);
+
+        try
+        {
+            var result = await windowsSearchReplacementService.RestoreAsync().ConfigureAwait(true);
+            SearchReplacementStatusMessage = result.Message;
+            AddToolLog(result.Message);
+        }
+        catch (Exception ex)
+        {
+            SearchReplacementStatusMessage = $"Search restoration failed: {ex.Message}";
+            AddToolLog(SearchReplacementStatusMessage);
+        }
+        finally
+        {
+            IsToolBusy = false;
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanApplySystemDarkMode))]
     private void ApplySystemDarkMode()
@@ -578,7 +651,7 @@ public partial class MainWindowViewModel
     private async Task ApplyMouseSensitivityAsync()
     {
         IsToolBusy = true;
-        MouseSensitivityStatusMessage = $"Applying mouse sensitivity {SelectedMouseSensitivityLevel}/20...";
+        MouseSensitivityStatusMessage = $"Applying {BuildMouseSensitivityLevelText(SelectedMouseSensitivityLevel)}...";
         AddToolLog(MouseSensitivityStatusMessage);
 
         try
@@ -674,6 +747,24 @@ public partial class MainWindowViewModel
         await ScanHardwareCheckCoreAsync(addLogEntry: true, manageBusyState: true).ConfigureAwait(true);
     }
 
+    private bool CanCopyHardwareCheckInfo => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanCopyHardwareCheckInfo))]
+    private void CopyHardwareCheckInfo()
+    {
+        try
+        {
+            clipboardTextService.SetText(BuildHardwareCheckClipboardText());
+            HardwareCheckStatusMessage = "Copied hardware check details to the clipboard.";
+            AddToolLog(HardwareCheckStatusMessage);
+        }
+        catch (Exception ex)
+        {
+            HardwareCheckStatusMessage = $"Unable to copy the hardware check details: {ex.Message}";
+            AddToolLog(HardwareCheckStatusMessage);
+        }
+    }
+
     private bool CanScanDriverUpdates => !IsToolBusy;
 
     [RelayCommand(CanExecute = nameof(CanScanDriverUpdates))]
@@ -757,10 +848,33 @@ public partial class MainWindowViewModel
             await ScanDriverUpdatesCoreAsync(addLogEntry: false, manageBusyState: false).ConfigureAwait(true);
 
             var installedCount = results.Count(result => result.Succeeded && result.Changed);
-            var failedCount = results.Count(result => !result.Succeeded);
+            var manualFlowCount = results.Count(result => result.RequiresUserInput);
+            var failedCount = results.Count(result => !result.Succeeded && !result.RequiresUserInput);
             var restartCount = results.Count(result => result.RequiresRestart);
+            var statusParts = new List<string>();
+            if (installedCount > 0)
+            {
+                statusParts.Add($"{installedCount} installed");
+            }
+
+            if (manualFlowCount > 0)
+            {
+                statusParts.Add($"{manualFlowCount} need Windows Update's own interactive flow");
+            }
+
+            if (failedCount > 0)
+            {
+                statusParts.Add($"{failedCount} failed");
+            }
+
+            if (statusParts.Count == 0)
+            {
+                statusParts.Add("No driver changes were applied");
+            }
+
             DriverUpdateStatusMessage =
-                $"{installedCount} installed, {failedCount} failed. {DriverUpdateCandidates.Count} update{(DriverUpdateCandidates.Count == 1 ? string.Empty : "s")} remain." +
+                $"{string.Join(", ", statusParts)}. {DriverUpdateCandidates.Count} update{(DriverUpdateCandidates.Count == 1 ? string.Empty : "s")} remain." +
+                (manualFlowCount > 0 ? " Use Open Optional Updates for the ones Windows will not install silently." : string.Empty) +
                 (restartCount > 0 ? $" Restart required for {restartCount} item{(restartCount == 1 ? string.Empty : "s")}." : string.Empty);
             AddToolLog(DriverUpdateStatusMessage);
         }
@@ -772,6 +886,40 @@ public partial class MainWindowViewModel
         finally
         {
             IsToolBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenWindowsUpdateOptionalUpdates()
+    {
+        try
+        {
+            try
+            {
+                Process.Start(
+                    new ProcessStartInfo
+                    {
+                        FileName = WindowsUpdateOptionalUpdatesSettingsUri,
+                        UseShellExecute = true,
+                    });
+            }
+            catch
+            {
+                Process.Start(
+                    new ProcessStartInfo
+                    {
+                        FileName = WindowsUpdateSettingsUri,
+                        UseShellExecute = true,
+                    });
+            }
+
+            DriverUpdateStatusMessage = "Opened Windows Update Optional Updates so you can finish any driver installs that need Windows' own interactive flow.";
+            AddToolLog(DriverUpdateStatusMessage);
+        }
+        catch (Exception ex)
+        {
+            DriverUpdateStatusMessage = $"Unable to open Windows Update Optional Updates: {ex.Message}";
+            AddToolLog(DriverUpdateStatusMessage);
         }
     }
 
@@ -983,13 +1131,17 @@ public partial class MainWindowViewModel
 
             var recommendedCount = scanResult.Updates.Count(update => !update.IsOptional);
             var optionalCount = scanResult.Updates.Count - recommendedCount;
+            var interactiveCount = scanResult.Updates.Count(update => update.RequiresUserInput);
             var warningSuffix = scanResult.Warnings.Count == 0
                 ? string.Empty
                 : $" Warnings: {scanResult.Warnings.Count}.";
+            var interactiveSuffix = interactiveCount == 0
+                ? string.Empty
+                : $" {interactiveCount} need Windows Update's own interactive flow instead of MultiTool's silent install path.";
 
             DriverUpdateStatusMessage = scanResult.Updates.Count == 0
                 ? $"Detected {scanResult.Hardware.Count} hardware component{(scanResult.Hardware.Count == 1 ? string.Empty : "s")}. No driver updates are currently available from Windows Update.{warningSuffix}"
-                : $"Detected {scanResult.Hardware.Count} hardware component{(scanResult.Hardware.Count == 1 ? string.Empty : "s")}. Found {recommendedCount} recommended and {optionalCount} optional driver update{(scanResult.Updates.Count == 1 ? string.Empty : "s")}.{warningSuffix}";
+                : $"Detected {scanResult.Hardware.Count} hardware component{(scanResult.Hardware.Count == 1 ? string.Empty : "s")}. Found {recommendedCount} recommended and {optionalCount} optional driver update{(scanResult.Updates.Count == 1 ? string.Empty : "s")}.{interactiveSuffix}{warningSuffix}";
 
             if (addLogEntry)
             {
@@ -1328,11 +1480,16 @@ public partial class MainWindowViewModel
         ScanDisplayRefreshRecommendationsCommand.NotifyCanExecuteChanged();
         ApplyDisplayRefreshRecommendationsCommand.NotifyCanExecuteChanged();
         ScanHardwareCheckCommand.NotifyCanExecuteChanged();
+        CopyHardwareCheckInfoCommand.NotifyCanExecuteChanged();
         ScanDriverUpdatesCommand.NotifyCanExecuteChanged();
         SelectRecommendedDriverUpdatesCommand.NotifyCanExecuteChanged();
         SelectAllDriverUpdatesCommand.NotifyCanExecuteChanged();
         ClearDriverUpdateSelectionCommand.NotifyCanExecuteChanged();
         InstallSelectedDriverUpdatesCommand.NotifyCanExecuteChanged();
+        PrepareWindows11EeaMediaCommand.NotifyCanExecuteChanged();
+        RefreshSearchReplacementStatusCommand.NotifyCanExecuteChanged();
+        ApplySearchReplacementCommand.NotifyCanExecuteChanged();
+        RestoreSearchReplacementCommand.NotifyCanExecuteChanged();
         RefreshOneDriveStatusCommand.NotifyCanExecuteChanged();
         RemoveOneDriveCommand.NotifyCanExecuteChanged();
         ApplySystemDarkModeCommand.NotifyCanExecuteChanged();
@@ -1366,7 +1523,7 @@ public partial class MainWindowViewModel
             return string.Empty;
         }
 
-        return $"Scanning {ShortcutHotkeyScanProgressValue}/{ShortcutHotkeyScanProgressMaximum} folders...  |  .lnk files checked: {ShortcutHotkeyScannedShortcutCount}  |  Current: {ShortcutHotkeyScanProgressPath}";
+        return $"Scanning {ShortcutHotkeyScanProgressValue}/{ShortcutHotkeyScanProgressMaximum} folders...  |  .lnk files checked: {ShortcutHotkeyScannedShortcutCount}";
     }
 
     private int GetShortcutHotkeyScanCachedMaxFolderCount() =>
@@ -1423,9 +1580,43 @@ public partial class MainWindowViewModel
 
     private string BuildMouseSensitivitySummary()
     {
+        var currentText = BuildMouseSensitivityLevelText(CurrentMouseSensitivityLevel);
         return SelectedMouseSensitivityLevel == CurrentMouseSensitivityLevel
-            ? $"Current Windows speed: {CurrentMouseSensitivityLevel}/20"
-            : $"Current Windows speed: {CurrentMouseSensitivityLevel}/20  |  Selected: {SelectedMouseSensitivityLevel}/20";
+            ? $"Current pointer feel: {currentText}"
+            : $"Current pointer feel: {currentText}  |  Picked: {BuildMouseSensitivityLevelText(SelectedMouseSensitivityLevel)}";
+    }
+
+    private string BuildMouseSensitivitySelectionGuidance()
+    {
+        var level = Math.Clamp(SelectedMouseSensitivityLevel, 1, 20);
+
+        var rangeGuidance = level switch
+        {
+            <= 4 => "Very slow. Best if the pointer feels jumpy and you want maximum control.",
+            <= 8 => "Slow. Good if you want steadier cursor movement.",
+            <= 12 => "Balanced. This is the easiest starting range for most people.",
+            <= 16 => "Fast. Good if you want to move across the screen with less hand movement.",
+            _ => "Very fast. Best only if you like an extremely quick cursor.",
+        };
+
+        return $"Selected feel: {BuildMouseSensitivityLevelText(level)}. Tip: move 1-2 steps at a time. {rangeGuidance}";
+    }
+
+    private static string BuildMouseSensitivityLevelText(int level)
+    {
+        var normalizedLevel = Math.Clamp(level, 1, 20);
+        var feelLabel = normalizedLevel switch
+        {
+            <= 4 => "Very Slow",
+            <= 8 => "Slow",
+            <= 12 => "Balanced",
+            <= 16 => "Fast",
+            _ => "Very Fast",
+        };
+
+        return normalizedLevel == 10
+            ? $"{feelLabel} ({normalizedLevel}/20, Windows middle)"
+            : $"{feelLabel} ({normalizedLevel}/20)";
     }
 
     private string BuildDisplayRefreshSummary()
@@ -1459,6 +1650,135 @@ public partial class MainWindowViewModel
         HardwareRaidDetails.Count == 0
             ? "RAID / Storage Spaces: none detected"
             : $"{HardwareRaidDetails.Count} RAID/storage detail{(HardwareRaidDetails.Count == 1 ? string.Empty : "s")}";
+
+    private string BuildHardwareCheckClipboardText()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("MultiTool Hardware Check");
+        builder.AppendLine($"Captured: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        builder.AppendLine();
+        builder.AppendLine("System");
+        builder.AppendLine($"- Overview: {HardwareCheckSystemSummary}");
+        builder.AppendLine($"- Operating System: {HardwareCheckOperatingSystemSummary}");
+        builder.AppendLine($"- Processor: {HardwareCheckProcessorSummary}");
+        builder.AppendLine($"- Memory: {HardwareCheckMemorySummary}");
+        builder.AppendLine($"- Motherboard: {HardwareCheckMotherboardSummary}");
+        builder.AppendLine($"- BIOS: {HardwareCheckBiosSummary}");
+
+        AppendGraphicsSection(builder);
+        AppendStorageSection(builder);
+        AppendPartitionSection(builder);
+        AppendSensorSection(builder);
+        AppendPciSection(builder);
+        AppendRaidSection(builder);
+
+        return builder.ToString().TrimEnd();
+    }
+
+    private void AppendGraphicsSection(StringBuilder builder)
+    {
+        builder.AppendLine();
+        builder.AppendLine("Graphics");
+        builder.AppendLine($"- Summary: {HardwareGraphicsSummary}");
+
+        foreach (var adapter in HardwareGraphicsAdapters)
+        {
+            builder.AppendLine($"- {adapter.Name}");
+            builder.AppendLine($"  Driver: {adapter.DriverVersion}");
+            builder.AppendLine($"  Memory: {adapter.AdapterMemory}");
+        }
+    }
+
+    private void AppendStorageSection(StringBuilder builder)
+    {
+        builder.AppendLine();
+        builder.AppendLine("Storage Drives");
+        builder.AppendLine($"- Summary: {HardwareStorageSummary}");
+
+        foreach (var drive in HardwareStorageDrives)
+        {
+            builder.AppendLine($"- {drive.Model}");
+            builder.AppendLine($"  Size: {drive.Size}");
+            builder.AppendLine($"  Interface: {drive.InterfaceType}");
+            builder.AppendLine($"  Media: {drive.MediaType}");
+            builder.AppendLine($"  Health: {drive.HealthStatus}");
+            builder.AppendLine($"  SMART: {drive.SmartStatus}");
+            builder.AppendLine($"  Firmware: {drive.FirmwareVersion}");
+            builder.AppendLine($"  Serial: {drive.SerialNumber}");
+
+            if (!string.IsNullOrWhiteSpace(drive.Notes))
+            {
+                builder.AppendLine($"  Notes: {drive.Notes}");
+            }
+        }
+    }
+
+    private void AppendPartitionSection(StringBuilder builder)
+    {
+        builder.AppendLine();
+        builder.AppendLine("Partitions");
+        builder.AppendLine($"- Summary: {HardwarePartitionSummary}");
+
+        foreach (var partition in HardwareStoragePartitions)
+        {
+            builder.AppendLine($"- {partition.PartitionName}");
+            builder.AppendLine($"  Disk: {partition.DiskName}");
+            builder.AppendLine($"  Size: {partition.Size}");
+            builder.AppendLine($"  Type: {partition.Type}");
+            builder.AppendLine($"  Volume: {partition.Volume}");
+            builder.AppendLine($"  File System: {partition.FileSystem}");
+            builder.AppendLine($"  Free Space: {partition.FreeSpace}");
+            builder.AppendLine($"  Status: {partition.Status}");
+        }
+    }
+
+    private void AppendSensorSection(StringBuilder builder)
+    {
+        builder.AppendLine();
+        builder.AppendLine("Sensors");
+        builder.AppendLine($"- Summary: {HardwareSensorSummary}");
+
+        foreach (var sensor in HardwareSensors)
+        {
+            builder.AppendLine($"- {sensor.Name}");
+            builder.AppendLine($"  Category: {sensor.Category}");
+            builder.AppendLine($"  Reading: {sensor.CurrentValue}");
+            builder.AppendLine($"  Source: {sensor.Source}");
+            builder.AppendLine($"  Status: {sensor.Status}");
+        }
+    }
+
+    private void AppendPciSection(StringBuilder builder)
+    {
+        builder.AppendLine();
+        builder.AppendLine("PCI / PCIe Devices");
+        builder.AppendLine($"- Summary: {HardwarePciSummary}");
+
+        foreach (var device in HardwarePciDevices)
+        {
+            builder.AppendLine($"- {device.Name}");
+            builder.AppendLine($"  Class: {device.DeviceClass}");
+            builder.AppendLine($"  Manufacturer: {device.Manufacturer}");
+            builder.AppendLine($"  Location: {device.Location}");
+            builder.AppendLine($"  Status: {device.Status}");
+        }
+    }
+
+    private void AppendRaidSection(StringBuilder builder)
+    {
+        builder.AppendLine();
+        builder.AppendLine("RAID / Storage Spaces");
+        builder.AppendLine($"- Summary: {HardwareRaidSummary}");
+
+        foreach (var detail in HardwareRaidDetails)
+        {
+            builder.AppendLine($"- {detail.Name}");
+            builder.AppendLine($"  Type: {detail.Type}");
+            builder.AppendLine($"  Status: {detail.Status}");
+            builder.AppendLine($"  Details: {detail.Details}");
+            builder.AppendLine($"  Source: {detail.Source}");
+        }
+    }
 
     private string BuildDriverHardwareSummary() =>
         $"{DriverHardwareInventory.Count} detected component{(DriverHardwareInventory.Count == 1 ? string.Empty : "s")}";
