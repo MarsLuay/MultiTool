@@ -3,6 +3,7 @@ setlocal EnableExtensions
 
 set "SELF_PATH=%~f0"
 set "NO_LAUNCH="
+set "RELAUNCH_ARGS=%*"
 
 if /I "%~1"=="--elevated" shift
 if /I "%~1"=="--no-launch" set "NO_LAUNCH=1"
@@ -14,7 +15,8 @@ if errorlevel 1 (
     echo Requesting administrator access for MultiTool setup and hardware telemetry...
     powershell -NoProfile -ExecutionPolicy Bypass -Command ^
         "try { " ^
-        "  $process = Start-Process -FilePath '%SELF_PATH%' -ArgumentList '--elevated %~1 %~2' -Verb RunAs -PassThru -Wait; " ^
+        "  $argumentLine = '/c """"' + $env:SELF_PATH + '"" --elevated ' + $env:RELAUNCH_ARGS + '"'; " ^
+        "  $process = Start-Process -FilePath $env:ComSpec -ArgumentList $argumentLine -Verb RunAs -PassThru -Wait; " ^
         "  exit $process.ExitCode; " ^
         "} catch { exit 1223 }"
     exit /b %errorlevel%

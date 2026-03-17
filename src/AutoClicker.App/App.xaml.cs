@@ -64,6 +64,8 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IWindows11EeaMediaService, Windows11EeaMediaService>();
                         services.AddSingleton<IWindowsSearchReplacementService, WindowsSearchReplacementService>();
                         services.AddSingleton<IOneDriveRemovalService, WindowsOneDriveRemovalService>();
+                        services.AddSingleton<IEdgeRemovalService, WindowsEdgeRemovalService>();
+                        services.AddSingleton<IFnCtrlSwapService, WindowsFnCtrlSwapService>();
                         services.AddSingleton<IAutoClickerController, AutoClickerController>();
                         services.AddSingleton<IHotkeyService, WindowsHotkeyService>();
                         services.AddSingleton<ITrayIconService, NotifyIconTrayService>();

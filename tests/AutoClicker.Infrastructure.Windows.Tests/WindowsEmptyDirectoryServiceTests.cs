@@ -79,6 +79,26 @@ public sealed class WindowsEmptyDirectoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task FindEmptyDirectoriesAsync_ShouldKeepProgressTotalStableWhenUsingFallbackCount()
+    {
+        var rootPath = CreateDirectory("FallbackCountRoot");
+        CreateDirectory(Path.Combine(rootPath, "A"));
+        CreateDirectory(Path.Combine(rootPath, "B", "Child"));
+
+        var service = new WindowsEmptyDirectoryService(_ => null);
+        var progressUpdates = new List<EmptyDirectoryScanProgress>();
+        var progress = new Progress<EmptyDirectoryScanProgress>(update => progressUpdates.Add(update));
+
+        var result = await service.FindEmptyDirectoriesAsync(rootPath, progress);
+
+        result.Candidates.Should().NotBeEmpty();
+        progressUpdates.Should().NotBeEmpty();
+        progressUpdates.Select(update => update.TotalDirectoryCount).Distinct().Should().ContainSingle();
+        progressUpdates[0].TotalDirectoryCount.Should().BeGreaterThanOrEqualTo(4);
+        progressUpdates[^1].CompletedDirectoryCount.Should().Be(progressUpdates[^1].TotalDirectoryCount);
+    }
+
+    [Fact]
     public async Task DeleteDirectoriesAsync_ShouldDeleteChildrenBeforeParents()
     {
         var rootPath = CreateDirectory("DeleteRoot");

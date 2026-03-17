@@ -263,6 +263,27 @@ public sealed class WindowsWingetInstallerServiceTests
                 DisplayName = "Python",
                 Category = "Developer",
             });
+        service.GetCatalog().Should().ContainEquivalentOf(
+            new
+            {
+                PackageId = "Guided.SKiDL",
+                DisplayName = "SKiDL",
+                Category = "CAD",
+            });
+        service.GetCatalog().Should().ContainEquivalentOf(
+            new
+            {
+                PackageId = "Guided.PCBFlow",
+                DisplayName = "PCBFlow",
+                Category = "CAD",
+            });
+        service.GetCatalog().Should().ContainEquivalentOf(
+            new
+            {
+                PackageId = "Guided.build123d",
+                DisplayName = "build123d",
+                Category = "CAD",
+            });
     }
 
     [Fact]

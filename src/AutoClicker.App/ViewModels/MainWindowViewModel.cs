@@ -52,6 +52,8 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IWindows11EeaMediaService windows11EeaMediaService;
     private readonly IWindowsSearchReplacementService windowsSearchReplacementService;
     private readonly IOneDriveRemovalService oneDriveRemovalService;
+    private readonly IEdgeRemovalService edgeRemovalService;
+    private readonly IFnCtrlSwapService fnCtrlSwapService;
     private readonly IShortcutHotkeyDialogService shortcutHotkeyDialogService;
     private readonly AppLaunchOptions appLaunchOptions;
     private readonly SemaphoreSlim saveLock = new(1, 1);
@@ -97,6 +99,8 @@ public partial class MainWindowViewModel : ObservableObject
         IWindows11EeaMediaService windows11EeaMediaService,
         IWindowsSearchReplacementService windowsSearchReplacementService,
         IOneDriveRemovalService oneDriveRemovalService,
+        IEdgeRemovalService edgeRemovalService,
+        IFnCtrlSwapService fnCtrlSwapService,
         IShortcutHotkeyDialogService shortcutHotkeyDialogService,
         AppLaunchOptions appLaunchOptions)
     {
@@ -132,6 +136,8 @@ public partial class MainWindowViewModel : ObservableObject
         this.windows11EeaMediaService = windows11EeaMediaService;
         this.windowsSearchReplacementService = windowsSearchReplacementService;
         this.oneDriveRemovalService = oneDriveRemovalService;
+        this.edgeRemovalService = edgeRemovalService;
+        this.fnCtrlSwapService = fnCtrlSwapService;
         this.shortcutHotkeyDialogService = shortcutHotkeyDialogService;
         this.appLaunchOptions = appLaunchOptions;
         synchronizationContext = SynchronizationContext.Current;
@@ -194,7 +200,16 @@ public partial class MainWindowViewModel : ObservableObject
 
     public bool HasSavedMacros => SavedMacros.Count > 0;
 
-    public bool ShouldShowAdminModeBanner => !IsRunningAsAdministrator;
+    public bool ShouldShowAdminModeBanner => !IsRunningAsAdministrator && !isAdminBannerDismissed;
+
+    private bool isAdminBannerDismissed;
+
+    [RelayCommand]
+    private void DismissAdminBanner()
+    {
+        isAdminBannerDismissed = true;
+        OnPropertyChanged(nameof(ShouldShowAdminModeBanner));
+    }
 
     public string AdminModeBannerText =>
         IsRunningAsAdministrator
@@ -446,6 +461,19 @@ public partial class MainWindowViewModel : ObservableObject
             ScreenshotStatusMessage = $"Unable to open screenshot folder: {ex.Message}";
             AddScreenshotLog($"Unable to open screenshot folder: {ex.Message}");
         }
+    }
+
+    private bool CanNewMacro => HasRecordedMacro && !IsMacroRecording && !IsMacroPlaying;
+
+    [RelayCommand(CanExecute = nameof(CanNewMacro))]
+    private void NewMacro()
+    {
+        macroService.Clear();
+        MacroName = "New Macro";
+        HasRecordedMacro = false;
+        MacroSummaryText = "No macro recorded yet.";
+        MacroStatusMessage = "Started a new macro.";
+        AddMacroLog(MacroStatusMessage);
     }
 
     private bool CanStartMacroRecording => !IsMacroRecording && !IsMacroPlaying;
@@ -1202,6 +1230,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void RefreshMacroCommandStates()
     {
+        NewMacroCommand.NotifyCanExecuteChanged();
         StartMacroRecordingCommand.NotifyCanExecuteChanged();
         StopMacroRecordingCommand.NotifyCanExecuteChanged();
         PlayMacroCommand.NotifyCanExecuteChanged();

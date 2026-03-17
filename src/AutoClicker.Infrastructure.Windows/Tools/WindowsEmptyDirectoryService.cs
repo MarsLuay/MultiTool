@@ -1,4 +1,5 @@
 using System.IO;
+using System.Diagnostics;
 using AutoClicker.Core.Models;
 using AutoClicker.Core.Services;
 
@@ -42,7 +43,7 @@ public sealed class WindowsEmptyDirectoryService : IEmptyDirectoryService
                 int? exactDirectoryCount;
                 try
                 {
-                    exactDirectoryCount = exactDirectoryCountResolver(fullRootPath);
+                    exactDirectoryCount = DetermineTotalDirectoryCount(fullRootPath, cancellationToken);
                 }
                 catch
                 {
@@ -186,6 +187,114 @@ public sealed class WindowsEmptyDirectoryService : IEmptyDirectoryService
 
         return normalizedPaths;
     }
+
+    private int? DetermineTotalDirectoryCount(string fullRootPath, CancellationToken cancellationToken)
+    {
+        var exactCount = exactDirectoryCountResolver(fullRootPath);
+        if (exactCount is > 0)
+        {
+            return exactCount;
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            var windowsCount = TryCountDirectoriesWithWindowsCommand(fullRootPath, cancellationToken);
+            if (windowsCount is > 0)
+            {
+                return windowsCount;
+            }
+        }
+
+        return TryCountDirectoriesManaged(fullRootPath, cancellationToken);
+    }
+
+    private static int? TryCountDirectoriesWithWindowsCommand(string rootPath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/d /c dir /a:d /b /s {QuoteArgument(rootPath)}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                },
+            };
+
+            if (!process.Start())
+            {
+                return null;
+            }
+
+            var directoryCount = 1; // Include root directory.
+            while (!process.StandardOutput.EndOfStream)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var line = process.StandardOutput.ReadLine();
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    directoryCount++;
+                }
+            }
+
+            process.WaitForExit();
+            return process.ExitCode == 0 && directoryCount > 0
+                ? directoryCount
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int? TryCountDirectoriesManaged(string rootPath, CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(rootPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var count = 0;
+            var pending = new Stack<string>();
+            pending.Push(rootPath);
+
+            while (pending.Count > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var current = pending.Pop();
+                count++;
+
+                try
+                {
+                    foreach (var directory in Directory.EnumerateDirectories(current))
+                    {
+                        pending.Push(directory);
+                    }
+                }
+                catch
+                {
+                    // Ignore inaccessible folders during pre-count; scan phase reports warnings.
+                }
+            }
+
+            return count > 0 ? count : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string QuoteArgument(string value) =>
+        $"\"{value.Replace("\"", "\"\"")}\"";
 
     private sealed class ScanProgressState
     {

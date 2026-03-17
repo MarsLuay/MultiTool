@@ -78,4 +78,48 @@ public sealed class WindowsMouseSensitivityServiceTests
         result.AppliedLevel.Should().Be(14);
         writtenLevel.Should().Be(14);
     }
+
+    [Fact]
+    public void GetStatus_ShouldIncludePrecisionTouchpadSensitivity_WhenAvailable()
+    {
+        var service = new WindowsMouseSensitivityService(
+            () => 10,
+            static (_, _) => Task.CompletedTask,
+            () => 1,
+            static (_, _) => Task.CompletedTask);
+
+        var status = service.GetStatus();
+
+        status.Message.Should().Contain("Precision touchpad sensitivity");
+        status.Message.Should().Contain("High sensitivity");
+    }
+
+    [Fact]
+    public async Task ApplyAsync_ShouldUpdateTouchpadSensitivity_WhenPointerSpeedAlreadyMatches()
+    {
+        var pointerWriterCalled = false;
+        var touchpadWriteCount = 0;
+
+        var service = new WindowsMouseSensitivityService(
+            () => 10,
+            (_, _) =>
+            {
+                pointerWriterCalled = true;
+                return Task.CompletedTask;
+            },
+            () => 3,
+            (_, _) =>
+            {
+                touchpadWriteCount++;
+                return Task.CompletedTask;
+            });
+
+        var result = await service.ApplyAsync(10);
+
+        result.Succeeded.Should().BeTrue();
+        result.Changed.Should().BeTrue();
+        pointerWriterCalled.Should().BeFalse();
+        touchpadWriteCount.Should().Be(1);
+        result.Message.Should().Contain("Precision touchpad sensitivity also set");
+    }
 }

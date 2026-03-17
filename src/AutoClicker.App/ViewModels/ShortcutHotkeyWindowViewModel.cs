@@ -28,7 +28,7 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
             : $"Skipped {result.Warnings.Count} folder or shortcut read{(result.Warnings.Count == 1 ? string.Empty : "s")} during the scan.";
         ReferenceNoteText = referenceShortcutCount == 0
             ? string.Empty
-            : "Built-in Windows and common app shortcuts are included as a reference catalog. Windows does not expose every app's private keybinds live, so combos like Ctrl + C are reference-based rather than scanned from each program.";
+            : "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner now also pulls real keymaps from supported apps when available, but Windows still has no universal API that exposes every private keybind from every program.";
         ConflictWarningText = BuildConflictWarningText(result);
     }
 

@@ -345,7 +345,7 @@ public partial class MainWindowViewModel
 
     private bool CanInstallSelectedPackages =>
         !IsInstallerBusy
-        && InstallerPackages.Any(item => item.IsSelected && (IsWingetAvailable || item.CanInstallWithoutWinget));
+        && InstallerPackages.Any(item => item.IsSelected && !item.IsInstalled && (IsWingetAvailable || item.CanInstallWithoutWinget));
 
     [RelayCommand(CanExecute = nameof(CanInstallSelectedPackages))]
     private async Task InstallSelectedPackagesAsync()
@@ -355,7 +355,9 @@ public partial class MainWindowViewModel
             action: InstallerPackageAction.Install,
             requireInstalledSelection: false,
             syncFirefoxExtensions: true,
-            canRunWithoutWinget: item => item.CanInstallWithoutWinget);
+            canRunWithoutWinget: item => item.CanInstallWithoutWinget,
+            packageFilter: item => item.IsSelected && !item.IsInstalled,
+            emptySelectionMessage: "All selected apps are already installed.");
     }
 
     private bool CanUpgradeSelectedPackages =>
@@ -595,9 +597,16 @@ public partial class MainWindowViewModel
 
         var addedCount = 0;
         var duplicateCount = 0;
+        var installedSkipCount = 0;
 
         foreach (var package in packages)
         {
+            if ((action is InstallerPackageAction.Install or InstallerPackageAction.InstallInteractive) && package.IsInstalled)
+            {
+                installedSkipCount++;
+                continue;
+            }
+
             if (InstallerOperations.Any(item => !item.IsCompleted && string.Equals(item.DeduplicationKey, BuildInstallerOperationDeduplicationKey(package.PackageId, action), StringComparison.OrdinalIgnoreCase)))
             {
                 duplicateCount++;
@@ -620,13 +629,26 @@ public partial class MainWindowViewModel
         {
             InstallerStatusMessage = duplicateCount > 0
                 ? $"{sourceLabel}: that action is already queued or running."
+                : installedSkipCount > 0
+                    ? $"{sourceLabel}: selected app{(installedSkipCount == 1 ? " is" : "s are")} already installed."
                 : $"{sourceLabel}: nothing new was added to the installer queue.";
             AddInstallerLog(InstallerStatusMessage);
             return;
         }
 
-        InstallerStatusMessage = duplicateCount > 0
-            ? $"{addedLabel} Skipped {duplicateCount} duplicate request{(duplicateCount == 1 ? string.Empty : "s")}."
+        var suffixParts = new List<string>();
+        if (duplicateCount > 0)
+        {
+            suffixParts.Add($"Skipped {duplicateCount} duplicate request{(duplicateCount == 1 ? string.Empty : "s")}");
+        }
+
+        if (installedSkipCount > 0)
+        {
+            suffixParts.Add($"Skipped {installedSkipCount} already installed app{(installedSkipCount == 1 ? string.Empty : "s")}");
+        }
+
+        InstallerStatusMessage = suffixParts.Count > 0
+            ? $"{addedLabel} {string.Join(". ", suffixParts)}."
             : addedLabel;
         AddInstallerLog(InstallerStatusMessage);
 

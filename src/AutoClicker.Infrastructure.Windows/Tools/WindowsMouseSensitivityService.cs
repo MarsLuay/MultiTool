@@ -13,13 +13,21 @@ public delegate int MouseSensitivityReader();
 
 public delegate Task MouseSensitivityWriter(int level, CancellationToken cancellationToken);
 
+public delegate int? PrecisionTouchpadSensitivityReader();
+
+public delegate Task PrecisionTouchpadSensitivityWriter(int threshold, CancellationToken cancellationToken);
+
 public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
 {
     private const string MouseRegistryPath = @"Control Panel\Mouse";
     private const string MouseSensitivityValueName = "MouseSensitivity";
+    private const string PrecisionTouchpadRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad";
+    private const string PrecisionTouchpadSensitivityValueName = "AAPThreshold";
     private const int DefaultLevel = 10;
     private const int MinimumLevel = 1;
     private const int MaximumLevel = 20;
+    private const int MinimumTouchpadThreshold = 0;
+    private const int MaximumTouchpadThreshold = 3;
     private const uint SpiGetMouseSpeed = 0x0070;
     private const uint SpiSetMouseSpeed = 0x0071;
     private const uint SpifUpdateIniFile = 0x01;
@@ -35,16 +43,33 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
 
     private readonly MouseSensitivityReader levelReader;
     private readonly MouseSensitivityWriter writer;
+    private readonly PrecisionTouchpadSensitivityReader touchpadSensitivityReader;
+    private readonly PrecisionTouchpadSensitivityWriter touchpadSensitivityWriter;
 
     public WindowsMouseSensitivityService()
-        : this(ReadSensitivityLevel, WriteSensitivityLevelAsync)
+        : this(
+            ReadSensitivityLevel,
+            WriteSensitivityLevelAsync,
+            ReadPrecisionTouchpadThreshold,
+            WritePrecisionTouchpadThresholdAsync)
     {
     }
 
     public WindowsMouseSensitivityService(MouseSensitivityReader levelReader, MouseSensitivityWriter writer)
+        : this(levelReader, writer, static () => null, static (_, _) => Task.CompletedTask)
+    {
+    }
+
+    public WindowsMouseSensitivityService(
+        MouseSensitivityReader levelReader,
+        MouseSensitivityWriter writer,
+        PrecisionTouchpadSensitivityReader touchpadSensitivityReader,
+        PrecisionTouchpadSensitivityWriter touchpadSensitivityWriter)
     {
         this.levelReader = levelReader;
         this.writer = writer;
+        this.touchpadSensitivityReader = touchpadSensitivityReader;
+        this.touchpadSensitivityWriter = touchpadSensitivityWriter;
     }
 
     public IReadOnlyList<int> GetSupportedLevels() => SupportedLevels;
@@ -53,6 +78,13 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
     {
         var level = NormalizeLevel(levelReader());
         var message = $"Current mouse speed: {DescribeLevel(level)}. This changes pointer speed, not vendor-specific onboard mouse DPI.";
+
+        var touchpadThreshold = touchpadSensitivityReader();
+        if (touchpadThreshold.HasValue)
+        {
+            message += $" Precision touchpad sensitivity: {DescribeTouchpadThreshold(touchpadThreshold.Value)}.";
+        }
+
         return new MouseSensitivityStatus(level, message);
     }
 
@@ -69,7 +101,11 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
 
         var normalizedLevel = NormalizeLevel(level);
         var before = NormalizeLevel(levelReader());
-        if (before == normalizedLevel)
+        var touchpadThresholdBefore = touchpadSensitivityReader();
+        var desiredTouchpadThreshold = MapLevelToTouchpadThreshold(normalizedLevel);
+        var shouldUpdateTouchpad = touchpadThresholdBefore.HasValue && touchpadThresholdBefore.Value != desiredTouchpadThreshold;
+
+        if (before == normalizedLevel && !shouldUpdateTouchpad)
         {
             return new MouseSensitivityApplyResult(
                 true,
@@ -80,12 +116,27 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
 
         try
         {
-            await writer(normalizedLevel, cancellationToken).ConfigureAwait(false);
+            var pointerSpeedChanged = before != normalizedLevel;
+            if (pointerSpeedChanged)
+            {
+                await writer(normalizedLevel, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (shouldUpdateTouchpad)
+            {
+                await touchpadSensitivityWriter(desiredTouchpadThreshold, cancellationToken).ConfigureAwait(false);
+            }
+
+            var changed = pointerSpeedChanged || shouldUpdateTouchpad;
+            var touchpadSuffix = shouldUpdateTouchpad
+                ? $" Precision touchpad sensitivity also set to {DescribeTouchpadThreshold(desiredTouchpadThreshold)}."
+                : string.Empty;
+
             return new MouseSensitivityApplyResult(
                 true,
-                true,
+                changed,
                 normalizedLevel,
-                $"Mouse speed set to {DescribeLevel(normalizedLevel)}. This affects pointer speed immediately, but hardware DPI buttons or vendor mouse software can still override the physical DPI on some mice.");
+                $"Mouse speed set to {DescribeLevel(normalizedLevel)}. This affects pointer speed immediately, but hardware DPI buttons or vendor mouse software can still override the physical DPI on some mice.{touchpadSuffix}");
         }
         catch (OperationCanceledException)
         {
@@ -154,6 +205,46 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
             cancellationToken).ConfigureAwait(false);
     }
 
+    private static int? ReadPrecisionTouchpadThreshold()
+    {
+        using var touchpadKey = Registry.CurrentUser.OpenSubKey(PrecisionTouchpadRegistryPath, writable: false);
+        if (touchpadKey is null)
+        {
+            return null;
+        }
+
+        var rawValue = touchpadKey.GetValue(PrecisionTouchpadSensitivityValueName);
+        var parsed = ReadRegistryInt(rawValue);
+        if (parsed < MinimumTouchpadThreshold || parsed > MaximumTouchpadThreshold)
+        {
+            return null;
+        }
+
+        return parsed;
+    }
+
+    private static async Task WritePrecisionTouchpadThresholdAsync(int threshold, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await Task.Run(
+            () =>
+            {
+                var normalizedThreshold = NormalizeTouchpadThreshold(threshold);
+                using var touchpadKey = Registry.CurrentUser.OpenSubKey(PrecisionTouchpadRegistryPath, writable: true);
+                if (touchpadKey is null)
+                {
+                    return;
+                }
+
+                touchpadKey.SetValue(
+                    PrecisionTouchpadSensitivityValueName,
+                    normalizedThreshold,
+                    RegistryValueKind.DWord);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
     private static int NormalizeLevel(int level)
     {
         if (level < MinimumLevel)
@@ -184,6 +275,44 @@ public sealed class WindowsMouseSensitivityService : IMouseSensitivityService
         return normalizedLevel == DefaultLevel
             ? $"{feelLabel} ({normalizedLevel}/20, Windows middle)"
             : $"{feelLabel} ({normalizedLevel}/20)";
+    }
+
+    private static int MapLevelToTouchpadThreshold(int level)
+    {
+        var normalized = NormalizeLevel(level);
+        return normalized switch
+        {
+            <= 5 => 3,
+            <= 10 => 2,
+            <= 15 => 1,
+            _ => 0,
+        };
+    }
+
+    private static int NormalizeTouchpadThreshold(int threshold)
+    {
+        if (threshold < MinimumTouchpadThreshold)
+        {
+            return MinimumTouchpadThreshold;
+        }
+
+        if (threshold > MaximumTouchpadThreshold)
+        {
+            return MaximumTouchpadThreshold;
+        }
+
+        return threshold;
+    }
+
+    private static string DescribeTouchpadThreshold(int threshold)
+    {
+        return NormalizeTouchpadThreshold(threshold) switch
+        {
+            0 => "Most sensitive",
+            1 => "High sensitivity",
+            2 => "Medium sensitivity",
+            _ => "Low sensitivity",
+        };
     }
 
     private static int ReadRegistryInt(object? value) =>

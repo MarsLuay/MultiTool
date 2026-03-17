@@ -29,6 +29,10 @@
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
 
+    <Style TargetType="ScrollViewer">
+      <Setter Property="CanContentScroll" Value="False" />
+    </Style>
+
     <Style TargetType="GroupBox">
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />

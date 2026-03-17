@@ -311,8 +311,28 @@
           </Style>
         </Border.Style>
 
-        <TextBlock Text="{Binding AdminModeBannerText}"
-                   TextWrapping="Wrap" />
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <TextBlock Grid.Column="0"
+                     Text="{Binding AdminModeBannerText}"
+                     TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+
+          <Button Grid.Column="1"
+                  Margin="8,0,0,0"
+                  Padding="4,2"
+                  VerticalAlignment="Top"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Command="{Binding DismissAdminBannerCommand}"
+                  Content="X"
+                  FontWeight="Bold"
+                  Cursor="Hand" />
+        </Grid>
       </Border>
 
       <Grid Grid.Row="2"
@@ -330,101 +350,110 @@
               <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <GroupBox Grid.Row="0" Header="Click Interval" Margin="0,0,0,12">
-              <UniformGrid Columns="2" Margin="12">
-                <StackPanel Margin="4">
-                  <TextBlock Margin="0,0,0,4" Text="Hours" />
-                  <TextBox Text="{Binding Hours, UpdateSourceTrigger=PropertyChanged}" />
+            <GroupBox Grid.Row="0" Header="Click Setup" Margin="0,0,0,12">
+              <Grid Margin="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="12" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                  <TextBlock Margin="4,0,4,6"
+                             FontWeight="SemiBold"
+                             Text="Interval" />
+                  <UniformGrid Columns="2">
+                    <StackPanel Margin="4">
+                      <TextBlock Margin="0,0,0,4" Text="Hours" />
+                      <TextBox Text="{Binding Hours, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Margin="4">
+                      <TextBlock Margin="0,0,0,4" Text="Minutes" />
+                      <TextBox Text="{Binding Minutes, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Margin="4">
+                      <TextBlock Margin="0,0,0,4" Text="Seconds" />
+                      <TextBox Text="{Binding Seconds, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Margin="4">
+                      <TextBlock Margin="0,0,0,4" Text="Milliseconds" />
+                      <TextBox Text="{Binding Milliseconds, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                  </UniformGrid>
                 </StackPanel>
-                <StackPanel Margin="4">
-                  <TextBlock Margin="0,0,0,4" Text="Minutes" />
-                  <TextBox Text="{Binding Minutes, UpdateSourceTrigger=PropertyChanged}" />
+
+                <StackPanel Grid.Column="2">
+                  <TextBlock Margin="4,0,4,6"
+                             FontWeight="SemiBold"
+                             Text="Repeat" />
+                  <Grid Margin="4,0,4,10">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" Text="Mode" />
+                    <ComboBox Grid.Column="1"
+                              Margin="0,0,8,0"
+                              ItemsSource="{Binding RepeatModes}"
+                              SelectedItem="{Binding SelectedRepeatMode}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBox Grid.Column="2"
+                             Style="{StaticResource RepeatCountTextBoxStyle}"
+                             Width="72"
+                             IsEnabled="{Binding IsRepeatCountEnabled}"
+                             Text="{Binding RepeatCount, UpdateSourceTrigger=PropertyChanged}" />
+                  </Grid>
+
+                  <StackPanel IsEnabled="{Binding UsesMousePositionSettings}">
+                    <TextBlock Margin="4,0,4,6"
+                               FontWeight="SemiBold"
+                               Text="Position" />
+                    <Grid Margin="4,0,4,0">
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" Text="Mode" />
+                      <ComboBox Grid.Column="1"
+                                Grid.Row="0"
+                                Margin="0,0,8,0"
+                                MinWidth="110"
+                                ItemsSource="{Binding LocationModes}"
+                                SelectedItem="{Binding SelectedLocationMode}">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                      <Button Grid.Row="0" Grid.Column="2" Width="68" Command="{Binding CaptureCoordinatesCommand}" Content="Capture" />
+
+                      <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,8,0,0" Orientation="Horizontal">
+                        <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="X" />
+                        <TextBox Width="64" Margin="0,0,12,0" Text="{Binding FixedX, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="Y" />
+                        <TextBox Width="64" Text="{Binding FixedY, UpdateSourceTrigger=PropertyChanged}" />
+                      </StackPanel>
+                    </Grid>
+                  </StackPanel>
                 </StackPanel>
-                <StackPanel Margin="4">
-                  <TextBlock Margin="0,0,0,4" Text="Seconds" />
-                  <TextBox Text="{Binding Seconds, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
-                <StackPanel Margin="4">
-                  <TextBlock Margin="0,0,0,4" Text="Milliseconds" />
-                  <TextBox Text="{Binding Milliseconds, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
-              </UniformGrid>
+              </Grid>
             </GroupBox>
 
-            <Grid Grid.Row="1" Margin="0,0,0,12">
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-              </Grid.RowDefinitions>
-
-              <GroupBox Grid.Row="0" Header="Click Repeat" Margin="0,0,0,12">
-                <Grid Margin="12">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <TextBlock Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" Text="Mode" />
-                  <ComboBox Grid.Column="1"
-                            Margin="0,0,8,0"
-                            ItemsSource="{Binding RepeatModes}"
-                            SelectedItem="{Binding SelectedRepeatMode}">
-                    <ComboBox.ItemTemplate>
-                      <DataTemplate>
-                        <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
-                      </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                  </ComboBox>
-                  <TextBox Grid.Column="2"
-                           Style="{StaticResource RepeatCountTextBoxStyle}"
-                           Width="72"
-                           IsEnabled="{Binding IsRepeatCountEnabled}"
-                           Text="{Binding RepeatCount, UpdateSourceTrigger=PropertyChanged}" />
-                </Grid>
-              </GroupBox>
-
-              <GroupBox Grid.Row="1" Header="Click Position" IsEnabled="{Binding UsesMousePositionSettings}">
-                <Grid Margin="12">
-                  <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                  </Grid.RowDefinitions>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" Text="Mode" />
-                  <ComboBox Grid.Column="1"
-                            Grid.Row="0"
-                            Margin="0,0,8,0"
-                            MinWidth="110"
-                            ItemsSource="{Binding LocationModes}"
-                            SelectedItem="{Binding SelectedLocationMode}">
-                    <ComboBox.ItemTemplate>
-                      <DataTemplate>
-                        <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
-                      </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                  </ComboBox>
-                  <Button Grid.Row="0" Grid.Column="2" Width="68" Command="{Binding CaptureCoordinatesCommand}" Content="Capture" />
-
-                  <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,8,0,0" Orientation="Horizontal">
-                    <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="X" />
-                    <TextBox Width="64" Margin="0,0,12,0" Text="{Binding FixedX, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="Y" />
-                    <TextBox Width="64" Text="{Binding FixedY, UpdateSourceTrigger=PropertyChanged}" />
-                  </StackPanel>
-                </Grid>
-              </GroupBox>
-            </Grid>
-
-            <GroupBox Grid.Row="2" Header="Click Options" Margin="0,0,0,12">
+            <GroupBox Grid.Row="1" Header="Click Options" Margin="0,0,0,12">
               <Grid Margin="12">
                 <Grid.RowDefinitions>
                   <RowDefinition Height="Auto" />
@@ -475,7 +504,7 @@
               </Grid>
             </GroupBox>
 
-            <Grid Grid.Row="3">
+            <Grid Grid.Row="2">
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -776,6 +805,7 @@
                            Grid.ColumnSpan="2"
                            Margin="0,14,0,0"
                            HorizontalAlignment="Right">
+                  <Button Margin="4" Padding="12,6" Command="{Binding NewMacroCommand}" Content="New Macro" />
                   <Button Margin="4" Padding="12,6" Command="{Binding StartMacroRecordingCommand}" Content="Record" />
                   <Button Margin="4" Padding="12,6" Command="{Binding StopMacroRecordingCommand}" Content="Stop" />
                   <Button Margin="4" Padding="12,6" Command="{Binding PlayMacroCommand}" Content="Play" />
@@ -991,7 +1021,7 @@
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding SelectRecommendedInstallerPackagesCommand}"
-                          Content="Starter Picks" />
+                          Content="My Picks" />
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding SelectDeveloperInstallerPackagesCommand}"
@@ -1460,10 +1490,16 @@
               </StackPanel>
             </GroupBox>
 
+            <Expander Header="Input and Display"
+                      IsExpanded="True"
+                      Margin="0,0,0,12"
+                      Style="{StaticResource InstallerInlineExpanderStyle}">
+              <StackPanel>
+
             <GroupBox Header="Shortcut Key Explorer" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Deep-scan fixed drives for Windows .lnk shortcut files that already have a keyboard hotkey assigned, then combine those with built-in Windows and common app shortcuts like Ctrl + C, Alt + Tab, and Win + R in one viewer."
+                           Text="Deep-scan fixed drives for Windows .lnk shortcut files with assigned hotkeys, detect supported app keymap files, then combine those with built-in Windows and common shortcuts like Ctrl + C, Alt + Tab, and Win + R in one viewer."
                            TextWrapping="Wrap" />
 
                 <WrapPanel Margin="0,12,0,0"
@@ -1519,7 +1555,7 @@
             <GroupBox Header="Display Refresh" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Review each desktop-attached display and switch it to the highest refresh rate available at its current resolution."
+                           Text="Check if your monitors are running at their fastest refresh rate. A higher refresh rate makes everything on screen feel smoother."
                            TextWrapping="Wrap" />
 
                 <TextBlock Margin="0,8,0,0"
@@ -1535,7 +1571,7 @@
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding ApplyDisplayRefreshRecommendationsCommand}"
-                          Content="Set Top Hz" />
+                          Content="Apply Best Rate" />
                 </WrapPanel>
 
                 <Border Margin="0,12,0,0"
@@ -1693,6 +1729,15 @@
                            TextWrapping="Wrap" />
               </StackPanel>
             </GroupBox>
+
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Hardware and Drivers"
+                      IsExpanded="False"
+                      Margin="0,0,0,12"
+                      Style="{StaticResource InstallerInlineExpanderStyle}">
+              <StackPanel>
 
             <GroupBox Header="Hardware Check" Margin="0,0,0,12">
               <StackPanel Margin="12">
@@ -2328,6 +2373,15 @@
               </StackPanel>
             </GroupBox>
 
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Windows Tweaks"
+                      IsExpanded="False"
+                      Margin="0,0,0,12"
+                      Style="{StaticResource InstallerInlineExpanderStyle}">
+              <StackPanel>
+
             <GroupBox Header="Dark Mode Helper" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
@@ -2355,12 +2409,12 @@
             <GroupBox Header="Replace Windows Search" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Install Flow Launcher, Everything, and AutoHotkey, then reroute Win + S into Flow Launcher and disable the Windows Search service. Reverse removes the helper, restores Windows Search, and leaves the apps installed in case you still want them."
+                           Text="Windows Search (Win + S) is slow for many users. This replaces it with Flow Launcher, a faster search bar that finds apps, files, and folders instantly. It also installs Everything for lightning-fast file search behind the scenes."
                            TextWrapping="Wrap" />
 
                 <TextBlock Margin="0,8,0,0"
                            Foreground="{DynamicResource MutedTextBrush}"
-                           Text="This may show a Windows administrator prompt when the Windows Search service is being turned off or turned back on."
+                           Text="An administrator prompt may appear when turning Windows Search on or off."
                            TextWrapping="Wrap" />
 
                 <WrapPanel Margin="0,12,0,0"
@@ -2372,11 +2426,11 @@
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding ApplySearchReplacementCommand}"
-                          Content="Use Flow Search" />
+                          Content="Replace Search" />
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding RestoreSearchReplacementCommand}"
-                          Content="Reverse" />
+                          Content="Restore Windows Search" />
                 </WrapPanel>
 
                 <TextBlock Margin="0,10,0,0"
@@ -2409,6 +2463,54 @@
               </StackPanel>
             </GroupBox>
 
+            <GroupBox Header="Remove Edge" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Detect whether Microsoft Edge is installed and remove it using the developer-override method. This bypasses the normal block that prevents removing Edge on non-European Windows devices. An administrator prompt will appear during removal."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshEdgeStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RemoveEdgeCommand}"
+                          Content="Remove Edge" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding EdgeToolStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Swap Fn and Ctrl (Lenovo)" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="For Lenovo laptops where Fn and Ctrl are reversed, this checks Lenovo BIOS support and flips the key positions. An administrator prompt appears when applying the change."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshFnCtrlSwapStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ToggleFnCtrlSwapCommand}"
+                          Content="Toggle Fn/Ctrl" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding FnCtrlSwapStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
             <GroupBox Header="Windows 11 EEA Media Prep" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
@@ -2433,6 +2535,15 @@
                            TextWrapping="Wrap" />
               </StackPanel>
             </GroupBox>
+
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Utilities"
+                      IsExpanded="False"
+                      Margin="0,0,0,12"
+                      Style="{StaticResource InstallerInlineExpanderStyle}">
+              <StackPanel>
 
             <GroupBox Header="Useful Sites" Margin="0,0,0,12">
               <StackPanel Margin="12">
@@ -2644,6 +2755,9 @@
                            TextWrapping="Wrap" />
               </StackPanel>
             </GroupBox>
+
+              </StackPanel>
+            </Expander>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
@@ -2660,6 +2774,9 @@
                             Content="Ctrl + scroll zooms the UI"
                             IsChecked="{Binding IsCtrlWheelResizeEnabled}" />
                   <CheckBox Margin="0,8,0,0"
+                            Content="Always on top"
+                            IsChecked="{Binding IsTopMost}" />
+                  <CheckBox Margin="0,8,0,0"
                             Content="Auto-hide to tray on startup"
                             IsChecked="{Binding IsAutoHideOnStartupEnabled}" />
                   <WrapPanel Margin="0,10,0,0"
@@ -2671,7 +2788,7 @@
                   </WrapPanel>
                   <TextBlock Margin="0,8,0,0"
                              Foreground="{DynamicResource MutedTextBrush}"
-                             Text="On first run, the app starts in the same light or dark mode that Windows is already using. You can also let Ctrl + mouse wheel zoom the app UI, or have startup launches hide straight to the tray."
+                             Text="On first run, the app starts in the same light or dark mode that Windows is already using. You can also let Ctrl + mouse wheel zoom the app UI, keep the window on top, or have startup launches hide straight to the tray."
                              TextWrapping="Wrap" />
                   <TextBlock Margin="0,8,0,0"
                              Text="{Binding SettingsStatusMessage}"

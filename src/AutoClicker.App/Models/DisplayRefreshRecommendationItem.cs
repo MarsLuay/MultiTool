@@ -24,7 +24,9 @@ public sealed class DisplayRefreshRecommendationItem
     public string RecommendedFrequencyText => FormatFrequency(Recommendation.RecommendedFrequency);
 
     public string FrequencySummaryText =>
-        $"Resolution: {Resolution}  |  Current: {CurrentFrequencyText}  |  Top: {RecommendedFrequencyText}";
+        NeedsChange
+            ? $"{Resolution}  —  Currently {CurrentFrequencyText}, can go up to {RecommendedFrequencyText}"
+            : $"{Resolution}  —  Running at {CurrentFrequencyText} (best available)";
 
     public string StatusText => Recommendation.Message;
 

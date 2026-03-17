@@ -1,6 +1,8 @@
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Xml.Linq;
 using AutoClicker.Core.Models;
 using AutoClicker.Core.Services;
 
@@ -12,16 +14,22 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
     private readonly Func<string, (string Hotkey, string TargetPath)?> shortcutMetadataReader;
     private readonly Func<string, int?> exactFolderCountResolver;
     private readonly Func<IReadOnlyList<ShortcutHotkeyInfo>> referenceShortcutResolver;
+    private readonly Func<IReadOnlyList<ShortcutHotkeyInfo>> knownApplicationShortcutResolver;
 
     public WindowsShortcutHotkeyInventoryService()
-        : this(ResolveScanRoots, ReadShortcutMetadata, NtfsFolderCountProvider.TryGetExactFolderCount, BuildReferenceShortcuts)
+        : this(
+            ResolveScanRoots,
+            ReadShortcutMetadata,
+            NtfsFolderCountProvider.TryGetExactFolderCount,
+            BuildReferenceShortcuts,
+            BuildKnownApplicationShortcuts)
     {
     }
 
     public WindowsShortcutHotkeyInventoryService(
         Func<IEnumerable<string>> scanRootResolver,
         Func<string, (string Hotkey, string TargetPath)?> shortcutMetadataReader)
-        : this(scanRootResolver, shortcutMetadataReader, _ => null, static () => [])
+        : this(scanRootResolver, shortcutMetadataReader, _ => null, static () => [], static () => [])
     {
     }
 
@@ -29,7 +37,7 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         Func<IEnumerable<string>> scanRootResolver,
         Func<string, (string Hotkey, string TargetPath)?> shortcutMetadataReader,
         Func<string, int?> exactFolderCountResolver)
-        : this(scanRootResolver, shortcutMetadataReader, exactFolderCountResolver, static () => [])
+        : this(scanRootResolver, shortcutMetadataReader, exactFolderCountResolver, static () => [], static () => [])
     {
     }
 
@@ -37,12 +45,14 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         Func<IEnumerable<string>> scanRootResolver,
         Func<string, (string Hotkey, string TargetPath)?> shortcutMetadataReader,
         Func<string, int?> exactFolderCountResolver,
-        Func<IReadOnlyList<ShortcutHotkeyInfo>> referenceShortcutResolver)
+        Func<IReadOnlyList<ShortcutHotkeyInfo>> referenceShortcutResolver,
+        Func<IReadOnlyList<ShortcutHotkeyInfo>>? knownApplicationShortcutResolver = null)
     {
         this.scanRootResolver = scanRootResolver ?? throw new ArgumentNullException(nameof(scanRootResolver));
         this.shortcutMetadataReader = shortcutMetadataReader ?? throw new ArgumentNullException(nameof(shortcutMetadataReader));
         this.exactFolderCountResolver = exactFolderCountResolver ?? throw new ArgumentNullException(nameof(exactFolderCountResolver));
         this.referenceShortcutResolver = referenceShortcutResolver ?? throw new ArgumentNullException(nameof(referenceShortcutResolver));
+        this.knownApplicationShortcutResolver = knownApplicationShortcutResolver ?? (() => Array.Empty<ShortcutHotkeyInfo>());
     }
 
     public Task<ShortcutHotkeyScanResult> ScanAsync(
@@ -115,6 +125,8 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
                 }
 
                 shortcuts.AddRange(referenceShortcutResolver());
+                shortcuts.AddRange(knownApplicationShortcutResolver());
+                shortcuts = DeduplicateShortcuts(shortcuts);
 
                 shortcuts.Sort(
                     static (left, right) =>
@@ -310,6 +322,29 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
                     }));
     }
 
+    private static List<ShortcutHotkeyInfo> DeduplicateShortcuts(List<ShortcutHotkeyInfo> shortcuts)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deduped = new List<ShortcutHotkeyInfo>(shortcuts.Count);
+
+        foreach (var shortcut in shortcuts)
+        {
+            var dedupeKey = string.Join(
+                "|",
+                shortcut.Hotkey.Trim(),
+                shortcut.ShortcutName.Trim(),
+                shortcut.ShortcutPath.Trim(),
+                shortcut.SourceLabel.Trim());
+
+            if (seen.Add(dedupeKey))
+            {
+                deduped.Add(shortcut);
+            }
+        }
+
+        return deduped;
+    }
+
     private static IReadOnlyList<ShortcutHotkeyInfo> ApplyConflictMetadata(IReadOnlyList<ShortcutHotkeyInfo> shortcuts)
     {
         var conflictsByHotkey = shortcuts
@@ -412,6 +447,363 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
             appliesTo,
             details,
             IsReferenceShortcut: true);
+
+    private static IReadOnlyList<ShortcutHotkeyInfo> BuildKnownApplicationShortcuts()
+    {
+        var shortcuts = new List<ShortcutHotkeyInfo>();
+
+        shortcuts.AddRange(ReadVsCodeFamilyShortcuts());
+        shortcuts.AddRange(ReadObsidianShortcuts());
+        shortcuts.AddRange(ReadJetBrainsShortcuts());
+
+        return shortcuts;
+    }
+
+    private static IReadOnlyList<ShortcutHotkeyInfo> ReadVsCodeFamilyShortcuts()
+    {
+        var shortcuts = new List<ShortcutHotkeyInfo>();
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        if (string.IsNullOrWhiteSpace(appData))
+        {
+            return shortcuts;
+        }
+
+        var sources = new (string AppName, string FilePath)[]
+        {
+            ("Visual Studio Code", Path.Combine(appData, "Code", "User", "keybindings.json")),
+            ("VS Code Insiders", Path.Combine(appData, "Code - Insiders", "User", "keybindings.json")),
+            ("VSCodium", Path.Combine(appData, "VSCodium", "User", "keybindings.json")),
+            ("Cursor", Path.Combine(appData, "Cursor", "User", "keybindings.json")),
+            ("Windsurf", Path.Combine(appData, "Windsurf", "User", "keybindings.json")),
+        };
+
+        foreach (var source in sources)
+        {
+            if (!File.Exists(source.FilePath))
+            {
+                continue;
+            }
+
+            JsonDocument? document = null;
+            try
+            {
+                document = JsonDocument.Parse(File.ReadAllText(source.FilePath));
+                if (document.RootElement.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var element in document.RootElement.EnumerateArray())
+                {
+                    if (element.ValueKind != JsonValueKind.Object)
+                    {
+                        continue;
+                    }
+
+                    if (!element.TryGetProperty("key", out var keyElement) || keyElement.ValueKind != JsonValueKind.String)
+                    {
+                        continue;
+                    }
+
+                    var rawKey = keyElement.GetString();
+                    if (string.IsNullOrWhiteSpace(rawKey))
+                    {
+                        continue;
+                    }
+
+                    var command = element.TryGetProperty("command", out var commandElement) && commandElement.ValueKind == JsonValueKind.String
+                        ? commandElement.GetString()
+                        : null;
+                    var whenClause = element.TryGetProperty("when", out var whenElement) && whenElement.ValueKind == JsonValueKind.String
+                        ? whenElement.GetString()
+                        : null;
+
+                    var details = string.IsNullOrWhiteSpace(whenClause)
+                        ? "Detected from keybindings.json"
+                        : $"When: {whenClause}";
+
+                    shortcuts.Add(new ShortcutHotkeyInfo(
+                        NormalizeVsCodeHotkey(rawKey),
+                        string.IsNullOrWhiteSpace(command) ? "User keybinding" : command,
+                        source.FilePath,
+                        Path.GetDirectoryName(source.FilePath) ?? string.Empty,
+                        string.Empty,
+                        TargetExists: false,
+                        "Detected app keymap",
+                        source.AppName,
+                        details));
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                document?.Dispose();
+            }
+        }
+
+        return shortcuts;
+    }
+
+    private static IReadOnlyList<ShortcutHotkeyInfo> ReadObsidianShortcuts()
+    {
+        var shortcuts = new List<ShortcutHotkeyInfo>();
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        if (string.IsNullOrWhiteSpace(appData))
+        {
+            return shortcuts;
+        }
+
+        var filesToTry = new[]
+        {
+            Path.Combine(appData, "obsidian", "hotkeys.json"),
+            Path.Combine(appData, "Obsidian", "hotkeys.json"),
+        };
+
+        foreach (var filePath in filesToTry)
+        {
+            if (!File.Exists(filePath))
+            {
+                continue;
+            }
+
+            JsonDocument? document = null;
+            try
+            {
+                document = JsonDocument.Parse(File.ReadAllText(filePath));
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                foreach (var commandProperty in document.RootElement.EnumerateObject())
+                {
+                    if (commandProperty.Value.ValueKind != JsonValueKind.Array)
+                    {
+                        continue;
+                    }
+
+                    foreach (var keybinding in commandProperty.Value.EnumerateArray())
+                    {
+                        var hotkey = TryParseObsidianHotkey(keybinding);
+                        if (string.IsNullOrWhiteSpace(hotkey))
+                        {
+                            continue;
+                        }
+
+                        shortcuts.Add(new ShortcutHotkeyInfo(
+                            hotkey,
+                            commandProperty.Name,
+                            filePath,
+                            Path.GetDirectoryName(filePath) ?? string.Empty,
+                            string.Empty,
+                            TargetExists: false,
+                            "Detected app keymap",
+                            "Obsidian",
+                            "Detected from Obsidian hotkeys.json"));
+                    }
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                document?.Dispose();
+            }
+        }
+
+        return shortcuts;
+    }
+
+    private static IReadOnlyList<ShortcutHotkeyInfo> ReadJetBrainsShortcuts()
+    {
+        var shortcuts = new List<ShortcutHotkeyInfo>();
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        if (string.IsNullOrWhiteSpace(appData))
+        {
+            return shortcuts;
+        }
+
+        var jetBrainsRoot = Path.Combine(appData, "JetBrains");
+        if (!Directory.Exists(jetBrainsRoot))
+        {
+            return shortcuts;
+        }
+
+        IEnumerable<string> keymapFiles;
+        try
+        {
+            keymapFiles = Directory.EnumerateFiles(jetBrainsRoot, "*.xml", SearchOption.AllDirectories)
+                .Where(static path => path.Contains($"{Path.DirectorySeparatorChar}keymaps{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
+        catch
+        {
+            return shortcuts;
+        }
+
+        foreach (var filePath in keymapFiles)
+        {
+            XDocument? document = null;
+            try
+            {
+                document = XDocument.Load(filePath);
+                foreach (var actionElement in document.Descendants("action"))
+                {
+                    var actionId = actionElement.Attribute("id")?.Value?.Trim();
+                    if (string.IsNullOrWhiteSpace(actionId))
+                    {
+                        continue;
+                    }
+
+                    foreach (var shortcutElement in actionElement.Elements("keyboard-shortcut"))
+                    {
+                        var first = shortcutElement.Attribute("first-keystroke")?.Value;
+                        var second = shortcutElement.Attribute("second-keystroke")?.Value;
+                        var hotkey = NormalizeJetBrainsShortcut(first, second);
+
+                        if (string.IsNullOrWhiteSpace(hotkey))
+                        {
+                            continue;
+                        }
+
+                        shortcuts.Add(new ShortcutHotkeyInfo(
+                            hotkey,
+                            actionId,
+                            filePath,
+                            Path.GetDirectoryName(filePath) ?? string.Empty,
+                            string.Empty,
+                            TargetExists: false,
+                            "Detected app keymap",
+                            "JetBrains IDE",
+                            "Detected from JetBrains keymap XML"));
+                    }
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                document?.Root?.Remove();
+            }
+        }
+
+        return shortcuts;
+    }
+
+    private static string NormalizeVsCodeHotkey(string hotkey)
+    {
+        var chordParts = hotkey.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var normalizedChordParts = chordParts
+            .Select(
+                static part =>
+                    string.Join(
+                        " + ",
+                        part.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Select(NormalizeModifierOrKeyToken)))
+            .Where(static part => !string.IsNullOrWhiteSpace(part));
+
+        return string.Join(", ", normalizedChordParts);
+    }
+
+    private static string? TryParseObsidianHotkey(JsonElement keybinding)
+    {
+        if (keybinding.ValueKind == JsonValueKind.String)
+        {
+            var value = keybinding.GetString();
+            return string.IsNullOrWhiteSpace(value)
+                ? null
+                : NormalizeVsCodeHotkey(value);
+        }
+
+        if (keybinding.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var key = keybinding.TryGetProperty("key", out var keyElement) && keyElement.ValueKind == JsonValueKind.String
+            ? keyElement.GetString()
+            : null;
+
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        var parts = new List<string>();
+        if (keybinding.TryGetProperty("modifiers", out var modifiersElement) && modifiersElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var modifierElement in modifiersElement.EnumerateArray())
+            {
+                if (modifierElement.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var modifier = modifierElement.GetString();
+                if (!string.IsNullOrWhiteSpace(modifier))
+                {
+                    parts.Add(NormalizeModifierOrKeyToken(modifier));
+                }
+            }
+        }
+
+        parts.Add(NormalizeModifierOrKeyToken(key));
+        return string.Join(" + ", parts.Where(static part => !string.IsNullOrWhiteSpace(part)));
+    }
+
+    private static string NormalizeJetBrainsShortcut(string? firstKeystroke, string? secondKeystroke)
+    {
+        var first = NormalizeJetBrainsKeystroke(firstKeystroke);
+        if (string.IsNullOrWhiteSpace(first))
+        {
+            return string.Empty;
+        }
+
+        var second = NormalizeJetBrainsKeystroke(secondKeystroke);
+        return string.IsNullOrWhiteSpace(second)
+            ? first
+            : $"{first}, {second}";
+    }
+
+    private static string NormalizeJetBrainsKeystroke(string? keystroke)
+    {
+        if (string.IsNullOrWhiteSpace(keystroke))
+        {
+            return string.Empty;
+        }
+
+        var tokens = keystroke
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(NormalizeModifierOrKeyToken)
+            .Where(static token => !string.IsNullOrWhiteSpace(token));
+
+        return string.Join(" + ", tokens);
+    }
+
+    private static string NormalizeModifierOrKeyToken(string token)
+    {
+        var normalized = token.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return string.Empty;
+        }
+
+        return normalized.ToUpperInvariant() switch
+        {
+            "CTRL" or "CONTROL" => "Ctrl",
+            "ALT" => "Alt",
+            "SHIFT" => "Shift",
+            "WIN" or "WINDOWS" or "META" => "Win",
+            "CMD" or "COMMAND" or "MOD" => "Ctrl",
+            _ => normalized.Length == 1
+                ? normalized.ToUpperInvariant()
+                : char.ToUpperInvariant(normalized[0]) + normalized[1..],
+        };
+    }
 
     private sealed class ScanProgressState
     {

@@ -110,7 +110,7 @@ public partial class MainWindowViewModel
     private string emptyDirectoryStatusMessage = "Choose a folder tree to scan for empty directories.";
 
     [ObservableProperty]
-    private string shortcutHotkeyStatusMessage = "Scan Windows .lnk shortcut hotkeys on this PC and include built-in Windows and common app shortcuts like Ctrl + C in one viewer.";
+    private string shortcutHotkeyStatusMessage = "Scan Windows .lnk hotkeys and supported app keymap files on this PC, then include built-in Windows and common shortcuts in one viewer.";
 
     [ObservableProperty]
     private bool isShortcutHotkeyScanProgressVisible;
@@ -149,7 +149,7 @@ public partial class MainWindowViewModel
     private string mouseSensitivityStatusMessage = "Pick a slower or faster mouse speed. 10/20 is the normal middle setting in Windows, so it is a good place to start if you are unsure.";
 
     [ObservableProperty]
-    private string displayRefreshStatusMessage = "Check connected displays and set each one to the top refresh rate available at its current resolution.";
+    private string displayRefreshStatusMessage = "Click Check Displays to see if your monitors can run at a faster refresh rate.";
 
     [ObservableProperty]
     private string hardwareCheckSystemSummary = "No hardware scan yet.";
@@ -182,10 +182,19 @@ public partial class MainWindowViewModel
     private string darkModeToolStatusMessage = "Apply Windows dark mode preferences for the shell and supported apps.";
 
     [ObservableProperty]
-    private string searchReplacementStatusMessage = "Install Flow Launcher + Everything, reroute Win + S into Flow Launcher, and disable Windows Search indexing. Reverse removes the helper and turns Windows Search back on.";
+    private string searchReplacementStatusMessage = "Replace the built-in Windows Search with Flow Launcher for a faster search experience. Use Restore to switch back to Windows Search at any time.";
 
     [ObservableProperty]
     private string oneDriveToolStatusMessage = "Check whether OneDrive is present, apply the system disable policy, and remove it with Windows' built-in uninstaller when available.";
+
+    [ObservableProperty]
+    private string edgeToolStatusMessage = "Detect whether Microsoft Edge is installed and remove it using the developer-override method. An administrator prompt will appear during removal.";
+
+    [ObservableProperty]
+    private string fnCtrlSwapStatusMessage = "Detect Lenovo BIOS Fn/Ctrl key swap support and switch the key positions when available.";
+
+    [ObservableProperty]
+    private bool isFnCtrlSwapSupported;
 
     [ObservableProperty]
     private bool areUsefulSitesVisible;
@@ -235,6 +244,8 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(EmptyDirectoryScanProgressSummary));
         OnPropertyChanged(nameof(UsefulSitesToggleText));
         RefreshOneDriveStatusCore(addLogEntry: false);
+        RefreshEdgeStatusCore(addLogEntry: false);
+        RefreshFnCtrlSwapStatusCore(addLogEntry: false);
         RefreshSearchReplacementStatusCore(addLogEntry: false);
     }
 
@@ -266,6 +277,11 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(UsefulSitesToggleText));
     }
 
+    partial void OnIsFnCtrlSwapSupportedChanged(bool value)
+    {
+        RefreshToolCommandStates();
+    }
+
     private void DriverUpdateItem_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(DriverUpdateItem.IsSelected))
@@ -283,6 +299,22 @@ public partial class MainWindowViewModel
     }
 
     private bool CanRefreshOneDriveStatus => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRefreshEdgeStatus))]
+    private void RefreshEdgeStatus()
+    {
+        RefreshEdgeStatusCore(addLogEntry: true);
+    }
+
+    private bool CanRefreshEdgeStatus => !IsToolBusy;
+
+    private bool CanRefreshFnCtrlSwapStatus => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRefreshFnCtrlSwapStatus))]
+    private void RefreshFnCtrlSwapStatus()
+    {
+        RefreshFnCtrlSwapStatusCore(addLogEntry: true);
+    }
 
     private bool CanRefreshMouseSensitivityStatus => !IsToolBusy;
 
@@ -336,6 +368,27 @@ public partial class MainWindowViewModel
         }
     }
 
+    private void RefreshEdgeStatusCore(bool addLogEntry)
+    {
+        try
+        {
+            var status = edgeRemovalService.GetStatus();
+            EdgeToolStatusMessage = status.Message;
+            if (addLogEntry)
+            {
+                AddToolLog(status.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            EdgeToolStatusMessage = $"Unable to check Edge status: {ex.Message}";
+            if (addLogEntry)
+            {
+                AddToolLog(EdgeToolStatusMessage);
+            }
+        }
+    }
+
     private void RefreshSearchReplacementStatusCore(bool addLogEntry)
     {
         try
@@ -353,6 +406,29 @@ public partial class MainWindowViewModel
             if (addLogEntry)
             {
                 AddToolLog(SearchReplacementStatusMessage);
+            }
+        }
+    }
+
+    private void RefreshFnCtrlSwapStatusCore(bool addLogEntry)
+    {
+        try
+        {
+            var status = fnCtrlSwapService.GetStatus();
+            IsFnCtrlSwapSupported = status.IsSupported;
+            FnCtrlSwapStatusMessage = status.Message;
+            if (addLogEntry)
+            {
+                AddToolLog(status.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            IsFnCtrlSwapSupported = false;
+            FnCtrlSwapStatusMessage = $"Unable to check Fn/Ctrl swap status: {ex.Message}";
+            if (addLogEntry)
+            {
+                AddToolLog(FnCtrlSwapStatusMessage);
             }
         }
     }
@@ -408,7 +484,7 @@ public partial class MainWindowViewModel
     private async Task ShowAssignedShortcutHotkeysAsync()
     {
         IsToolBusy = true;
-        ShortcutHotkeyStatusMessage = "Scanning fixed drives for assigned Windows shortcut keys and loading built-in shortcut references...";
+        ShortcutHotkeyStatusMessage = "Scanning fixed drives for assigned Windows shortcut keys, loading supported app keymaps, and adding built-in shortcut references...";
         StartShortcutHotkeyScanProgress();
         AddToolLog(ShortcutHotkeyStatusMessage);
 
@@ -942,6 +1018,59 @@ public partial class MainWindowViewModel
         {
             OneDriveToolStatusMessage = $"OneDrive removal failed: {ex.Message}";
             AddToolLog(OneDriveToolStatusMessage);
+        }
+        finally
+        {
+            IsToolBusy = false;
+        }
+    }
+
+    private bool CanRemoveEdge => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRemoveEdge))]
+    private async Task RemoveEdgeAsync()
+    {
+        IsToolBusy = true;
+        EdgeToolStatusMessage = "Removing Microsoft Edge...";
+        AddToolLog(EdgeToolStatusMessage);
+
+        try
+        {
+            var result = await edgeRemovalService.RemoveAsync().ConfigureAwait(true);
+            EdgeToolStatusMessage = result.Message;
+            AddToolLog(result.Message);
+        }
+        catch (Exception ex)
+        {
+            EdgeToolStatusMessage = $"Edge removal failed: {ex.Message}";
+            AddToolLog(EdgeToolStatusMessage);
+        }
+        finally
+        {
+            IsToolBusy = false;
+        }
+    }
+
+    private bool CanToggleFnCtrlSwap => !IsToolBusy && IsFnCtrlSwapSupported;
+
+    [RelayCommand(CanExecute = nameof(CanToggleFnCtrlSwap))]
+    private async Task ToggleFnCtrlSwapAsync()
+    {
+        IsToolBusy = true;
+        FnCtrlSwapStatusMessage = "Applying Fn/Ctrl key swap setting...";
+        AddToolLog(FnCtrlSwapStatusMessage);
+
+        try
+        {
+            var result = await fnCtrlSwapService.ToggleAsync().ConfigureAwait(true);
+            FnCtrlSwapStatusMessage = result.Message;
+            AddToolLog(result.Message);
+            RefreshFnCtrlSwapStatusCore(addLogEntry: false);
+        }
+        catch (Exception ex)
+        {
+            FnCtrlSwapStatusMessage = $"Fn/Ctrl swap failed: {ex.Message}";
+            AddToolLog(FnCtrlSwapStatusMessage);
         }
         finally
         {
@@ -1492,6 +1621,10 @@ public partial class MainWindowViewModel
         RestoreSearchReplacementCommand.NotifyCanExecuteChanged();
         RefreshOneDriveStatusCommand.NotifyCanExecuteChanged();
         RemoveOneDriveCommand.NotifyCanExecuteChanged();
+        RefreshEdgeStatusCommand.NotifyCanExecuteChanged();
+        RemoveEdgeCommand.NotifyCanExecuteChanged();
+        RefreshFnCtrlSwapStatusCommand.NotifyCanExecuteChanged();
+        ToggleFnCtrlSwapCommand.NotifyCanExecuteChanged();
         ApplySystemDarkModeCommand.NotifyCanExecuteChanged();
         OpenEmptyDirectoryRootCommand.NotifyCanExecuteChanged();
         ScanEmptyDirectoriesCommand.NotifyCanExecuteChanged();
@@ -1621,8 +1754,16 @@ public partial class MainWindowViewModel
 
     private string BuildDisplayRefreshSummary()
     {
+        var total = DisplayRefreshRecommendations.Count;
         var needsChangeCount = DisplayRefreshRecommendations.Count(item => item.NeedsChange);
-        return $"{DisplayRefreshRecommendations.Count} display{(DisplayRefreshRecommendations.Count == 1 ? string.Empty : "s")} found  |  {needsChangeCount} can be improved";
+        if (total == 0)
+        {
+            return "No displays checked yet.";
+        }
+
+        return needsChangeCount == 0
+            ? $"{total} display{(total == 1 ? string.Empty : "s")} found — all running at their best rate"
+            : $"{total} display{(total == 1 ? string.Empty : "s")} found — {needsChangeCount} can run faster";
     }
 
     private string BuildHardwareGraphicsSummary() =>

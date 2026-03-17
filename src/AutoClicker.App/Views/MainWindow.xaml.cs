@@ -278,6 +278,12 @@ public partial class MainWindow : Window
     private void ScreenshotHotkeyTextBox_OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        if (IsModifierKey(key))
+        {
+            e.Handled = true;
+            return;
+        }
+
         viewModel.CaptureScreenshotHotkey(key);
         ClearCaptureFocus();
         e.Handled = true;
@@ -311,6 +317,12 @@ public partial class MainWindow : Window
     private void MacroHotkeyTextBox_OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        if (IsModifierKey(key))
+        {
+            e.Handled = true;
+            return;
+        }
+
         viewModel.CaptureMacroHotkey(key);
         ClearCaptureFocus();
         e.Handled = true;
@@ -344,6 +356,12 @@ public partial class MainWindow : Window
     private void MacroRecordHotkeyTextBox_OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        if (IsModifierKey(key))
+        {
+            e.Handled = true;
+            return;
+        }
+
         viewModel.CaptureMacroRecordHotkey(key);
         ClearCaptureFocus();
         e.Handled = true;
@@ -610,4 +628,14 @@ public partial class MainWindow : Window
 
     private static double Clamp(double value, double minimum, double maximum) =>
         Math.Min(maximum, Math.Max(minimum, value));
+
+    private static bool IsModifierKey(System.Windows.Input.Key key) =>
+        key is System.Windows.Input.Key.LeftShift
+            or System.Windows.Input.Key.RightShift
+            or System.Windows.Input.Key.LeftCtrl
+            or System.Windows.Input.Key.RightCtrl
+            or System.Windows.Input.Key.LeftAlt
+            or System.Windows.Input.Key.RightAlt
+            or System.Windows.Input.Key.LWin
+            or System.Windows.Input.Key.RWin;
 }
