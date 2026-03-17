@@ -1,5 +1,6 @@
 using AutoClicker.Core.Enums;
 using System.Windows.Input;
+using AutoClicker.App.Localization;
 
 namespace AutoClicker.App.Helpers;
 
@@ -31,10 +32,10 @@ public static class HotkeyDisplayNameFormatter
     public static string FormatMouseButton(ClickMouseButton mouseButton) =>
         mouseButton switch
         {
-            ClickMouseButton.Right => "Right Mouse Button",
-            ClickMouseButton.Middle => "Middle Mouse Button",
-            ClickMouseButton.XButton1 => "Mouse Button 4",
-            ClickMouseButton.XButton2 => "Mouse Button 5",
+            ClickMouseButton.Right => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.RightMouseButton),
+            ClickMouseButton.Middle => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MiddleMouseButton),
+            ClickMouseButton.XButton1 => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MouseButton4),
+            ClickMouseButton.XButton2 => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MouseButton5),
             _ => mouseButton.ToString(),
         };
 

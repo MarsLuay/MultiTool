@@ -1,4 +1,5 @@
 using System.IO;
+using AutoClicker.App.Localization;
 using AutoClicker.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -11,8 +12,8 @@ public partial class EmptyDirectoryItem : ObservableObject
         FullPath = candidate.FullPath;
         DisplayPath = BuildDisplayPath(rootPath, candidate.FullPath);
         HintText = candidate.ContainsNestedEmptyDirectories
-            ? "Becomes empty after nested empty folders are removed."
-            : "Already empty.";
+            ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.EmptyDirectoryHintNested)
+            : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.EmptyDirectoryHintAlreadyEmpty);
     }
 
     public string FullPath { get; }

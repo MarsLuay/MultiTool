@@ -10,6 +10,8 @@ public interface IScreenshotCaptureService
 
     bool IsVideoCaptureRunning { get; }
 
+    string? LastSavedVideoPath { get; }
+
     Task StartVideoCaptureAsync(string outputDirectory, string fileNamePrefix, ScreenRectangle? area = null, CancellationToken cancellationToken = default);
 
     Task<string?> StopVideoCaptureAsync(CancellationToken cancellationToken = default);

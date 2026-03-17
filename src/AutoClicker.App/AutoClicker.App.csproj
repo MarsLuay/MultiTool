@@ -5,6 +5,8 @@
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>MultiTool</AssemblyName>
     <Product>MultiTool</Product>
     <AssemblyTitle>MultiTool</AssemblyTitle>
@@ -23,7 +25,7 @@
 
   <ItemGroup>
     <Content Include="Resources\Icons\*.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 </Project>

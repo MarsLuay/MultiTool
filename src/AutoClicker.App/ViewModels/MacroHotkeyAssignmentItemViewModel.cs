@@ -1,5 +1,6 @@
 using AutoClicker.Core.Enums;
 using AutoClicker.Core.Models;
+using AutoClicker.App.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AutoClicker.App.ViewModels;
@@ -34,7 +35,7 @@ public partial class MacroHotkeyAssignmentItemViewModel : ObservableObject
     private int hotkeyVirtualKey;
 
     [ObservableProperty]
-    private string hotkeyDisplay = "Click to assign";
+    private string hotkeyDisplay = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroHotkeyAssignmentsClickToAssign);
 
     [ObservableProperty]
     private MacroHotkeyPlaybackMode playbackMode;
@@ -54,7 +55,7 @@ public partial class MacroHotkeyAssignmentItemViewModel : ObservableObject
     public void ClearHotkey()
     {
         HotkeyVirtualKey = 0;
-        HotkeyDisplay = "Click to assign";
+        HotkeyDisplay = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroHotkeyAssignmentsClickToAssign);
         IsEnabled = false;
     }
 

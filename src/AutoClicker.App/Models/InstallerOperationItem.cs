@@ -1,4 +1,5 @@
 using AutoClicker.Core.Models;
+using AutoClicker.App.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AutoClicker.App.Models;
@@ -38,13 +39,17 @@ public partial class InstallerOperationItem : ObservableObject
 
     public bool RequiresAttention => State == InstallerOperationQueueState.Failed || RequiresManualStep;
 
-    public string HeaderText => $"#{SequenceNumber} {BuildActionLabel(Action)} {DisplayName}";
+    public string HeaderText => AppLanguageStrings.FormatForCurrentLanguage(
+        AppLanguageKeys.InstallerOperationHeaderFormat,
+        SequenceNumber,
+        BuildActionLabel(Action),
+        DisplayName);
 
     [ObservableProperty]
     private InstallerOperationQueueState state = InstallerOperationQueueState.Queued;
 
     [ObservableProperty]
-    private string statusText = "Queued";
+    private string statusText = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerStatusQueued);
 
     [ObservableProperty]
     private string guidanceText = string.Empty;
@@ -67,13 +72,13 @@ public partial class InstallerOperationItem : ObservableObject
     private static string BuildActionLabel(InstallerPackageAction action) =>
         action switch
         {
-            InstallerPackageAction.Install => "Install",
-            InstallerPackageAction.Update => "Update",
-            InstallerPackageAction.Uninstall => "Remove",
-            InstallerPackageAction.InstallInteractive => "Interactive Install",
-            InstallerPackageAction.UpdateInteractive => "Interactive Update",
-            InstallerPackageAction.Reinstall => "Reinstall",
-            _ => "Run",
+            InstallerPackageAction.Install => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionInstall),
+            InstallerPackageAction.Update => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionUpdate),
+            InstallerPackageAction.Uninstall => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionRemove),
+            InstallerPackageAction.InstallInteractive => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionInteractiveInstall),
+            InstallerPackageAction.UpdateInteractive => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionInteractiveUpdate),
+            InstallerPackageAction.Reinstall => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionReinstall),
+            _ => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionRun),
         };
 
     private static string GetDeduplicationBucket(InstallerPackageAction action) =>

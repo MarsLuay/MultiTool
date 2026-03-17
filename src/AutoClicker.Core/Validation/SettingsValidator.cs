@@ -68,6 +68,11 @@ public sealed class SettingsValidator
             issues.Add(new ValidationIssue(nameof(settings.Toggle), "Toggle hotkey is required."));
         }
 
+        if (HasConfiguredOptionalKeyboardHotkey(settings.PinWindow) && !HasValidHotkeyBinding(settings.PinWindow))
+        {
+            issues.Add(new ValidationIssue(nameof(settings.PinWindow), "Pin window hotkey is invalid. Use a keyboard key or leave it unassigned."));
+        }
+
         return new ValidationResult(issues);
     }
 
@@ -223,4 +228,7 @@ public sealed class SettingsValidator
             or Enums.ClickMouseButton.Middle
             or Enums.ClickMouseButton.XButton1
             or Enums.ClickMouseButton.XButton2;
+
+    private static bool HasConfiguredOptionalKeyboardHotkey(HotkeyBinding binding) =>
+        binding.InputKind == Enums.HotkeyInputKind.Keyboard && binding.VirtualKey > 0;
 }

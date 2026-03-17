@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AutoClicker.App.Localization;
 using AutoClicker.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -26,12 +27,12 @@ public partial class InstallerPackageItem : ObservableObject
 
     public string PackageHintText =>
         UsesCustomInstallFlow
-            ? "Handled by MultiTool"
+            ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerPackageHintHandledByMultiTool)
             : string.Equals(Package.Source, "msstore", StringComparison.OrdinalIgnoreCase)
-                ? "Microsoft Store app"
+                ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerPackageHintMicrosoftStoreApp)
                 : UsesGuidedInstall
-                    ? "Official setup page"
-                    : "Windows app";
+                    ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerPackageHintOfficialSetupPage)
+                    : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerPackageHintWindowsApp);
 
     public bool IsRecommended => Package.IsRecommended;
 
@@ -69,11 +70,17 @@ public partial class InstallerPackageItem : ObservableObject
         || CanQueueReinstallAction
         || CanOpenRelevantPage;
 
-    public string PrimaryActionText => IsInstalled ? "Queue Update" : "Queue Install";
+    public string PrimaryActionText => IsInstalled
+        ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerPrimaryActionQueueUpdate)
+        : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerPrimaryActionQueueInstall);
 
-    public string InteractiveActionText => IsInstalled ? "Interactive Update" : "Interactive Install";
+    public string InteractiveActionText => IsInstalled
+        ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerInteractiveActionUpdate)
+        : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerInteractiveActionInstall);
 
-    public string PageActionText => IsInstalled && Capabilities.SupportsOpenUpdatePage ? "Open Update Page" : "Open Install Page";
+    public string PageActionText => IsInstalled && Capabilities.SupportsOpenUpdatePage
+        ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerPageActionOpenUpdatePage)
+        : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerPageActionOpenInstallPage);
 
     public string CapabilitySummaryText => BuildCapabilitySummaryText();
 
@@ -93,7 +100,7 @@ public partial class InstallerPackageItem : ObservableObject
     private bool hasUpdateAvailable;
 
     [ObservableProperty]
-    private string statusText = "Checking status...";
+    private string statusText = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerStatusChecking);
 
     partial void OnIsInstalledChanged(bool value)
     {
@@ -124,26 +131,26 @@ public partial class InstallerPackageItem : ObservableObject
 
         if (Capabilities.UsesCustomFlow)
         {
-            parts.Add("Custom flow");
+            parts.Add(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerCapabilityCustomFlow));
         }
         else if (Capabilities.UsesWinget)
         {
-            parts.Add("Quiet winget");
+            parts.Add(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerCapabilityQuietWinget));
         }
 
         if (CanQueueInteractiveAction)
         {
-            parts.Add("Interactive option");
+            parts.Add(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerCapabilityInteractiveOption));
         }
 
         if (Capabilities.SupportsReinstall)
         {
-            parts.Add("Reinstall");
+            parts.Add(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerCapabilityReinstall));
         }
 
         if (CanOpenRelevantPage || Capabilities.HasGuidedFallback)
         {
-            parts.Add("Official page");
+            parts.Add(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerCapabilityOfficialPage));
         }
 
         return parts.Count == 0

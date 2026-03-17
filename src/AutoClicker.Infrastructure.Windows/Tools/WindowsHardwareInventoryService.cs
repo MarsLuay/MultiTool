@@ -1,4 +1,7 @@
 using System.Management;
+using System.Reflection;
+using System.IO;
+using Microsoft.Win32;
 using AutoClicker.Core.Models;
 using AutoClicker.Core.Services;
 
@@ -62,9 +65,11 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
         var sensors = BuildSensors(warnings);
         var pciDevices = BuildPciDevices(warnings);
         var raidDetails = BuildRaidDetails(pciDevices, warnings);
+        var healthSummary = BuildHealthSummary(storageDrives, pciDevices, sensors, warnings);
 
         return new HardwareInventoryReport(
             $"{systemInfo.Name}  |  {systemInfo.Manufacturer} {systemInfo.Model}".Trim(),
+            healthSummary,
             operatingSystemSummary,
             processorSummary,
             memorySummary,
@@ -218,17 +223,32 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
     private static IReadOnlyList<HardwareDisplayAdapterInfo> BuildGraphicsAdapters(ICollection<string> warnings)
     {
         var adapters = TryReadMany(
-            "SELECT Name, DriverVersion, AdapterRAM FROM Win32_VideoController WHERE Name IS NOT NULL",
-            item => new HardwareDisplayAdapterInfo(
-                GetString(item, "Name", "Unknown GPU"),
-                GetString(item, "DriverVersion", "Unknown driver"),
-                FormatBytes(GetUInt64(item, "AdapterRAM"))),
+            "SELECT Name, DriverVersion, AdapterRAM, PNPDeviceID FROM Win32_VideoController WHERE Name IS NOT NULL",
+            item => new
+            {
+                Name = GetString(item, "Name", "Unknown GPU"),
+                DriverVersion = GetString(item, "DriverVersion", "Unknown driver"),
+                AdapterRam = GetUInt64(item, "AdapterRAM"),
+                PnpDeviceId = GetString(item, "PNPDeviceID"),
+            },
             warnings,
             "Graphics adapter");
 
-        return adapters.Count == 0
+        if (adapters.Count == 0)
+        {
+            return [new HardwareDisplayAdapterInfo("No graphics adapters detected.", string.Empty, string.Empty)];
+        }
+
+        var resolvedAdapters = adapters.Select(
+            adapter => new HardwareDisplayAdapterInfo(
+                adapter.Name,
+                adapter.DriverVersion,
+                ResolveGraphicsMemory(adapter.AdapterRam, adapter.PnpDeviceId)))
+            .ToArray();
+
+        return resolvedAdapters.Length == 0
             ? [new HardwareDisplayAdapterInfo("No graphics adapters detected.", string.Empty, string.Empty)]
-            : adapters;
+            : resolvedAdapters;
     }
 
     private static IReadOnlyList<DiskSnapshot> ReadDiskSnapshots(ICollection<string> warnings)
@@ -307,7 +327,7 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
                         "Unknown");
 
                     var smartStatusText = smartStatus is null
-                        ? "Unavailable"
+                        ? BuildSmartFallbackStatus(snapshot, physicalDisk)
                         : smartStatus.PredictFailure
                             ? string.IsNullOrWhiteSpace(smartStatus.Reason)
                                 ? "Predicted failure"
@@ -419,6 +439,8 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
                         ? "Unavailable"
                         : string.Join(", ", volumeDetails.Select(static logicalDisk => logicalDisk.FreeSpace > 0 ? FormatBytes(logicalDisk.FreeSpace) : "Unknown"));
 
+                    var partitionType = BuildPartitionTypeLabel(partition, volumeDetails.Length > 0);
+
                     var status = string.Join(
                         "  |  ",
                         new[]
@@ -432,7 +454,7 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
                         diskName,
                         FirstNonEmpty(partition.Name, partition.DeviceId, "Unknown partition"),
                         FormatBytes(partition.Size),
-                        FirstNonEmpty(partition.Type, "Unknown type"),
+                        partitionType,
                         volumeText,
                         fileSystemText,
                         freeSpaceText,
@@ -504,7 +526,10 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
 
         sensors.AddRange(voltageProbes.Where(static sensor => !string.IsNullOrWhiteSpace(sensor.CurrentValue)));
 
+        sensors.AddRange(ReadLibreHardwareMonitorSensors(warnings));
+
         return sensors
+            .DistinctBy(static sensor => $"{sensor.Category}|{sensor.Name}|{sensor.Source}", StringComparer.OrdinalIgnoreCase)
             .OrderBy(static sensor => sensor.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static sensor => sensor.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -512,20 +537,38 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
 
     private static IReadOnlyList<HardwarePciDeviceInfo> BuildPciDevices(ICollection<string> warnings)
     {
-        var devices = TryReadMany(
-            "SELECT Name, Manufacturer, PNPClass, Status, LocationInformation, PNPDeviceID FROM Win32_PnPEntity WHERE PNPDeviceID IS NOT NULL",
+        var primaryDevices = TryReadMany(
+            "SELECT Name, Manufacturer, PNPClass, Status, ConfigManagerErrorCode, PNPDeviceID FROM Win32_PnPEntity WHERE PNPDeviceID IS NOT NULL",
             item => new PciDeviceSnapshot(
                 FirstNonEmpty(GetString(item, "Name"), "Unknown PCI device"),
                 FirstNonEmpty(GetString(item, "PNPClass"), "Unclassified"),
                 FirstNonEmpty(GetString(item, "Manufacturer"), "Unknown manufacturer"),
-                FirstNonEmpty(GetString(item, "LocationInformation"), "Location unavailable"),
-                FirstNonEmpty(GetString(item, "Status"), "Status unavailable"),
+                "Location unavailable",
+                BuildPciDeviceStatus(GetString(item, "Status"), GetInt(item, "ConfigManagerErrorCode")),
                 GetString(item, "PNPDeviceID")),
             warnings,
             "PCI device");
 
-        return devices
+        var fallbackDevices = TryReadMany(
+            "SELECT DeviceName, Manufacturer, DeviceClass, DeviceID, Location, Status FROM Win32_PnPSignedDriver WHERE DeviceID IS NOT NULL",
+            item => new PciDeviceSnapshot(
+                FirstNonEmpty(GetString(item, "DeviceName"), "Unknown PCI device"),
+                FirstNonEmpty(GetString(item, "DeviceClass"), "Unclassified"),
+                FirstNonEmpty(GetString(item, "Manufacturer"), "Unknown manufacturer"),
+                FirstNonEmpty(GetString(item, "Location"), "Location unavailable"),
+                FirstNonEmpty(GetString(item, "Status"), "Status unavailable"),
+                GetString(item, "DeviceID")),
+            warnings,
+            "PCI signed driver");
+
+        var devices = primaryDevices
+            .Concat(fallbackDevices)
             .Where(static device => IsPciDevice(device.PnpDeviceId))
+            .GroupBy(static device => BuildPciUniquenessKey(device), StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.Aggregate(MergePciDeviceSnapshots))
+            .ToArray();
+
+        return devices
             .OrderBy(static device => device.DeviceClass, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static device => device.Name, StringComparer.OrdinalIgnoreCase)
             .Select(
@@ -536,6 +579,303 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
                     device.Location,
                     device.Status))
             .ToArray();
+    }
+
+    private static string BuildPciUniquenessKey(PciDeviceSnapshot device) =>
+        FirstNonEmpty(device.PnpDeviceId, device.Name, device.DeviceClass, device.Manufacturer);
+
+    private static PciDeviceSnapshot MergePciDeviceSnapshots(PciDeviceSnapshot left, PciDeviceSnapshot right) =>
+        new(
+            FirstNonEmpty(left.Name, right.Name, "Unknown PCI device"),
+            FirstNonEmpty(left.DeviceClass, right.DeviceClass, "Unclassified"),
+            FirstNonEmpty(left.Manufacturer, right.Manufacturer, "Unknown manufacturer"),
+            PreferInformativeValue(left.Location, right.Location, "Location unavailable"),
+            PreferInformativeValue(left.Status, right.Status, "Status unavailable"),
+            FirstNonEmpty(left.PnpDeviceId, right.PnpDeviceId));
+
+    private static string PreferInformativeValue(string left, string right, string unavailableValue)
+    {
+        var leftIsUnavailable = string.IsNullOrWhiteSpace(left) || left.Equals(unavailableValue, StringComparison.OrdinalIgnoreCase);
+        var rightIsUnavailable = string.IsNullOrWhiteSpace(right) || right.Equals(unavailableValue, StringComparison.OrdinalIgnoreCase);
+
+        if (!leftIsUnavailable)
+        {
+            return left;
+        }
+
+        if (!rightIsUnavailable)
+        {
+            return right;
+        }
+
+        return unavailableValue;
+    }
+
+    private static string BuildPciDeviceStatus(string wmiStatus, int configManagerErrorCode)
+    {
+        if (configManagerErrorCode == 0)
+        {
+            return "OK";
+        }
+
+        var mappedCode = configManagerErrorCode switch
+        {
+            10 => "Cannot start (Code 10)",
+            12 => "Insufficient resources (Code 12)",
+            14 => "Restart required (Code 14)",
+            22 => "Disabled (Code 22)",
+            28 => "Driver not installed (Code 28)",
+            31 => "Device malfunction (Code 31)",
+            43 => "Device stopped (Code 43)",
+            _ => string.Empty,
+        };
+
+        return FirstNonEmpty(mappedCode, wmiStatus, $"Device issue (Code {configManagerErrorCode})", "Status unavailable");
+    }
+
+    private static string BuildPartitionTypeLabel(PartitionSnapshot partition, bool hasMountedVolume)
+    {
+        var currentType = FirstNonEmpty(partition.Type, "Unknown type");
+        if (!currentType.Contains("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return currentType;
+        }
+
+        if (partition.BootPartition && partition.Size > 0 && partition.Size <= 300UL * 1024 * 1024)
+        {
+            return "GPT: EFI System (likely)";
+        }
+
+        if (!hasMountedVolume && partition.Size >= 450UL * 1024 * 1024 && partition.Size <= 1200UL * 1024 * 1024)
+        {
+            return "GPT: Recovery (likely)";
+        }
+
+        if (!hasMountedVolume && !partition.BootPartition && partition.Size > 0 && partition.Size <= 200UL * 1024 * 1024)
+        {
+            return "GPT: Microsoft Reserved (likely)";
+        }
+
+        if (!hasMountedVolume)
+        {
+            return "GPT: OEM/Recovery (unmounted, likely)";
+        }
+
+        return currentType;
+    }
+
+    private static string BuildSmartFallbackStatus(DiskSnapshot snapshot, PhysicalDiskSnapshot? physicalDisk)
+    {
+        var isNvme = snapshot.InterfaceType.Contains("NVMe", StringComparison.OrdinalIgnoreCase)
+            || (physicalDisk?.BusType?.Contains("NVMe", StringComparison.OrdinalIgnoreCase) ?? false);
+        if (!isNvme)
+        {
+            return "Unavailable";
+        }
+
+        var health = FirstNonEmpty(physicalDisk?.HealthStatus, snapshot.Status);
+        if (health.Equals("Healthy", StringComparison.OrdinalIgnoreCase) || health.Equals("OK", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Healthy (Windows NVMe health)";
+        }
+
+        if (health.Equals("Warning", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Warning (Windows NVMe health)";
+        }
+
+        if (health.Equals("Unhealthy", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Predicted failure (Windows NVMe health)";
+        }
+
+        return "Unavailable";
+    }
+
+    private static IReadOnlyList<HardwareSensorInfo> ReadLibreHardwareMonitorSensors(ICollection<string> warnings)
+    {
+        var assemblyPath = TryResolveLibreHardwareMonitorAssemblyPath();
+        if (string.IsNullOrWhiteSpace(assemblyPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            var assembly = Assembly.LoadFrom(assemblyPath);
+            var computerType = assembly.GetType("LibreHardwareMonitor.Hardware.Computer");
+            var iHardwareType = assembly.GetType("LibreHardwareMonitor.Hardware.IHardware");
+            var iSensorType = assembly.GetType("LibreHardwareMonitor.Hardware.ISensor");
+            if (computerType is null || iHardwareType is null || iSensorType is null)
+            {
+                return [];
+            }
+
+            using var computer = Activator.CreateInstance(computerType) as IDisposable;
+            if (computer is null)
+            {
+                return [];
+            }
+
+            SetPropertyIfExists(computerType, computer, "IsCpuEnabled", true);
+            SetPropertyIfExists(computerType, computer, "IsMotherboardEnabled", true);
+            SetPropertyIfExists(computerType, computer, "IsMemoryEnabled", true);
+            SetPropertyIfExists(computerType, computer, "IsGpuEnabled", true);
+            SetPropertyIfExists(computerType, computer, "IsStorageEnabled", true);
+            SetPropertyIfExists(computerType, computer, "IsControllerEnabled", true);
+
+            computerType.GetMethod("Open")?.Invoke(computer, null);
+
+            var hardwareItems = computerType.GetProperty("Hardware")?.GetValue(computer) as System.Collections.IEnumerable;
+            if (hardwareItems is null)
+            {
+                return [];
+            }
+
+            var sensors = new List<HardwareSensorInfo>();
+            foreach (var hardware in hardwareItems)
+            {
+                CollectLibreHardwareSensors(hardware, iHardwareType, iSensorType, sensors);
+            }
+
+            computerType.GetMethod("Close")?.Invoke(computer, null);
+            return sensors;
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"LibreHardwareMonitor sensor provider failed: {ex.Message}");
+            return [];
+        }
+    }
+
+    private static void CollectLibreHardwareSensors(
+        object hardware,
+        Type iHardwareType,
+        Type iSensorType,
+        ICollection<HardwareSensorInfo> sensors)
+    {
+        iHardwareType.GetMethod("Update")?.Invoke(hardware, null);
+
+        var hardwareName = Convert.ToString(iHardwareType.GetProperty("Name")?.GetValue(hardware)) ?? "Hardware";
+        var sensorItems = iHardwareType.GetProperty("Sensors")?.GetValue(hardware) as System.Collections.IEnumerable;
+        if (sensorItems is not null)
+        {
+            foreach (var sensor in sensorItems)
+            {
+                var sensorType = Convert.ToString(iSensorType.GetProperty("SensorType")?.GetValue(sensor)) ?? string.Empty;
+                var value = iSensorType.GetProperty("Value")?.GetValue(sensor);
+                if (value is null)
+                {
+                    continue;
+                }
+
+                var reading = Convert.ToSingle(value);
+                var category = sensorType switch
+                {
+                    "Temperature" => "Temperature",
+                    "Fan" => "Fan",
+                    "Voltage" => "Voltage",
+                    _ => string.Empty,
+                };
+
+                if (string.IsNullOrWhiteSpace(category))
+                {
+                    continue;
+                }
+
+                var sensorName = Convert.ToString(iSensorType.GetProperty("Name")?.GetValue(sensor)) ?? "Sensor";
+                var readingText = category switch
+                {
+                    "Temperature" => $"{reading:0.#} C",
+                    "Fan" => $"{reading:0} RPM",
+                    "Voltage" => $"{reading:0.###} V",
+                    _ => Convert.ToString(reading) ?? string.Empty,
+                };
+
+                sensors.Add(
+                    new HardwareSensorInfo(
+                        category,
+                        $"{hardwareName} - {sensorName}",
+                        readingText,
+                        "LibreHardwareMonitor",
+                        "Reported by optional LibreHardwareMonitor provider"));
+            }
+        }
+
+        var subHardwareItems = iHardwareType.GetProperty("SubHardware")?.GetValue(hardware) as System.Collections.IEnumerable;
+        if (subHardwareItems is null)
+        {
+            return;
+        }
+
+        foreach (var child in subHardwareItems)
+        {
+            CollectLibreHardwareSensors(child, iHardwareType, iSensorType, sensors);
+        }
+    }
+
+    private static void SetPropertyIfExists(Type type, object instance, string propertyName, bool value)
+    {
+        var property = type.GetProperty(propertyName);
+        if (property?.CanWrite == true)
+        {
+            property.SetValue(instance, value);
+        }
+    }
+
+    private static string TryResolveLibreHardwareMonitorAssemblyPath()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "LibreHardwareMonitorLib.dll"),
+            Path.Combine(AppContext.BaseDirectory, "LibreHardwareMonitor.dll"),
+        };
+
+        return candidates.FirstOrDefault(File.Exists) ?? string.Empty;
+    }
+
+    private static string BuildHealthSummary(
+        IReadOnlyList<HardwareStorageDriveInfo> storageDrives,
+        IReadOnlyList<HardwarePciDeviceInfo> pciDevices,
+        IReadOnlyList<HardwareSensorInfo> sensors,
+        IReadOnlyList<string> warnings)
+    {
+        var criticalCount = storageDrives.Count(
+            drive => drive.HealthStatus.Contains("Unhealthy", StringComparison.OrdinalIgnoreCase)
+                || drive.SmartStatus.Contains("Predicted failure", StringComparison.OrdinalIgnoreCase));
+
+        var warningCount = storageDrives.Count(
+                drive => drive.HealthStatus.Contains("Warning", StringComparison.OrdinalIgnoreCase)
+                    || drive.SmartStatus.Contains("Warning", StringComparison.OrdinalIgnoreCase))
+            + pciDevices.Count(device => !device.Status.Equals("OK", StringComparison.OrdinalIgnoreCase));
+
+        var infoCount = warnings.Count
+            + sensors.Count(sensor => sensor.Source.Equals("Win32_Fan", StringComparison.OrdinalIgnoreCase) && sensor.CurrentValue.Contains("unavailable", StringComparison.OrdinalIgnoreCase));
+
+        if (criticalCount == 0 && warningCount == 0)
+        {
+            return infoCount == 0
+                ? "No critical issues detected."
+                : $"No critical issues detected. {infoCount} informational telemetry limitation{(infoCount == 1 ? string.Empty : "s")}.";
+        }
+
+        var parts = new List<string>();
+        if (criticalCount > 0)
+        {
+            parts.Add($"{criticalCount} critical");
+        }
+
+        if (warningCount > 0)
+        {
+            parts.Add($"{warningCount} warning");
+        }
+
+        if (infoCount > 0)
+        {
+            parts.Add($"{infoCount} info");
+        }
+
+        return $"Health Summary: {string.Join(", ", parts)}.";
     }
 
     private static IReadOnlyList<HardwareRaidInfo> BuildRaidDetails(
@@ -809,6 +1149,192 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
         || device.Name.Contains("RST", StringComparison.OrdinalIgnoreCase)
         || device.Name.Contains("Storage Spaces", StringComparison.OrdinalIgnoreCase)
         || device.Name.Contains("NVMe RAID", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveGraphicsMemory(ulong adapterRam, string pnpDeviceId)
+    {
+        var registryMemory = TryGetGraphicsMemoryFromRegistry(pnpDeviceId);
+        var bestMemory = Math.Max(adapterRam, registryMemory);
+        return FormatBytes(bestMemory);
+    }
+
+    private static ulong TryGetGraphicsMemoryFromRegistry(string pnpDeviceId)
+    {
+        if (string.IsNullOrWhiteSpace(pnpDeviceId))
+        {
+            return 0UL;
+        }
+
+        try
+        {
+            var classMemory = TryGetGraphicsMemoryFromDisplayClassRegistry(pnpDeviceId);
+            if (classMemory > 0)
+            {
+                return classMemory;
+            }
+
+            var videoMemory = TryGetGraphicsMemoryFromControlVideoRegistry(pnpDeviceId);
+            if (videoMemory > 0)
+            {
+                return videoMemory;
+            }
+        }
+        catch
+        {
+            return 0UL;
+        }
+
+        return 0UL;
+    }
+
+    private static ulong TryGetGraphicsMemoryFromDisplayClassRegistry(string pnpDeviceId)
+    {
+        var normalizedPnp = NormalizeRegistryDeviceId(pnpDeviceId);
+        if (string.IsNullOrWhiteSpace(normalizedPnp))
+        {
+            return 0UL;
+        }
+
+        using var classRoot = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}");
+        if (classRoot is null)
+        {
+            return 0UL;
+        }
+
+        foreach (var childName in classRoot.GetSubKeyNames())
+        {
+            using var childKey = classRoot.OpenSubKey(childName);
+            if (childKey is null)
+            {
+                continue;
+            }
+
+            var matchingDeviceId = Convert.ToString(childKey.GetValue("MatchingDeviceId"));
+            if (!RegistryDeviceIdsMatch(normalizedPnp, matchingDeviceId))
+            {
+                continue;
+            }
+
+            if (TryReadRegistryUlong(childKey, "HardwareInformation.qwMemorySize", out var qwordMemory) && qwordMemory > 0)
+            {
+                return qwordMemory;
+            }
+
+            if (TryReadRegistryUlong(childKey, "HardwareInformation.MemorySize", out var legacyMemory) && legacyMemory > 0)
+            {
+                return legacyMemory;
+            }
+        }
+
+        return 0UL;
+    }
+
+    private static ulong TryGetGraphicsMemoryFromControlVideoRegistry(string pnpDeviceId)
+    {
+        var normalizedPnp = NormalizeRegistryDeviceId(pnpDeviceId);
+        if (string.IsNullOrWhiteSpace(normalizedPnp))
+        {
+            return 0UL;
+        }
+
+        using var videoRoot = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Video");
+        if (videoRoot is null)
+        {
+            return 0UL;
+        }
+
+        foreach (var adapterKeyName in videoRoot.GetSubKeyNames())
+        {
+            using var adapterKey = videoRoot.OpenSubKey(adapterKeyName);
+            if (adapterKey is null)
+            {
+                continue;
+            }
+
+            foreach (var childName in adapterKey.GetSubKeyNames())
+            {
+                using var childKey = adapterKey.OpenSubKey(childName);
+                if (childKey is null)
+                {
+                    continue;
+                }
+
+                var matchingDeviceId = Convert.ToString(childKey.GetValue("MatchingDeviceId"));
+                if (!RegistryDeviceIdsMatch(normalizedPnp, matchingDeviceId))
+                {
+                    continue;
+                }
+
+                if (TryReadRegistryUlong(childKey, "HardwareInformation.qwMemorySize", out var memorySize) && memorySize > 0)
+                {
+                    return memorySize;
+                }
+
+                if (TryReadRegistryUlong(childKey, "HardwareInformation.MemorySize", out var legacyMemory) && legacyMemory > 0)
+                {
+                    return legacyMemory;
+                }
+            }
+        }
+
+        return 0UL;
+    }
+
+    private static bool RegistryDeviceIdsMatch(string normalizedPnp, string? candidateDeviceId)
+    {
+        var normalizedCandidate = NormalizeRegistryDeviceId(candidateDeviceId);
+        if (string.IsNullOrWhiteSpace(normalizedCandidate))
+        {
+            return false;
+        }
+
+        return normalizedPnp.Equals(normalizedCandidate, StringComparison.OrdinalIgnoreCase)
+            || normalizedPnp.Contains(normalizedCandidate, StringComparison.OrdinalIgnoreCase)
+            || normalizedCandidate.Contains(normalizedPnp, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeRegistryDeviceId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace('/', '\\')
+            .Trim()
+            .ToUpperInvariant();
+    }
+
+    private static bool TryReadRegistryUlong(RegistryKey key, string valueName, out ulong value)
+    {
+        value = 0UL;
+        var rawValue = key.GetValue(valueName);
+        if (rawValue is null)
+        {
+            return false;
+        }
+
+        switch (rawValue)
+        {
+            case ulong typedUlong:
+                value = typedUlong;
+                return typedUlong > 0;
+            case long typedLong when typedLong > 0:
+                value = Convert.ToUInt64(typedLong);
+                return true;
+            case int typedInt when typedInt > 0:
+                value = Convert.ToUInt64(typedInt);
+                return true;
+            case byte[] bytes when bytes.Length == sizeof(ulong):
+                value = BitConverter.ToUInt64(bytes, 0);
+                return value > 0;
+            case string text when ulong.TryParse(text, out var parsed) && parsed > 0:
+                value = parsed;
+                return true;
+            default:
+                return false;
+        }
+    }
 
     private static string BuildVolumeLabel(LogicalDiskSnapshot logicalDisk) =>
         string.IsNullOrWhiteSpace(logicalDisk.VolumeName)

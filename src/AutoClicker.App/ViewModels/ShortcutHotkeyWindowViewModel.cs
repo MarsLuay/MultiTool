@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows.Data;
+using AutoClicker.App.Localization;
 using AutoClicker.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -25,14 +26,38 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
         SummaryText = BuildSummaryText(result);
         WarningText = result.Warnings.Count == 0
             ? string.Empty
-            : $"Skipped {result.Warnings.Count} folder or shortcut read{(result.Warnings.Count == 1 ? string.Empty : "s")} during the scan.";
+            : F(AppLanguageKeys.ShortcutExplorerWarningSkippedFormat, result.Warnings.Count, PluralSuffix(result.Warnings.Count));
         ReferenceNoteText = referenceShortcutCount == 0
             ? string.Empty
-            : "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner now also pulls real keymaps from supported apps when available, but Windows still has no universal API that exposes every private keybind from every program.";
+            : L(AppLanguageKeys.ShortcutExplorerReferenceNote);
         ConflictWarningText = BuildConflictWarningText(result);
     }
 
     public ICollectionView ShortcutsView { get; }
+
+    public string WindowTitleText => L(AppLanguageKeys.ShortcutExplorerTitle);
+
+    public string HeadingText => L(AppLanguageKeys.ShortcutExplorerHeading);
+
+    public string SearchLabelText => L(AppLanguageKeys.ShortcutExplorerSearchLabel);
+
+    public string ConflictsOnlyText => L(AppLanguageKeys.ShortcutExplorerConflictsOnly);
+
+    public string ColumnHotkeyText => L(AppLanguageKeys.ShortcutExplorerColumnHotkey);
+
+    public string ColumnShortcutText => L(AppLanguageKeys.ShortcutExplorerColumnShortcut);
+
+    public string ColumnSourceText => L(AppLanguageKeys.ShortcutExplorerColumnSource);
+
+    public string ColumnAppliesToText => L(AppLanguageKeys.ShortcutExplorerColumnAppliesTo);
+
+    public string ColumnConflictText => L(AppLanguageKeys.ShortcutExplorerColumnConflict);
+
+    public string ColumnDetailsText => L(AppLanguageKeys.ShortcutExplorerColumnDetails);
+
+    public string ColumnFileText => L(AppLanguageKeys.ShortcutExplorerColumnFile);
+
+    public string CloseButtonText => L(AppLanguageKeys.ShortcutExplorerClose);
 
     public string SummaryText { get; }
 
@@ -97,29 +122,34 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
     {
         var visibleCount = ShortcutsView.Cast<object>().Count();
         var baseSummary = string.IsNullOrWhiteSpace(SearchText) && !ShowOnlyConflicts
-            ? $"{visibleCount} shortcut{(visibleCount == 1 ? string.Empty : "s")} listed"
-            : $"{visibleCount} matching shortcut{(visibleCount == 1 ? string.Empty : "s")} shown";
+            ? F(AppLanguageKeys.ShortcutExplorerFilterListedFormat, visibleCount, PluralSuffix(visibleCount))
+            : F(AppLanguageKeys.ShortcutExplorerFilterMatchingFormat, visibleCount, PluralSuffix(visibleCount));
         if (conflictingShortcutCount == 0)
         {
             return AppendSourceSummary(baseSummary);
         }
 
-        return $"{AppendSourceSummary(baseSummary)}. {conflictingShortcutCount} shortcut{(conflictingShortcutCount == 1 ? string.Empty : "s")} are in conflict across {conflictGroupCount} shared hotkey{(conflictGroupCount == 1 ? string.Empty : "s")}.";
+        return $"{AppendSourceSummary(baseSummary)}{F(AppLanguageKeys.ShortcutExplorerFilterConflictSuffixFormat, conflictingShortcutCount, PluralSuffix(conflictingShortcutCount), conflictGroupCount, PluralSuffix(conflictGroupCount))}";
     }
 
     private string BuildSummaryText(ShortcutHotkeyScanResult result)
     {
         if (detectedShortcutCount == 0 && referenceShortcutCount == 0)
         {
-            return $"Scanned {result.ScannedShortcutCount} .lnk shortcut file{(result.ScannedShortcutCount == 1 ? string.Empty : "s")} on fixed drives. No shortcut keys were found.";
+            return F(AppLanguageKeys.ShortcutExplorerSummaryNoneFormat, result.ScannedShortcutCount, PluralSuffix(result.ScannedShortcutCount));
         }
 
         var detectedSummary = detectedShortcutCount == 0
-            ? "No assigned .lnk shortcut hotkeys were found on this PC."
-            : $"Found {detectedShortcutCount} assigned .lnk shortcut hotkey{(detectedShortcutCount == 1 ? string.Empty : "s")} after scanning {result.ScannedShortcutCount} .lnk shortcut file{(result.ScannedShortcutCount == 1 ? string.Empty : "s")} on fixed drives.";
+            ? L(AppLanguageKeys.ShortcutExplorerSummaryNoAssigned)
+            : F(
+                AppLanguageKeys.ShortcutExplorerSummaryFoundFormat,
+                detectedShortcutCount,
+                PluralSuffix(detectedShortcutCount),
+                result.ScannedShortcutCount,
+                PluralSuffix(result.ScannedShortcutCount));
         var referenceSummary = referenceShortcutCount == 0
             ? string.Empty
-            : $" Included {referenceShortcutCount} built-in Windows and common app shortcut reference entr{(referenceShortcutCount == 1 ? "y" : "ies")}.";
+            : F(AppLanguageKeys.ShortcutExplorerReferenceIncludedFormat, referenceShortcutCount, EntrySuffix(referenceShortcutCount));
 
         return $"{detectedSummary}{referenceSummary}";
     }
@@ -131,7 +161,12 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
             return string.Empty;
         }
 
-        return $"Warning: {result.ConflictingShortcutCount} shortcut{(result.ConflictingShortcutCount == 1 ? string.Empty : "s")} share {result.ConflictGroupCount} hotkey{(result.ConflictGroupCount == 1 ? string.Empty : "s")}. Some overlaps are harmless reference combos, but detected Windows shortcut-file hotkeys can still conflict in real use.";
+        return F(
+            AppLanguageKeys.ShortcutExplorerConflictWarningFormat,
+            result.ConflictingShortcutCount,
+            PluralSuffix(result.ConflictingShortcutCount),
+            result.ConflictGroupCount,
+            PluralSuffix(result.ConflictGroupCount));
     }
 
     private static bool Contains(string value, string searchText) =>
@@ -140,5 +175,13 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
     private string AppendSourceSummary(string baseSummary) =>
         referenceShortcutCount == 0
             ? baseSummary
-            : $"{baseSummary}. {detectedShortcutCount} detected from this PC, {referenceShortcutCount} built-in or common references";
+            : $"{baseSummary}{F(AppLanguageKeys.ShortcutExplorerFilterSourceSuffixFormat, detectedShortcutCount, referenceShortcutCount)}";
+
+    private static string L(string key) => AppLanguageStrings.GetForCurrentLanguage(key);
+
+    private static string F(string key, params object[] args) => AppLanguageStrings.FormatForCurrentLanguage(key, args);
+
+    private static string PluralSuffix(int count) => count == 1 ? string.Empty : "s";
+
+    private static string EntrySuffix(int count) => count == 1 ? "y" : "ies";
 }

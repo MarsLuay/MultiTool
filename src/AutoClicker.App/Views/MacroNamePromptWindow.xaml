@@ -1,7 +1,7 @@
 <Window x:Class="AutoClicker.App.Views.MacroNamePromptWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Save Macro"
+  Title=""
         Width="430"
         Height="340"
         MinWidth="360"
@@ -27,13 +27,15 @@
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <TextBlock FontSize="16"
+    <TextBlock x:Name="PromptHeadingTextBlock"
+           FontSize="16"
                FontWeight="SemiBold"
-               Text="Name this macro" />
+               Text="" />
 
-    <TextBlock Grid.Row="1"
+    <TextBlock x:Name="PromptDescriptionTextBlock"
+           Grid.Row="1"
                Margin="0,8,0,0"
-               Text="Type the macro name below. Press Save and it will go straight into the Macros folder next to MultiTool.exe."
+               Text=""
                TextWrapping="Wrap" />
 
     <Border Grid.Row="2"
@@ -44,8 +46,9 @@
             BorderThickness="2"
             CornerRadius="8">
       <StackPanel>
-      <TextBlock FontWeight="SemiBold"
-                 Text="Macro name" />
+      <TextBlock x:Name="PromptNameLabelTextBlock"
+             FontWeight="SemiBold"
+                 Text="" />
       <TextBox x:Name="NameTextBox"
                Margin="0,8,0,0"
                Height="40"
@@ -57,9 +60,10 @@
                BorderThickness="2"
                ToolTip="Enter the macro name here."
                TextChanged="NameTextBox_OnTextChanged" />
-      <TextBlock Margin="0,10,0,0"
+      <TextBlock x:Name="PromptSaveToLabelTextBlock"
+             Margin="0,10,0,0"
                  FontWeight="SemiBold"
-                 Text="Will save to" />
+                 Text="" />
       <TextBlock x:Name="SaveFolderTextBlock"
                  Margin="0,4,0,0"
                  MaxWidth="340"
@@ -74,15 +78,16 @@
       <TextBlock x:Name="ErrorTextBlock"
                  Margin="0,10,0,0"
                  Foreground="#E57373"
-                 Text="Enter a macro name."
+                 Text=""
                  Visibility="Collapsed" />
       </StackPanel>
     </Border>
 
     <StackPanel Grid.Row="3"
                 Margin="0,14,0,0">
-      <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                 Text="Saving again with the same name will overwrite the existing macro."
+      <TextBlock x:Name="PromptOverwriteHintTextBlock"
+             Foreground="{DynamicResource MutedTextBrush}"
+                 Text=""
                  TextWrapping="Wrap" />
     </StackPanel>
 
@@ -93,11 +98,13 @@
       <Button Width="84"
               Margin="0,0,8,0"
               Click="CancelButton_OnClick"
-              Content="Cancel"
+              x:Name="PromptCancelButton"
+              Content=""
               IsCancel="True" />
       <Button Width="84"
               Click="SaveButton_OnClick"
-              Content="Save"
+              x:Name="PromptSaveButton"
+              Content=""
               IsDefault="True" />
     </StackPanel>
       </Grid>

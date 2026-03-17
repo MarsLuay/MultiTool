@@ -1,9 +1,15 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Media3D;
+using System.Windows.Shapes;
+using System.Windows.Threading;
+using AutoClicker.App.Localization;
 using AutoClicker.App.Services;
 using AutoClicker.App.ViewModels;
 using AutoClicker.Core.Results;
@@ -17,16 +23,31 @@ public partial class MainWindow : Window
     private const double MaximumUiScale = 1.8;
     private const double UiScaleStep = 1.08;
     private const double DefaultTitleBarHeight = 34d;
+    private static readonly System.Windows.Media.Brush[] ConfettiBrushes =
+    [
+        System.Windows.Media.Brushes.HotPink,
+        System.Windows.Media.Brushes.Orange,
+        System.Windows.Media.Brushes.Gold,
+        System.Windows.Media.Brushes.DeepSkyBlue,
+        System.Windows.Media.Brushes.LimeGreen,
+        System.Windows.Media.Brushes.Tomato,
+    ];
+    private static readonly TimeSpan ConfettiDuration = TimeSpan.FromSeconds(3);
+
     private readonly MainWindowViewModel viewModel;
     private readonly IHotkeyService hotkeyService;
     private readonly ITrayIconService trayIconService;
     private readonly IAutoClickerController autoClickerController;
+    private readonly Random random = new();
+    private bool allowClickerHotkeyFocusFromClick;
     private bool allowScreenshotHotkeyFocusFromClick;
     private bool allowMacroHotkeyFocusFromClick;
     private bool allowMacroRecordHotkeyFocusFromClick;
     private bool isClosingAfterAutoSave;
     private bool isTransitioningToTray;
     private System.Windows.Point? pendingMaximizedTitleBarDragPoint;
+    private DispatcherTimer? confettiTimer;
+    private DateTime confettiStartedAtUtc;
 
     public MainWindow(
         MainWindowViewModel viewModel,
@@ -48,6 +69,7 @@ public partial class MainWindow : Window
         Closing += MainWindow_OnClosing;
 
         viewModel.HotkeysChanged += ViewModel_HotkeysChanged;
+        viewModel.PropertyChanged += ViewModel_PropertyChanged;
         hotkeyService.HotkeyPressed += HotkeyService_HotkeyPressed;
         autoClickerController.RunningStateChanged += AutoClickerController_RunningStateChanged;
 
@@ -72,8 +94,10 @@ public partial class MainWindow : Window
         if (viewModel.ShouldAutoHideOnStartup)
         {
             HideToTray();
-            viewModel.SetStatus("MultiTool started hidden in the tray.");
+            viewModel.SetStatus(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.TrayStartupHiddenStatus));
         }
+
+        ApplySillyModeState();
     }
 
     private void MainWindow_OnStateChanged(object? sender, EventArgs e)
@@ -84,7 +108,7 @@ public partial class MainWindow : Window
         }
 
         HideToTray();
-        viewModel.SetStatus("MultiTool was minimized to the tray.");
+        viewModel.SetStatus(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.TrayMinimizedStatus));
     }
 
     private void TitleBar_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -169,7 +193,7 @@ public partial class MainWindow : Window
     {
         if (!EnsureHotkeyServiceAttached())
         {
-            viewModel.SetStatus("Hotkeys will register once the main window is ready.");
+            viewModel.SetStatus(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.HotkeysRegisterWhenReadyStatus));
             return;
         }
 
@@ -204,6 +228,11 @@ public partial class MainWindow : Window
 
     private async void HotkeyService_HotkeyPressed(object? sender, HotkeyPressedEventArgs e)
     {
+        if (ShouldSuppressHotkeyExecution())
+        {
+            return;
+        }
+
         var operation = Dispatcher.InvokeAsync(() => viewModel.HandleHotkeyAsync(e.Action, e.Payload));
         await await operation;
     }
@@ -223,6 +252,14 @@ public partial class MainWindow : Window
             });
     }
 
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.IsSillyModeEnabled))
+        {
+            ApplySillyModeState();
+        }
+    }
+
     private async void MainWindow_OnDeactivated(object? sender, EventArgs e)
     {
         if (isClosingAfterAutoSave || !IsLoaded)
@@ -237,6 +274,8 @@ public partial class MainWindow : Window
     {
         if (isClosingAfterAutoSave)
         {
+            StopSillyModeEffects();
+            viewModel.PropertyChanged -= ViewModel_PropertyChanged;
             hotkeyService.Dispose();
             trayIconService.Dispose();
             return;
@@ -287,6 +326,45 @@ public partial class MainWindow : Window
         viewModel.CaptureScreenshotHotkey(key);
         ClearCaptureFocus();
         e.Handled = true;
+    }
+
+    private void ClickerHotkeyTextBox_OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        if (IsModifierKey(key))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        viewModel.CaptureClickerHotkey(key);
+        ClearCaptureFocus();
+        e.Handled = true;
+    }
+
+    private void ClickerHotkeyTextBox_OnPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        ArmCaptureBox(ClickerHotkeyTextBox);
+        allowClickerHotkeyFocusFromClick = true;
+        e.Handled = true;
+
+        if (!ClickerHotkeyTextBox.IsKeyboardFocused)
+        {
+            ClickerHotkeyTextBox.Focus();
+            Keyboard.Focus(ClickerHotkeyTextBox);
+        }
+    }
+
+    private void ClickerHotkeyTextBox_OnGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (allowClickerHotkeyFocusFromClick)
+        {
+            allowClickerHotkeyFocusFromClick = false;
+            return;
+        }
+
+        MainRootGrid.Focus();
+        Keyboard.Focus(MainRootGrid);
     }
 
     private void ScreenshotHotkeyTextBox_OnPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -394,7 +472,8 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (!IsDescendantOf(e.OriginalSource as DependencyObject, ScreenshotHotkeyTextBox)
+        if (!IsDescendantOf(e.OriginalSource as DependencyObject, ClickerHotkeyTextBox)
+            && !IsDescendantOf(e.OriginalSource as DependencyObject, ScreenshotHotkeyTextBox)
             && !IsDescendantOf(e.OriginalSource as DependencyObject, MacroHotkeyTextBox)
             && !IsDescendantOf(e.OriginalSource as DependencyObject, MacroRecordHotkeyTextBox))
         {
@@ -405,8 +484,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control
-            || !viewModel.IsCtrlWheelResizeEnabled)
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
         {
             return;
         }
@@ -424,7 +502,6 @@ public partial class MainWindow : Window
     private void MainWindow_OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control
-            || !viewModel.IsCtrlWheelResizeEnabled
             || ShouldIgnoreZoomShortcut(e.OriginalSource as DependencyObject))
         {
             return;
@@ -451,6 +528,7 @@ public partial class MainWindow : Window
 
     private bool ShouldIgnoreZoomShortcut(DependencyObject? originalSource) =>
         IsDescendantOf(originalSource, CustomKeyTextBox)
+        || IsDescendantOf(originalSource, ClickerHotkeyTextBox)
         || IsDescendantOf(originalSource, ScreenshotHotkeyTextBox)
         || IsDescendantOf(originalSource, MacroHotkeyTextBox)
         || IsDescendantOf(originalSource, MacroRecordHotkeyTextBox);
@@ -475,6 +553,28 @@ public partial class MainWindow : Window
         {
             DisarmCaptureBox(button);
         }
+    }
+
+    private void LatestVideoPlayer_OnMediaOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MediaElement mediaElement)
+        {
+            return;
+        }
+
+        mediaElement.Position = TimeSpan.Zero;
+        mediaElement.Play();
+    }
+
+    private void LatestVideoPlayer_OnMediaEnded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MediaElement mediaElement)
+        {
+            return;
+        }
+
+        mediaElement.Position = TimeSpan.Zero;
+        mediaElement.Play();
     }
 
     private void HideToTray()
@@ -530,13 +630,139 @@ public partial class MainWindow : Window
             : WindowState.Maximized;
     }
 
+    private void ApplySillyModeState()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        if (viewModel.IsSillyModeEnabled)
+        {
+            StartConfetti();
+            return;
+        }
+
+        StopSillyModeEffects();
+    }
+
+    private void StopSillyModeEffects()
+    {
+        if (confettiTimer is not null)
+        {
+            confettiTimer.Stop();
+        }
+
+        SillyConfettiCanvas.Children.Clear();
+        SillyConfettiCanvas.Visibility = Visibility.Collapsed;
+    }
+
+    private void StartConfetti()
+    {
+        if (confettiTimer is not null)
+        {
+            confettiTimer.Stop();
+        }
+
+        SillyConfettiCanvas.Children.Clear();
+        SillyConfettiCanvas.Visibility = Visibility.Visible;
+        confettiStartedAtUtc = DateTime.UtcNow;
+        SpawnConfettiBurst(12, ConfettiDuration);
+
+        confettiTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(120),
+        };
+        confettiTimer.Tick += ConfettiTimer_OnTick;
+        confettiTimer.Start();
+    }
+
+    private void ConfettiTimer_OnTick(object? sender, EventArgs e)
+    {
+        if (!viewModel.IsSillyModeEnabled)
+        {
+            confettiTimer?.Stop();
+            confettiTimer = null;
+            return;
+        }
+
+        var elapsed = DateTime.UtcNow - confettiStartedAtUtc;
+        if (elapsed >= ConfettiDuration)
+        {
+            confettiTimer?.Stop();
+            confettiTimer = null;
+            return;
+        }
+
+        // Spawn denser waves near the middle for a fuller cascade feel.
+        var progress = elapsed.TotalMilliseconds / ConfettiDuration.TotalMilliseconds;
+        var waveSize = progress is >= 0.25 and <= 0.75 ? 10 : 6;
+        SpawnConfettiBurst(waveSize, ConfettiDuration - elapsed + TimeSpan.FromMilliseconds(300));
+    }
+
+    private void SpawnConfettiBurst(int pieceCount, TimeSpan duration)
+    {
+        var width = Math.Max(SillyConfettiCanvas.ActualWidth, MainRootGrid.ActualWidth);
+        var height = Math.Max(SillyConfettiCanvas.ActualHeight, MainRootGrid.ActualHeight);
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        for (var index = 0; index < pieceCount; index++)
+        {
+            var piece = new System.Windows.Shapes.Rectangle
+            {
+                Width = random.Next(6, 14),
+                Height = random.Next(6, 14),
+                RadiusX = 1.5,
+                RadiusY = 1.5,
+                Fill = ConfettiBrushes[random.Next(ConfettiBrushes.Length)],
+                Opacity = 0.95,
+                IsHitTestVisible = false,
+                RenderTransformOrigin = new System.Windows.Point(0.5, 0.5),
+                RenderTransform = new RotateTransform(random.Next(0, 360)),
+            };
+
+            SillyConfettiCanvas.Children.Add(piece);
+
+            var startX = random.NextDouble() * Math.Max(1, width - 20);
+            var endX = Math.Clamp(startX + random.Next(-120, 121), 0, Math.Max(0, width - piece.Width));
+
+            Canvas.SetLeft(piece, startX);
+            Canvas.SetTop(piece, -20);
+
+            var fallAnimation = new DoubleAnimation
+            {
+                From = -20,
+                To = height + 30,
+                Duration = duration,
+            };
+
+            var driftAnimation = new DoubleAnimation
+            {
+                From = startX,
+                To = endX,
+                Duration = duration,
+            };
+
+            fallAnimation.Completed += (_, _) => SillyConfettiCanvas.Children.Remove(piece);
+
+            piece.BeginAnimation(Canvas.TopProperty, fallAnimation);
+            piece.BeginAnimation(Canvas.LeftProperty, driftAnimation);
+        }
+    }
+
+
     private void ClearCaptureFocus()
     {
+        allowClickerHotkeyFocusFromClick = false;
         allowScreenshotHotkeyFocusFromClick = false;
         allowMacroHotkeyFocusFromClick = false;
         allowMacroRecordHotkeyFocusFromClick = false;
 
-        if (ScreenshotHotkeyTextBox.IsKeyboardFocusWithin
+        if (ClickerHotkeyTextBox.IsKeyboardFocusWithin
+            || ScreenshotHotkeyTextBox.IsKeyboardFocusWithin
             || MacroHotkeyTextBox.IsKeyboardFocusWithin
             || MacroRecordHotkeyTextBox.IsKeyboardFocusWithin)
         {
@@ -557,9 +783,27 @@ public partial class MainWindow : Window
 
     private void DisarmCaptureBoxes()
     {
+        DisarmCaptureBox(ClickerHotkeyTextBox);
         DisarmCaptureBox(ScreenshotHotkeyTextBox);
         DisarmCaptureBox(MacroHotkeyTextBox);
         DisarmCaptureBox(MacroRecordHotkeyTextBox);
+    }
+
+    private bool ShouldSuppressHotkeyExecution()
+    {
+        if (viewModel.ShouldSuppressGlobalHotkeys)
+        {
+            return true;
+        }
+
+        return ScreenshotHotkeyTextBox.IsChecked == true
+             || ClickerHotkeyTextBox.IsChecked == true
+               || MacroHotkeyTextBox.IsChecked == true
+               || MacroRecordHotkeyTextBox.IsChecked == true
+             || ClickerHotkeyTextBox.IsKeyboardFocusWithin
+               || ScreenshotHotkeyTextBox.IsKeyboardFocusWithin
+               || MacroHotkeyTextBox.IsKeyboardFocusWithin
+               || MacroRecordHotkeyTextBox.IsKeyboardFocusWithin;
     }
 
     private void RestoreFromMaximizedForDrag(FrameworkElement? titleBar, System.Windows.Point dragStartPoint)
@@ -620,7 +864,11 @@ public partial class MainWindow : Window
                 return true;
             }
 
-            source = VisualTreeHelper.GetParent(source);
+            source = source switch
+            {
+                Visual or Visual3D => VisualTreeHelper.GetParent(source),
+                _ => LogicalTreeHelper.GetParent(source),
+            };
         }
 
         return false;

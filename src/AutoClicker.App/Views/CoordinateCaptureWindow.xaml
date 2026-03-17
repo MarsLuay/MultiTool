@@ -15,9 +15,9 @@
             Background="#CC101820"
             CornerRadius="8">
       <StackPanel>
-        <TextBlock Foreground="White" FontSize="16" FontWeight="SemiBold" Text="Click anywhere to capture coordinates" />
-        <TextBlock Margin="0,8,0,0" Foreground="White" Text="{Binding CoordinateText}" />
-        <TextBlock Margin="0,4,0,0" Foreground="#FFD4D8DD" Text="Press Esc to cancel." />
+        <TextBlock x:Name="CaptureInstructionTextBlock" Foreground="White" FontSize="16" FontWeight="SemiBold" Text="" />
+        <TextBlock x:Name="CoordinateTextBlock" Margin="0,8,0,0" Foreground="White" Text="{Binding CoordinateText}" />
+        <TextBlock x:Name="CaptureCancelHintTextBlock" Margin="0,4,0,0" Foreground="#FFD4D8DD" Text="" />
       </StackPanel>
     </Border>
   </Grid>

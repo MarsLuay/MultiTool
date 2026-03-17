@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Interop;
 using AutoClicker.Core.Enums;
 using AutoClicker.Core.Models;
@@ -28,6 +29,7 @@ public sealed class WindowsHotkeyService : IHotkeyService
     private nint mouseHookHandle;
     private bool disposed;
     private int nextHotkeyId = 9000;
+    private readonly StringBuilder classNameBuffer = new(128);
 
     public WindowsHotkeyService()
     {
@@ -77,9 +79,7 @@ public sealed class WindowsHotkeyService : IHotkeyService
 
         UnregisterAll();
 
-        var requestedModifiers = settings.AllowModifierVariants
-            ? ModifierVariants
-            : [HotkeyModifiers.None];
+        var requestedModifiers = ModifierVariants;
 
         var results = new List<HotkeyRegistrationResult>();
         if (settings.Toggle.InputKind == HotkeyInputKind.MouseButton)
@@ -89,6 +89,11 @@ public sealed class WindowsHotkeyService : IHotkeyService
         else
         {
             results.AddRange(RegisterKeyboardBinding(HotkeyAction.Toggle, settings.Toggle, requestedModifiers));
+        }
+
+        if (HasConfiguredKeyboardBinding(settings.PinWindow))
+        {
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.WindowPinToggle, settings.PinWindow, [HotkeyModifiers.None], actionLabel: "Pin window"));
         }
 
         if (screenshotSettings.CaptureHotkey.InputKind == HotkeyInputKind.Keyboard)
@@ -195,6 +200,12 @@ public sealed class WindowsHotkeyService : IHotkeyService
             return nint.Zero;
         }
 
+        if (ShouldSuppressForExternalTextInput())
+        {
+            handled = true;
+            return nint.Zero;
+        }
+
         handled = true;
         HotkeyPressed?.Invoke(this, new HotkeyPressedEventArgs(action.Action, action.Payload));
         return nint.Zero;
@@ -231,6 +242,11 @@ public sealed class WindowsHotkeyService : IHotkeyService
             var mouseButton = TranslateMouseButton(wParam, lParam);
             if (mouseButton is not null && mouseButtonActions.TryGetValue(mouseButton.Value, out var action))
             {
+                if (ShouldSuppressForExternalTextInput())
+                {
+                    return User32.CallNextHookEx(mouseHookHandle, nCode, wParam, lParam);
+                }
+
                 HotkeyPressed?.Invoke(this, new HotkeyPressedEventArgs(action.Action, action.Payload));
                 return 1;
             }
@@ -261,6 +277,55 @@ public sealed class WindowsHotkeyService : IHotkeyService
             User32.XButton2 => ClickMouseButton.XButton2,
             _ => null,
         };
+    }
+
+    private static bool HasConfiguredKeyboardBinding(HotkeyBinding binding) =>
+        binding.InputKind == HotkeyInputKind.Keyboard && binding.VirtualKey > 0;
+
+    private bool ShouldSuppressForExternalTextInput()
+    {
+        var foregroundWindow = User32.GetForegroundWindow();
+        if (foregroundWindow == nint.Zero || foregroundWindow == handle)
+        {
+            return false;
+        }
+
+        _ = User32.GetWindowThreadProcessId(foregroundWindow, out _);
+        var foregroundThreadId = User32.GetWindowThreadProcessId(foregroundWindow, out _);
+        if (foregroundThreadId == 0)
+        {
+            return false;
+        }
+
+        var guiThreadInfo = new User32.GUITHREADINFO
+        {
+            cbSize = Marshal.SizeOf<User32.GUITHREADINFO>(),
+        };
+
+        if (!User32.GetGUIThreadInfo(foregroundThreadId, ref guiThreadInfo))
+        {
+            return false;
+        }
+
+        if (guiThreadInfo.hwndCaret != nint.Zero && (guiThreadInfo.flags & User32.GuiCaretBlinking) != 0)
+        {
+            return true;
+        }
+
+        var focusedHandle = guiThreadInfo.hwndFocus;
+        if (focusedHandle == nint.Zero)
+        {
+            return false;
+        }
+
+        classNameBuffer.Clear();
+        _ = User32.GetClassName(focusedHandle, classNameBuffer, classNameBuffer.Capacity);
+        var className = classNameBuffer.ToString();
+
+        return className.Equals("Edit", StringComparison.OrdinalIgnoreCase)
+               || className.StartsWith("RichEdit", StringComparison.OrdinalIgnoreCase)
+               || className.Equals("Scintilla", StringComparison.OrdinalIgnoreCase)
+               || className.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase);
     }
 
     private readonly record struct RegisteredHotkeyAction(HotkeyAction Action, string? Payload);

@@ -20,8 +20,8 @@
             Background="#CC101820"
             CornerRadius="8">
       <StackPanel>
-        <TextBlock Foreground="White" FontSize="16" FontWeight="SemiBold" Text="Drag to select an area" />
-        <TextBlock Margin="0,4,0,0" Foreground="#FFD4D8DD" Text="Release to capture. Press Esc to cancel." />
+        <TextBlock x:Name="AreaInstructionTextBlock" Foreground="White" FontSize="16" FontWeight="SemiBold" Text="" />
+        <TextBlock x:Name="AreaInstructionHintTextBlock" Margin="0,4,0,0" Foreground="#FFD4D8DD" Text="" />
       </StackPanel>
     </Border>
   </Canvas>

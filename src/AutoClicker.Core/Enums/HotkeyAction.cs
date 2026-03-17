@@ -8,4 +8,5 @@ public enum HotkeyAction
     MacroPlay = 3,
     MacroRecordToggle = 4,
     MacroAssigned = 5,
+    WindowPinToggle = 6,
 }

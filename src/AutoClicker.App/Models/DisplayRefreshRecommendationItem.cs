@@ -1,4 +1,5 @@
 using AutoClicker.Core.Models;
+using AutoClicker.App.Localization;
 
 namespace AutoClicker.App.Models;
 
@@ -25,11 +26,20 @@ public sealed class DisplayRefreshRecommendationItem
 
     public string FrequencySummaryText =>
         NeedsChange
-            ? $"{Resolution}  —  Currently {CurrentFrequencyText}, can go up to {RecommendedFrequencyText}"
-            : $"{Resolution}  —  Running at {CurrentFrequencyText} (best available)";
+            ? AppLanguageStrings.FormatForCurrentLanguage(
+                AppLanguageKeys.DisplayRefreshFrequencySummaryNeedsChange,
+                Resolution,
+                CurrentFrequencyText,
+                RecommendedFrequencyText)
+            : AppLanguageStrings.FormatForCurrentLanguage(
+                AppLanguageKeys.DisplayRefreshFrequencySummaryBestAvailable,
+                Resolution,
+                CurrentFrequencyText);
 
     public string StatusText => Recommendation.Message;
 
     private static string FormatFrequency(int frequency) =>
-        frequency <= 1 ? "Default" : $"{frequency} Hz";
+        frequency <= 1
+            ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.DisplayRefreshDefaultFrequency)
+            : $"{frequency} Hz";
 }

@@ -1,4 +1,5 @@
 using System.Windows;
+using AutoClicker.App.Localization;
 using AutoClicker.App.Services;
 using AutoClicker.App.ViewModels;
 using AutoClicker.App.Views;
@@ -63,6 +64,8 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IDriverUpdateService, WindowsDriverUpdateService>();
                         services.AddSingleton<IWindows11EeaMediaService, Windows11EeaMediaService>();
                         services.AddSingleton<IWindowsSearchReplacementService, WindowsSearchReplacementService>();
+                        services.AddSingleton<IWindowsSearchReindexService, WindowsSearchReindexService>();
+                        services.AddSingleton<IWindowsTelemetryService, WindowsTelemetryService>();
                         services.AddSingleton<IOneDriveRemovalService, WindowsOneDriveRemovalService>();
                         services.AddSingleton<IEdgeRemovalService, WindowsEdgeRemovalService>();
                         services.AddSingleton<IFnCtrlSwapService, WindowsFnCtrlSwapService>();
@@ -112,8 +115,8 @@ public partial class App : System.Windows.Application
         {
             AppLog.Error(ex, "Startup failed.");
             System.Windows.MessageBox.Show(
-                $"MultiTool failed to start. Check the Logs folder next to the EXE for details.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
-                "MultiTool Startup Error",
+                AppLanguageStrings.FormatForCurrentLanguage(AppLanguageKeys.StartupFailureMessage, Environment.NewLine, ex.Message),
+                AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.StartupErrorTitle),
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
             Shutdown(-1);

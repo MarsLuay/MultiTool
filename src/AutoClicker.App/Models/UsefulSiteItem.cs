@@ -1,5 +1,7 @@
 namespace AutoClicker.App.Models;
 
+using AutoClicker.App.Localization;
+
 public sealed record UsefulSiteItem(
     string DisplayName,
     string Url,
@@ -9,5 +11,7 @@ public sealed record UsefulSiteItem(
         Uri.TryCreate(Url, UriKind.Absolute, out var uri) &&
         uri.Host.EndsWith(".onion", StringComparison.OrdinalIgnoreCase);
 
-    public string BrowserLabel => OpensInTorBrowser ? "Tor Browser" : "Default browser";
+    public string BrowserLabel => OpensInTorBrowser
+        ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.UsefulSiteBrowserLabelTor)
+        : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.UsefulSiteBrowserLabelDefault);
 }

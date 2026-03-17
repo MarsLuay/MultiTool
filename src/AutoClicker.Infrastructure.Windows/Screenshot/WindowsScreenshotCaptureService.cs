@@ -19,6 +19,7 @@ public sealed class WindowsScreenshotCaptureService : IScreenshotCaptureService,
     private readonly SemaphoreSlim videoLock = new(1, 1);
     private Process? videoCaptureProcess;
     private string? currentVideoPath;
+    private string? lastSavedVideoPath;
 
     public bool IsVideoCaptureRunning
     {
@@ -27,6 +28,17 @@ public sealed class WindowsScreenshotCaptureService : IScreenshotCaptureService,
             lock (syncRoot)
             {
                 return videoCaptureProcess is { HasExited: false };
+            }
+        }
+    }
+
+    public string? LastSavedVideoPath
+    {
+        get
+        {
+            lock (syncRoot)
+            {
+                return lastSavedVideoPath;
             }
         }
     }
@@ -158,6 +170,15 @@ public sealed class WindowsScreenshotCaptureService : IScreenshotCaptureService,
 
             var savedPath = currentVideoPath;
             currentVideoPath = null;
+
+            if (!string.IsNullOrWhiteSpace(savedPath) && File.Exists(savedPath))
+            {
+                lock (syncRoot)
+                {
+                    lastSavedVideoPath = savedPath;
+                }
+            }
+
             return savedPath;
         }
         finally

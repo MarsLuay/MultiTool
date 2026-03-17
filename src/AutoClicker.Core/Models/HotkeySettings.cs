@@ -8,16 +8,23 @@ public sealed class HotkeySettings
 
     public const string DefaultToggleDisplayName = "-";
 
+    public const string UnassignedDisplayName = "Not set";
+
     public HotkeyBinding Toggle { get; set; } = CreateDefaultToggleBinding();
+
+    public HotkeyBinding PinWindow { get; set; } = CreateUnassignedBinding();
 
     public bool AllowModifierVariants { get; set; }
 
     public static HotkeyBinding CreateDefaultToggleBinding() => new(DefaultToggleVirtualKey, DefaultToggleDisplayName);
 
+    public static HotkeyBinding CreateUnassignedBinding() => new(0, UnassignedDisplayName);
+
     public HotkeySettings Clone() =>
         new()
         {
             Toggle = Toggle.Clone(),
+            PinWindow = PinWindow.Clone(),
             AllowModifierVariants = AllowModifierVariants,
         };
 }

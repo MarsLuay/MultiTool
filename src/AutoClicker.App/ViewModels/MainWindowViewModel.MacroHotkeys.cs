@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using AutoClicker.App.Localization;
 using AutoClicker.Core.Enums;
 using AutoClicker.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -30,23 +31,29 @@ public partial class MainWindowViewModel
         {
             if (SelectedSavedMacro is null)
             {
-                return "Select a saved macro to set a keyboard shortcut.";
+                return L(AppLanguageKeys.MacroHotkeyNoSelectedSummary);
             }
 
             var assignment = macroHotkeyAssignments.FirstOrDefault(
                 candidate => string.Equals(candidate.MacroFilePath, SelectedSavedMacro.FilePath, StringComparison.OrdinalIgnoreCase));
             if (assignment is null)
             {
-                return $"No keyboard shortcut is set for '{SelectedSavedMacro.DisplayName}' yet.";
+                return F(AppLanguageKeys.MacroHotkeyNotSetForSelectedFormat, SelectedSavedMacro.DisplayName);
             }
 
-            var activeText = assignment.IsEnabled ? "On" : "Off";
-            return $"Shortcut: {assignment.Hotkey.DisplayName}. Action: {FormatPlaybackMode(assignment.PlaybackMode)}. Turned {activeText}.";
+            var activeText = assignment.IsEnabled
+                ? L(AppLanguageKeys.MacroHotkeyOnState)
+                : L(AppLanguageKeys.MacroHotkeyOffState);
+            return F(
+                AppLanguageKeys.MacroHotkeySelectedSummaryFormat,
+                assignment.Hotkey.DisplayName,
+                FormatPlaybackMode(assignment.PlaybackMode),
+                activeText);
         }
     }
 
     [ObservableProperty]
-    private string assignedMacroHotkeysSummary = "No saved macros have keyboard shortcuts yet.";
+    private string assignedMacroHotkeysSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroHotkeyDefaultAssignmentsSummary);
 
     private bool CanManageMacroHotkeys => HasSavedMacros && !IsMacroRecording && !IsMacroPlaying;
 
@@ -58,8 +65,8 @@ public partial class MainWindowViewModel
         RefreshSavedMacrosInternal();
         if (!HasSavedMacros)
         {
-            MacroStatusMessage = "Save a macro first, then set a keyboard shortcut for it.";
-            AddMacroLog("Shortcut setup is unavailable because there are no saved macros yet.");
+            MacroStatusMessage = L(AppLanguageKeys.MacroHotkeyStatusSaveMacroFirst);
+            AddMacroLog(L(AppLanguageKeys.MacroHotkeyLogSetupUnavailableNoSaved));
             return;
         }
 
@@ -68,16 +75,16 @@ public partial class MainWindowViewModel
             macroHotkeyAssignments.Select(assignment => assignment.Clone()).ToArray());
         if (updatedAssignments is null)
         {
-            MacroStatusMessage = "Shortcut changes were canceled.";
-            AddMacroLog("Shortcut changes were canceled.");
+            MacroStatusMessage = L(AppLanguageKeys.MacroHotkeyStatusChangesCanceled);
+            AddMacroLog(L(AppLanguageKeys.MacroHotkeyStatusChangesCanceled));
             return;
         }
 
         var normalizedAssignments = NormalizeMacroHotkeyAssignments(updatedAssignments);
         if (AreMacroHotkeyAssignmentsEquivalent(macroHotkeyAssignments, normalizedAssignments))
         {
-            MacroStatusMessage = "No shortcut changes were made.";
-            AddMacroLog("No shortcut changes were made.");
+            MacroStatusMessage = L(AppLanguageKeys.MacroHotkeyStatusNoChanges);
+            AddMacroLog(L(AppLanguageKeys.MacroHotkeyStatusNoChanges));
             return;
         }
 
@@ -87,7 +94,9 @@ public partial class MainWindowViewModel
         if (!validation.IsValid)
         {
             MacroStatusMessage = validation.Summary;
-            AddMacroLog($"Shortcut changes were rejected: {validation.Summary.Replace(Environment.NewLine, " ")}");
+            AddMacroLog(F(
+                AppLanguageKeys.MacroHotkeyLogChangesRejectedFormat,
+                validation.Summary.Replace(Environment.NewLine, " ")));
             return;
         }
 
@@ -96,16 +105,16 @@ public partial class MainWindowViewModel
                 assignment => !assignment.IsEnabled
                     || !string.Equals(assignment.Id, activeAssignedMacroHotkeyAssignmentId, StringComparison.OrdinalIgnoreCase)))
         {
-            CancelActiveAssignedMacroPlayback("Stopped the active repeating macro because its shortcut changed.");
+            CancelActiveAssignedMacroPlayback(L(AppLanguageKeys.MacroHotkeyStatusStoppedActiveBecauseShortcutChanged));
         }
 
         SetMacroHotkeyAssignments(normalizedAssignments);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
 
-        var saved = await SaveSettingsAsync("Keyboard shortcuts updated.", updateStatusOnSuccess: false);
+        var saved = await SaveSettingsAsync(L(AppLanguageKeys.MacroHotkeyStatusShortcutsUpdated), updateStatusOnSuccess: false);
         MacroStatusMessage = saved
-            ? "Keyboard shortcuts updated."
-            : "The shortcuts were updated on screen, but saving them failed.";
+            ? L(AppLanguageKeys.MacroHotkeyStatusShortcutsUpdated)
+            : L(AppLanguageKeys.MacroHotkeyStatusShortcutsUpdatedButSaveFailed);
         AddMacroLog(MacroStatusMessage);
     }
 
@@ -114,8 +123,8 @@ public partial class MainWindowViewModel
     {
         if (SelectedSavedMacro is null)
         {
-            MacroStatusMessage = "Choose a saved macro first.";
-            AddMacroLog("Set shortcut was requested, but no saved macro is selected.");
+            MacroStatusMessage = L(AppLanguageKeys.MacroHotkeyStatusChooseSavedMacro);
+            AddMacroLog(L(AppLanguageKeys.MacroHotkeyLogSetRequestedNoSaved));
             return;
         }
 
@@ -127,8 +136,8 @@ public partial class MainWindowViewModel
                 .ToArray());
         if (updatedAssignment is null)
         {
-            MacroStatusMessage = $"Shortcut changes for '{SelectedSavedMacro.DisplayName}' were canceled.";
-            AddMacroLog($"Shortcut changes for '{SelectedSavedMacro.DisplayName}' were canceled.");
+            MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusChangesCanceledForFormat, SelectedSavedMacro.DisplayName);
+            AddMacroLog(MacroStatusMessage);
             return;
         }
 
@@ -145,7 +154,10 @@ public partial class MainWindowViewModel
         if (!validation.IsValid)
         {
             MacroStatusMessage = validation.Summary;
-            AddMacroLog($"Shortcut changes for '{SelectedSavedMacro.DisplayName}' were rejected: {validation.Summary.Replace(Environment.NewLine, " ")}");
+            AddMacroLog(F(
+                AppLanguageKeys.MacroHotkeyLogChangesRejectedForFormat,
+                SelectedSavedMacro.DisplayName,
+                validation.Summary.Replace(Environment.NewLine, " ")));
             return;
         }
 
@@ -154,16 +166,16 @@ public partial class MainWindowViewModel
                 assignment => !assignment.IsEnabled
                     || !string.Equals(assignment.Id, activeAssignedMacroHotkeyAssignmentId, StringComparison.OrdinalIgnoreCase)))
         {
-            CancelActiveAssignedMacroPlayback("Stopped the active repeating macro because its shortcut changed.");
+            CancelActiveAssignedMacroPlayback(L(AppLanguageKeys.MacroHotkeyStatusStoppedActiveBecauseShortcutChanged));
         }
 
         SetMacroHotkeyAssignments(normalizedAssignments);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
 
-        var saved = await SaveSettingsAsync("Keyboard shortcut updated.", updateStatusOnSuccess: false);
+        var saved = await SaveSettingsAsync(L(AppLanguageKeys.MacroHotkeyStatusShortcutUpdated), updateStatusOnSuccess: false);
         MacroStatusMessage = saved
-            ? $"Updated the keyboard shortcut for '{SelectedSavedMacro.DisplayName}'."
-            : $"Updated the shortcut for '{SelectedSavedMacro.DisplayName}' on screen, but saving it failed.";
+            ? F(AppLanguageKeys.MacroHotkeyStatusUpdatedForFormat, SelectedSavedMacro.DisplayName)
+            : F(AppLanguageKeys.MacroHotkeyStatusUpdatedButSaveFailedForFormat, SelectedSavedMacro.DisplayName);
         AddMacroLog(MacroStatusMessage);
     }
 
@@ -183,15 +195,15 @@ public partial class MainWindowViewModel
                     && string.Equals(candidate.Id, assignmentId, StringComparison.OrdinalIgnoreCase));
             if (assignment is null)
             {
-                MacroStatusMessage = "That shortcut is no longer set.";
-                AddMacroLog("Ignored a shortcut because its assignment no longer exists.");
+                MacroStatusMessage = L(AppLanguageKeys.MacroHotkeyStatusNoLongerSet);
+                AddMacroLog(L(AppLanguageKeys.MacroHotkeyLogIgnoredAssignmentMissing));
                 return;
             }
 
             if (IsMacroRecording)
             {
-                MacroStatusMessage = "You can't run a saved macro from a shortcut while recording.";
-                AddMacroLog($"Ignored shortcut for '{assignment.MacroDisplayName}' because a recording is active.");
+                MacroStatusMessage = L(AppLanguageKeys.MacroHotkeyStatusRecordingConflict);
+                AddMacroLog(F(AppLanguageKeys.MacroHotkeyLogIgnoredRecordingActiveFormat, assignment.MacroDisplayName));
                 return;
             }
 
@@ -199,20 +211,20 @@ public partial class MainWindowViewModel
             {
                 if (string.Equals(activeAssignedMacroHotkeyAssignmentId, assignment.Id, StringComparison.OrdinalIgnoreCase))
                 {
-                    await StopActiveAssignedMacroPlaybackAsync($"Stopped '{assignment.MacroDisplayName}'.");
+                    await StopActiveAssignedMacroPlaybackAsync(F(AppLanguageKeys.MacroHotkeyStatusStoppedFormat, assignment.MacroDisplayName));
                     return;
                 }
 
                 if (activeAssignedMacroHotkeyAssignmentId is not null)
                 {
                     var previousName = GetAssignedMacroDisplayName(activeAssignedMacroHotkeyAssignmentId);
-                    await StopActiveAssignedMacroPlaybackAsync($"Stopped '{previousName}' and started '{assignment.MacroDisplayName}'.");
+                    await StopActiveAssignedMacroPlaybackAsync(F(AppLanguageKeys.MacroHotkeyStatusStoppedAndStartedFormat, previousName, assignment.MacroDisplayName));
                 }
 
                 if (IsMacroPlaying)
                 {
-                    MacroStatusMessage = "Another macro is already playing.";
-                    AddMacroLog($"Ignored shortcut for '{assignment.MacroDisplayName}' because another macro is already playing.");
+                    MacroStatusMessage = L(AppLanguageKeys.MacroHotkeyStatusAnotherPlaying);
+                    AddMacroLog(F(AppLanguageKeys.MacroHotkeyLogIgnoredAnotherPlayingFormat, assignment.MacroDisplayName));
                     return;
                 }
 
@@ -223,13 +235,13 @@ public partial class MainWindowViewModel
             if (activeAssignedMacroHotkeyAssignmentId is not null)
             {
                 var previousName = GetAssignedMacroDisplayName(activeAssignedMacroHotkeyAssignmentId);
-                await StopActiveAssignedMacroPlaybackAsync($"Stopped '{previousName}' so '{assignment.MacroDisplayName}' could run once.");
+                await StopActiveAssignedMacroPlaybackAsync(F(AppLanguageKeys.MacroHotkeyStatusStoppedToRunOnceFormat, previousName, assignment.MacroDisplayName));
             }
 
             if (IsMacroPlaying)
             {
-                MacroStatusMessage = "Another macro is already playing.";
-                AddMacroLog($"Ignored shortcut for '{assignment.MacroDisplayName}' because another macro is already playing.");
+                MacroStatusMessage = L(AppLanguageKeys.MacroHotkeyStatusAnotherPlaying);
+                AddMacroLog(F(AppLanguageKeys.MacroHotkeyLogIgnoredAnotherPlayingFormat, assignment.MacroDisplayName));
                 return;
             }
 
@@ -252,16 +264,16 @@ public partial class MainWindowViewModel
         try
         {
             IsMacroPlaying = true;
-            MacroStatusMessage = $"Running '{assignment.MacroDisplayName}' once.";
-            AddMacroLog($"Running '{assignment.MacroDisplayName}' once from {assignment.Hotkey.DisplayName}.");
+            MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusRunningOnceFormat, assignment.MacroDisplayName);
+            AddMacroLog(F(AppLanguageKeys.MacroHotkeyLogRunningOnceFromFormat, assignment.MacroDisplayName, assignment.Hotkey.DisplayName));
             await macroService.PlayAsync(macro, 1);
-            MacroStatusMessage = $"Finished '{assignment.MacroDisplayName}'.";
-            AddMacroLog($"Finished '{assignment.MacroDisplayName}'.");
+            MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusFinishedFormat, assignment.MacroDisplayName);
+            AddMacroLog(F(AppLanguageKeys.MacroHotkeyStatusFinishedFormat, assignment.MacroDisplayName));
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Couldn't run '{assignment.MacroDisplayName}': {ex.Message}";
-            AddMacroLog($"Couldn't run '{assignment.MacroDisplayName}': {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusRunFailedFormat, assignment.MacroDisplayName, ex.Message);
+            AddMacroLog(F(AppLanguageKeys.MacroHotkeyStatusRunFailedFormat, assignment.MacroDisplayName, ex.Message));
         }
         finally
         {
@@ -281,8 +293,8 @@ public partial class MainWindowViewModel
         assignedMacroPlaybackCancellationTokenSource = cancellationTokenSource;
         activeAssignedMacroHotkeyAssignmentId = assignment.Id;
         IsMacroPlaying = true;
-        MacroStatusMessage = $"'{assignment.MacroDisplayName}' is running. Press {assignment.Hotkey.DisplayName} again to stop.";
-        AddMacroLog($"Started '{assignment.MacroDisplayName}' from {assignment.Hotkey.DisplayName}. Press the same key again to stop.");
+        MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusToggleRunningFormat, assignment.MacroDisplayName, assignment.Hotkey.DisplayName);
+        AddMacroLog(F(AppLanguageKeys.MacroHotkeyLogStartedFromAndPressAgainFormat, assignment.MacroDisplayName, assignment.Hotkey.DisplayName));
         assignedMacroPlaybackTask = RunAssignedMacroTogglePlaybackAsync(assignment, macro, cancellationTokenSource);
     }
 
@@ -304,8 +316,8 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"'{assignment.MacroDisplayName}' stopped because of an error: {ex.Message}";
-            AddMacroLog($"'{assignment.MacroDisplayName}' stopped because of an error: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusToggleStoppedErrorFormat, assignment.MacroDisplayName, ex.Message);
+            AddMacroLog(F(AppLanguageKeys.MacroHotkeyStatusToggleStoppedErrorFormat, assignment.MacroDisplayName, ex.Message));
         }
         finally
         {
@@ -332,16 +344,16 @@ public partial class MainWindowViewModel
         {
             if (!File.Exists(assignment.MacroFilePath))
             {
-                MacroStatusMessage = $"'{assignment.MacroDisplayName}' couldn't be found anymore.";
-                AddMacroLog($"Shortcut for '{assignment.MacroDisplayName}' points to a missing file: {assignment.MacroFilePath}");
+                MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusMissingFileFormat, assignment.MacroDisplayName);
+                AddMacroLog(F(AppLanguageKeys.MacroHotkeyLogMissingFilePathFormat, assignment.MacroDisplayName, assignment.MacroFilePath));
                 return null;
             }
 
             var macro = await macroFileStore.LoadAsync(assignment.MacroFilePath);
             if (macro.Events.Count == 0)
             {
-                MacroStatusMessage = $"'{assignment.MacroDisplayName}' has nothing recorded to run.";
-                AddMacroLog($"Shortcut for '{assignment.MacroDisplayName}' was skipped because the macro file has no events.");
+                MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusNoEventsFormat, assignment.MacroDisplayName);
+                AddMacroLog(F(AppLanguageKeys.MacroHotkeyLogNoEventsFormat, assignment.MacroDisplayName));
                 return null;
             }
 
@@ -349,8 +361,8 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Couldn't load '{assignment.MacroDisplayName}': {ex.Message}";
-            AddMacroLog($"Couldn't load '{assignment.MacroDisplayName}': {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MacroHotkeyStatusLoadFailedFormat, assignment.MacroDisplayName, ex.Message);
+            AddMacroLog(F(AppLanguageKeys.MacroHotkeyStatusLoadFailedFormat, assignment.MacroDisplayName, ex.Message));
             return null;
         }
     }
@@ -450,7 +462,7 @@ public partial class MainWindowViewModel
             && synchronizedAssignments.All(
                 assignment => !string.Equals(assignment.Id, activeAssignedMacroHotkeyAssignmentId, StringComparison.OrdinalIgnoreCase)))
         {
-            CancelActiveAssignedMacroPlayback("Stopped the active repeating macro because its file is no longer available.");
+            CancelActiveAssignedMacroPlayback(L(AppLanguageKeys.MacroHotkeyStatusStoppedActiveFileUnavailable));
         }
 
         SetMacroHotkeyAssignments(synchronizedAssignments);
@@ -459,7 +471,7 @@ public partial class MainWindowViewModel
         {
             HotkeysChanged?.Invoke(this, EventArgs.Empty);
             ScheduleSettingsAutoSave();
-            AddMacroLog("Updated macro shortcuts after the saved macros list changed.");
+            AddMacroLog(L(AppLanguageKeys.MacroHotkeyLogUpdatedAfterSavedMacrosChanged));
         }
     }
 
@@ -482,26 +494,31 @@ public partial class MainWindowViewModel
         return macroHotkeyAssignments
             .FirstOrDefault(assignment => string.Equals(assignment.Id, assignmentId, StringComparison.OrdinalIgnoreCase))
             ?.MacroDisplayName
-            ?? "the active saved macro";
+            ?? L(AppLanguageKeys.MacroHotkeyActiveFallbackName);
     }
 
     private static string BuildAssignedMacroHotkeysSummary(IReadOnlyCollection<MacroHotkeyAssignment> assignments)
     {
         if (assignments.Count == 0)
         {
-            return "No saved macros have keyboard shortcuts yet.";
+            return AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroHotkeyDefaultAssignmentsSummary);
         }
 
         var enabledCount = assignments.Count(assignment => assignment.IsEnabled);
         var repeatingCount = assignments.Count(assignment => assignment.PlaybackMode == MacroHotkeyPlaybackMode.ToggleRepeat);
-        return $"{assignments.Count} shortcut{(assignments.Count == 1 ? string.Empty : "s")} set. {enabledCount} turned on. {repeatingCount} set to start and stop with the same key.";
+        return AppLanguageStrings.FormatForCurrentLanguage(
+            AppLanguageKeys.MacroHotkeySummaryFormat,
+            assignments.Count,
+            assignments.Count == 1 ? string.Empty : "s",
+            enabledCount,
+            repeatingCount);
     }
 
     private static string FormatPlaybackMode(MacroHotkeyPlaybackMode playbackMode) =>
         playbackMode switch
         {
-            MacroHotkeyPlaybackMode.PlayOnce => "Run once",
-            MacroHotkeyPlaybackMode.ToggleRepeat => "Start and stop with the same key",
+            MacroHotkeyPlaybackMode.PlayOnce => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroHotkeyPlaybackModeRunOnce),
+            MacroHotkeyPlaybackMode.ToggleRepeat => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroHotkeyPlaybackModeToggleRepeat),
             _ => playbackMode.ToString(),
         };
 

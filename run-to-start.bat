@@ -14,20 +14,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 if errorlevel 1 (
     echo Requesting administrator access for MultiTool setup and hardware telemetry...
     powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-        "try { " ^
-        "  $argumentLine = '/c """"' + $env:SELF_PATH + '"" --elevated ' + $env:RELAUNCH_ARGS + '"'; " ^
-        "  $process = Start-Process -FilePath $env:ComSpec -ArgumentList $argumentLine -Verb RunAs -PassThru -Wait; " ^
-        "  exit $process.ExitCode; " ^
-        "} catch { exit 1223 }"
+        "try { $argList = @('/c', '""' + $env:SELF_PATH + '"" --elevated ' + $env:RELAUNCH_ARGS); $process = Start-Process -FilePath $env:ComSpec -ArgumentList $argList -Verb RunAs -PassThru -Wait; exit $process.ExitCode } catch { exit 1223 }"
     exit /b %errorlevel%
 )
 
 set "ROOT_DIR=%~dp0"
 set "REBUILD_SCRIPT=%ROOT_DIR%tools\rebuild-app.bat"
 set "DEPENDENCY_SCRIPT=%ROOT_DIR%tools\install-runtime-dependencies.bat"
+set "REMOVE_STARTUP_SCRIPT=%ROOT_DIR%tools\remove-startup-launcher.bat"
 set "STARTUP_SCRIPT=%ROOT_DIR%tools\install-startup-launcher.bat"
 
-for %%S in ("%REBUILD_SCRIPT%" "%DEPENDENCY_SCRIPT%" "%STARTUP_SCRIPT%") do (
+for %%S in ("%REBUILD_SCRIPT%" "%DEPENDENCY_SCRIPT%" "%REMOVE_STARTUP_SCRIPT%" "%STARTUP_SCRIPT%") do (
     if not exist "%%~fS" (
         echo Required script was not found:
         echo   %%~fS
@@ -39,6 +36,14 @@ echo MultiTool run-to-start setup
 echo Root: %ROOT_DIR%
 echo.
 
+call "%DEPENDENCY_SCRIPT%"
+if errorlevel 1 (
+    echo.
+    echo Runtime dependency install failed. Stopping run-to-start setup.
+    exit /b 1
+)
+
+echo.
 call "%REBUILD_SCRIPT%"
 if errorlevel 1 (
     echo.
@@ -47,10 +52,10 @@ if errorlevel 1 (
 )
 
 echo.
-call "%DEPENDENCY_SCRIPT%"
+call "%REMOVE_STARTUP_SCRIPT%"
 if errorlevel 1 (
     echo.
-    echo Runtime dependency install failed. Stopping run-to-start setup.
+    echo Startup launcher removal failed. Stopping run-to-start setup.
     exit /b 1
 )
 

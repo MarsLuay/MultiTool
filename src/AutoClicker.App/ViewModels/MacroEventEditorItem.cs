@@ -1,5 +1,6 @@
 using AutoClicker.Core.Enums;
 using AutoClicker.Core.Models;
+using AutoClicker.App.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Windows.Input;
 
@@ -40,17 +41,17 @@ public partial class MacroEventEditorItem : ObservableObject
 
     public string MouseButtonDisplayName => FormatMouseButton(MouseButton);
 
-    public string PositionDisplayName => UsesPosition ? $"{X}, {Y}" : "Not used";
+    public string PositionDisplayName => UsesPosition ? $"{X}, {Y}" : L(AppLanguageKeys.MacroEventItemPositionNotUsed);
 
     public string DetailsDisplayName =>
         Kind switch
         {
-            MacroEventKind.MouseMove => $"Move mouse to {X}, {Y}",
-            MacroEventKind.MouseButtonDown => $"{FormatMouseButton(MouseButton)} down at {X}, {Y}",
-            MacroEventKind.MouseButtonUp => $"{FormatMouseButton(MouseButton)} up at {X}, {Y}",
-            MacroEventKind.KeyDown => $"{FormatVirtualKey(VirtualKey)} down",
-            MacroEventKind.KeyUp => $"{FormatVirtualKey(VirtualKey)} up",
-            _ => "Event details unavailable",
+            MacroEventKind.MouseMove => F(AppLanguageKeys.MacroEventItemDetailsMoveMouseFormat, X, Y),
+            MacroEventKind.MouseButtonDown => F(AppLanguageKeys.MacroEventItemDetailsMouseDownFormat, FormatMouseButton(MouseButton), X, Y),
+            MacroEventKind.MouseButtonUp => F(AppLanguageKeys.MacroEventItemDetailsMouseUpFormat, FormatMouseButton(MouseButton), X, Y),
+            MacroEventKind.KeyDown => F(AppLanguageKeys.MacroEventItemDetailsKeyDownFormat, FormatVirtualKey(VirtualKey)),
+            MacroEventKind.KeyUp => F(AppLanguageKeys.MacroEventItemDetailsKeyUpFormat, FormatVirtualKey(VirtualKey)),
+            _ => L(AppLanguageKeys.MacroEventItemDetailsUnavailable),
         };
 
     public MacroEvent ToMacroEvent() =>
@@ -112,23 +113,23 @@ public partial class MacroEventEditorItem : ObservableObject
     private static string FormatKind(MacroEventKind kind) =>
         kind switch
         {
-            MacroEventKind.MouseMove => "Move Mouse",
-            MacroEventKind.MouseButtonDown => "Mouse Down",
-            MacroEventKind.MouseButtonUp => "Mouse Up",
-            MacroEventKind.KeyDown => "Key Down",
-            MacroEventKind.KeyUp => "Key Up",
+            MacroEventKind.MouseMove => L(AppLanguageKeys.EnumMoveMouse),
+            MacroEventKind.MouseButtonDown => L(AppLanguageKeys.EnumMouseDown),
+            MacroEventKind.MouseButtonUp => L(AppLanguageKeys.EnumMouseUp),
+            MacroEventKind.KeyDown => L(AppLanguageKeys.EnumKeyDown),
+            MacroEventKind.KeyUp => L(AppLanguageKeys.EnumKeyUp),
             _ => kind.ToString(),
         };
 
     private static string FormatMouseButton(ClickMouseButton button) =>
         button switch
         {
-            ClickMouseButton.Left => "Left",
-            ClickMouseButton.Right => "Right",
-            ClickMouseButton.Middle => "Middle",
-            ClickMouseButton.XButton1 => "Side 1",
-            ClickMouseButton.XButton2 => "Side 2",
-            ClickMouseButton.Custom => "Custom",
+            ClickMouseButton.Left => L(AppLanguageKeys.EnumLeft),
+            ClickMouseButton.Right => L(AppLanguageKeys.EnumRight),
+            ClickMouseButton.Middle => L(AppLanguageKeys.EnumMiddle),
+            ClickMouseButton.XButton1 => L(AppLanguageKeys.EnumSide1),
+            ClickMouseButton.XButton2 => L(AppLanguageKeys.EnumSide2),
+            ClickMouseButton.Custom => L(AppLanguageKeys.EnumCustom),
             _ => button.ToString(),
         };
 
@@ -136,12 +137,16 @@ public partial class MacroEventEditorItem : ObservableObject
     {
         if (virtualKey <= 0)
         {
-            return "None";
+            return L(AppLanguageKeys.MacroEventItemVirtualKeyNone);
         }
 
         var key = KeyInterop.KeyFromVirtualKey(virtualKey);
         return key == Key.None
-            ? $"VK {virtualKey}"
-            : $"{key} (VK {virtualKey})";
+            ? F(AppLanguageKeys.MacroEventItemVirtualKeyOnlyFormat, virtualKey)
+            : F(AppLanguageKeys.MacroEventItemVirtualKeyNamedFormat, key, virtualKey);
     }
+
+    private static string L(string key) => AppLanguageStrings.GetForCurrentLanguage(key);
+
+    private static string F(string key, params object[] args) => AppLanguageStrings.FormatForCurrentLanguage(key, args);
 }

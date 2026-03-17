@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using AutoClicker.App.Localization;
 
 namespace AutoClicker.App.Views;
 
@@ -11,8 +12,22 @@ public partial class MacroNamePromptWindow : Window
     {
         InitializeComponent();
         this.saveDirectory = saveDirectory;
+
+        Title = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptTitle);
+        PromptHeadingTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptHeading);
+        PromptDescriptionTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptDescription);
+        PromptNameLabelTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptNameLabel);
+        PromptSaveToLabelTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptSaveToLabel);
+        ErrorTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptErrorEnterName);
+        PromptOverwriteHintTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptOverwriteHint);
+        PromptCancelButton.Content = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptCancel);
+        PromptSaveButton.Content = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptSave);
+        NameTextBox.ToolTip = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptNameTooltip);
+
         SaveFolderTextBlock.Text = saveDirectory;
-        NameTextBox.Text = string.IsNullOrWhiteSpace(suggestedName) ? "New Macro" : suggestedName.Trim();
+        NameTextBox.Text = string.IsNullOrWhiteSpace(suggestedName)
+            ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptDefaultName)
+            : suggestedName.Trim();
         UpdateSavePreview();
         Loaded += MacroNamePromptWindow_Loaded;
     }
@@ -54,12 +69,14 @@ public partial class MacroNamePromptWindow : Window
     private void UpdateSavePreview()
     {
         var previewName = SanitizeFileName(NameTextBox.Text);
-        SaveFilePreviewTextBlock.Text = $"{previewName}.acmacro.json";
+        SaveFilePreviewTextBlock.Text = AppLanguageStrings.FormatForCurrentLanguage(AppLanguageKeys.MacroNamePromptSavePreviewFormat, previewName);
     }
 
     private static string SanitizeFileName(string value)
     {
-        var fallback = string.IsNullOrWhiteSpace(value) ? "New Macro" : value.Trim();
+        var fallback = string.IsNullOrWhiteSpace(value)
+            ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroNamePromptDefaultName)
+            : value.Trim();
         var invalid = System.IO.Path.GetInvalidFileNameChars();
         var characters = fallback.Select(character => Array.IndexOf(invalid, character) >= 0 ? '_' : character).ToArray();
         return new string(characters);

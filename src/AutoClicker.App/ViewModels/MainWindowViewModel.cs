@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using AutoClicker.App.Helpers;
+using AutoClicker.App.Localization;
 using AutoClicker.App.Models;
 using AutoClicker.App.Services;
 using AutoClicker.Core.Defaults;
@@ -51,6 +52,8 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IDriverUpdateService driverUpdateService;
     private readonly IWindows11EeaMediaService windows11EeaMediaService;
     private readonly IWindowsSearchReplacementService windowsSearchReplacementService;
+    private readonly IWindowsSearchReindexService windowsSearchReindexService;
+    private readonly IWindowsTelemetryService windowsTelemetryService;
     private readonly IOneDriveRemovalService oneDriveRemovalService;
     private readonly IEdgeRemovalService edgeRemovalService;
     private readonly IFnCtrlSwapService fnCtrlSwapService;
@@ -63,6 +66,8 @@ public partial class MainWindowViewModel : ObservableObject
     private CancellationTokenSource? pendingAutoSaveCancellationTokenSource;
     private bool initialized;
     private bool suppressThemeChange;
+    private DateTime latestScreenshotUpdatedAtUtc;
+    private DateTime latestVideoUpdatedAtUtc;
     private int shortcutHotkeyScanMaxFolderCountCache;
     private Dictionary<string, int> emptyDirectoryScanMaxFolderCountCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -98,6 +103,8 @@ public partial class MainWindowViewModel : ObservableObject
         IDriverUpdateService driverUpdateService,
         IWindows11EeaMediaService windows11EeaMediaService,
         IWindowsSearchReplacementService windowsSearchReplacementService,
+        IWindowsSearchReindexService windowsSearchReindexService,
+        IWindowsTelemetryService windowsTelemetryService,
         IOneDriveRemovalService oneDriveRemovalService,
         IEdgeRemovalService edgeRemovalService,
         IFnCtrlSwapService fnCtrlSwapService,
@@ -135,6 +142,8 @@ public partial class MainWindowViewModel : ObservableObject
         this.driverUpdateService = driverUpdateService;
         this.windows11EeaMediaService = windows11EeaMediaService;
         this.windowsSearchReplacementService = windowsSearchReplacementService;
+        this.windowsSearchReindexService = windowsSearchReindexService;
+        this.windowsTelemetryService = windowsTelemetryService;
         this.oneDriveRemovalService = oneDriveRemovalService;
         this.edgeRemovalService = edgeRemovalService;
         this.fnCtrlSwapService = fnCtrlSwapService;
@@ -156,8 +165,8 @@ public partial class MainWindowViewModel : ObservableObject
 
         MacroLogEntries =
         [
-            "Macro log ready.",
-            "No macro recorded yet.",
+            L(AppLanguageKeys.MainMacroLogReady),
+            L(AppLanguageKeys.MainMacroLogNoRecordedYet),
         ];
 
         SavedMacros = [];
@@ -166,7 +175,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         ActivityLogEntries =
         [
-            $"{DateTime.Now:HH:mm:ss}  Activity log ready.",
+            $"{DateTime.Now:HH:mm:ss}  {L(AppLanguageKeys.MainActivityLogReady)}",
         ];
 
         RefreshAdminModeState();
@@ -197,8 +206,20 @@ public partial class MainWindowViewModel : ObservableObject
     public bool IsRepeatCountEnabled => SelectedRepeatMode == RepeatMode.Count;
 
     public bool HasLatestScreenshot => LatestScreenshotPreview is not null;
+    public bool HasLatestVideo => !string.IsNullOrWhiteSpace(LatestVideoPath);
+    public bool IsLatestMediaVideo => HasLatestVideo && (!HasLatestScreenshot || latestVideoUpdatedAtUtc >= latestScreenshotUpdatedAtUtc);
+    public Uri? LatestVideoSource =>
+        string.IsNullOrWhiteSpace(LatestVideoPath)
+            ? null
+            : new Uri(LatestVideoPath, UriKind.Absolute);
 
     public bool HasSavedMacros => SavedMacros.Count > 0;
+
+    public bool IsWindowPinned => IsTopMost;
+
+    public string ClickerHotkeyDisplay => hotkeySettings.Toggle.DisplayName;
+
+    public string PinWindowHotkeyLabel => GetPinWindowHotkeyDisplay();
 
     public bool ShouldShowAdminModeBanner => !IsRunningAsAdministrator && !isAdminBannerDismissed;
 
@@ -213,17 +234,62 @@ public partial class MainWindowViewModel : ObservableObject
 
     public string AdminModeBannerText =>
         IsRunningAsAdministrator
-            ? "MultiTool is running as administrator."
-            : "Running without administrator access. Open MultiTool as administrator for installs, hardware sensors, drivers, and Windows changes that need elevated access.";
+            ? L(AppLanguageKeys.MainAdminBannerAdmin)
+            : L(AppLanguageKeys.MainAdminBannerNotAdmin);
+
+    public string HotkeyEditToolTip => L(AppLanguageKeys.HotkeyEditToolTip);
+    public string IntervalLabelText => L(AppLanguageKeys.MainIntervalLabel);
+    public string HoursLabelText => L(AppLanguageKeys.MainHoursLabel);
+    public string MinutesLabelText => L(AppLanguageKeys.MainMinutesLabel);
+    public string SecondsLabelText => L(AppLanguageKeys.MainSecondsLabel);
+    public string MillisecondsLabelText => L(AppLanguageKeys.MainMillisecondsLabel);
+    public string RepeatLabelText => L(AppLanguageKeys.MainRepeatLabel);
+    public string PositionLabelText => L(AppLanguageKeys.MainPositionLabel);
+    public string XLabelText => L(AppLanguageKeys.MainXLabel);
+    public string YLabelText => L(AppLanguageKeys.MainYLabel);
+    public string NameLabelText => L(AppLanguageKeys.MainNameLabel);
+    public string PlayCountLabelText => L(AppLanguageKeys.MainPlayCountLabel);
+    public string RecordMouseMovementLabelText => L(AppLanguageKeys.MainRecordMouseMovementLabel);
+    public string PlayHotkeyLabelText => L(AppLanguageKeys.MainPlayHotkeyLabel);
+    public string RecordHotkeyLabelText => L(AppLanguageKeys.MainRecordHotkeyLabel);
+    public string SavedLabelText => L(AppLanguageKeys.MainSavedLabel);
+    public string NoAssignedMacroShortcutsText => L(AppLanguageKeys.MainNoAssignedMacroShortcuts);
+    public string MouseSensitivityVerySlowLabelText => L(AppLanguageKeys.MouseSensitivityVerySlow);
+    public string MouseSensitivitySlowLabelText => L(AppLanguageKeys.MouseSensitivitySlow);
+    public string MouseSensitivityBalancedLabelText => L(AppLanguageKeys.MouseSensitivityBalanced);
+    public string MouseSensitivityFastLabelText => L(AppLanguageKeys.MouseSensitivityFast);
+    public string MouseSensitivityVeryFastLabelText => L(AppLanguageKeys.MouseSensitivityVeryFast);
+    public string InputLabelText => L(AppLanguageKeys.MainInputLabel);
+    public string TypeLabelText => L(AppLanguageKeys.MainTypeLabel);
+    public string CustomInputLabelText => L(AppLanguageKeys.MainCustomInputLabel);
+    public string FolderLabelText => L(AppLanguageKeys.MainFolderLabel);
+    public string PrefixLabelText => L(AppLanguageKeys.MainPrefixLabel);
+    public string ScreenshotHelperText => L(AppLanguageKeys.MainScreenshotHelperText);
+    public string WaitingForKeyText => L(AppLanguageKeys.HotkeySettingsWaitingKey);
+    public string LatestScreenshotPlaceholderText => L(AppLanguageKeys.MainLatestScreenshotPlaceholder);
+    public string CustomKeyOrMousePromptText => L(AppLanguageKeys.MainCustomKeyOrMousePrompt);
+
+    public string ScreenshotHotkeyLabelText => L(AppLanguageKeys.HotkeyLabel);
+
+    public string CaptureButtonText => L(AppLanguageKeys.CaptureButton);
+    public string BrowseButtonText => L(AppLanguageKeys.BrowseButton);
+    public string CaptureScreenButtonText => L(AppLanguageKeys.CaptureScreenButton);
+    public string OpenFolderButtonText => L(AppLanguageKeys.OpenFolderButton);
+    public string NewMacroButtonText => L(AppLanguageKeys.NewMacroButton);
+    public string RecordButtonText => L(AppLanguageKeys.RecordButton);
+    public string StopButtonText => L(AppLanguageKeys.StopButton);
+    public string PlayButtonText => L(AppLanguageKeys.PlayButton);
+    public string SaveButtonText => L(AppLanguageKeys.SaveButton);
+    public string LoadButtonText => L(AppLanguageKeys.LoadButton);
+    public string RefreshButtonText => L(AppLanguageKeys.RefreshButton);
+    public string LoadSelectedButtonText => L(AppLanguageKeys.LoadSelectedButton);
+    public string EditSelectedButtonText => L(AppLanguageKeys.EditSelectedButton);
 
     [ObservableProperty]
-    private string windowTitle = "MultiTool";
+    private string windowTitle = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainWindowTitleDefault);
 
     [ObservableProperty]
-    private string statusMessage = "Loading settings...";
-
-    [ObservableProperty]
-    private string toggleButtonText = "Start Clicking (-)";
+    private string statusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainStatusLoadingSettings);
 
     [ObservableProperty]
     private int hours;
@@ -247,7 +313,7 @@ public partial class MainWindowViewModel : ObservableObject
     private int customKeyVirtualKey;
 
     [ObservableProperty]
-    private string customKeyDisplayText = "Click here and press a key";
+    private string customKeyDisplayText = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainCustomKeyPrompt);
 
     [ObservableProperty]
     private ClickMouseButton customMouseButton = ClickMouseButton.Left;
@@ -280,7 +346,7 @@ public partial class MainWindowViewModel : ObservableObject
     private string screenshotFolderPath = ScreenshotSettings.GetDefaultSaveFolderPath();
 
     [ObservableProperty]
-    private string screenshotFilePrefix = "Screenshot";
+    private string screenshotFilePrefix = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotFilePrefixDefault);
 
     [ObservableProperty]
     private string screenshotHotkeyDisplay = ScreenshotSettings.DefaultCaptureDisplayName;
@@ -289,16 +355,20 @@ public partial class MainWindowViewModel : ObservableObject
     private int screenshotHotkeyVirtualKey = ScreenshotSettings.DefaultCaptureVirtualKey;
 
     [ObservableProperty]
-    private string screenshotStatusMessage = "Ready to capture the desktop.";
+    private string screenshotStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotStatusReady);
 
     [ObservableProperty]
     private ImageSource? latestScreenshotPreview;
 
     [ObservableProperty]
-    private string latestScreenshotCaption = "No screenshot captured yet.";
+    private string latestScreenshotCaption = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainLatestScreenshotNone);
+    [ObservableProperty]
+    private string latestVideoCaption = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainLatestVideoNone);
+    [ObservableProperty]
+    private string? latestVideoPath;
 
     [ObservableProperty]
-    private string macroName = "New Macro";
+    private string macroName = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainMacroNameDefault);
 
     [ObservableProperty]
     private string macroHotkeyDisplay = MacroSettings.DefaultPlayDisplayName;
@@ -328,10 +398,10 @@ public partial class MainWindowViewModel : ObservableObject
     private bool isMacroPlaying;
 
     [ObservableProperty]
-    private string macroSummaryText = "No macro recorded yet.";
+    private string macroSummaryText = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainMacroSummaryNoRecorded);
 
     [ObservableProperty]
-    private string macroStatusMessage = "Ready for recording or playback setup.";
+    private string macroStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainMacroStatusReady);
 
     [ObservableProperty]
     private SavedMacroEntry? selectedSavedMacro;
@@ -346,12 +416,72 @@ public partial class MainWindowViewModel : ObservableObject
     private bool isAutoHideOnStartupEnabled;
 
     [ObservableProperty]
-    private string settingsStatusMessage = "Dark mode will match Windows the first time the app runs.";
+    private bool isSillyModeEnabled;
+
+    [ObservableProperty]
+    private string settingsStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainSettingsStatusInitial);
 
     [ObservableProperty]
     private bool isRunningAsAdministrator;
 
     public bool ShouldAutoHideOnStartup => appLaunchOptions.IsStartupLaunch && IsAutoHideOnStartupEnabled;
+
+    private AppLanguage CurrentLanguage => IsSillyModeEnabled ? AppLanguage.CatSpeak : AppLanguage.English;
+
+    private string L(string key) => AppLanguageStrings.Get(key, CurrentLanguage);
+
+    private string F(string key, params object[] args) => AppLanguageStrings.Format(key, CurrentLanguage, args);
+
+    private static string PluralSuffix(int count) => count == 1 ? string.Empty : "s";
+
+    public string AppearanceHelperText => L(AppLanguageKeys.AppearanceHelperText);
+
+    public string ClickerTabHeaderText => L(AppLanguageKeys.ClickerTabHeader);
+
+    public string ClickerHotkeyLabelText => L(AppLanguageKeys.ClickerHotkeyLabel);
+
+    public string ScreenshotTabHeaderText => L(AppLanguageKeys.ScreenshotTabHeader);
+
+    public string MacroTabHeaderText => L(AppLanguageKeys.MacroTabHeader);
+
+    public string MacroSetShortcutButtonText => L(AppLanguageKeys.MacroSetShortcutButton);
+
+    public string MacroEditShortcutsButtonText => L(AppLanguageKeys.MacroEditShortcutsButton);
+
+    public string ToolsTabHeaderText => L(AppLanguageKeys.ToolsTabHeader);
+
+    public string NicheToolsHeaderText => L(AppLanguageKeys.NicheToolsHeader);
+
+    public string ShortcutKeyExplorerHeaderText => L(AppLanguageKeys.ShortcutKeyExplorerHeader);
+
+    public string ShortcutExplorerButtonText => L(AppLanguageKeys.ShortcutExplorerButton);
+
+    public string InstallerTabHeaderText => L(AppLanguageKeys.InstallerTabHeader);
+
+    public string InstallerPackagePickerDescriptionText => L(AppLanguageKeys.InstallerPackagePickerDescription);
+    public string InstallerSearchLabelText => L(AppLanguageKeys.InstallerSearchLabel);
+
+    public string SettingsTabHeaderText => L(AppLanguageKeys.SettingsTabHeader);
+
+    public string AppearanceHeaderText => L(AppLanguageKeys.AppearanceHeader);
+
+    public string DarkModeLabelText => L(AppLanguageKeys.DarkModeLabel);
+
+    public string AlwaysOnTopLabelText => L(AppLanguageKeys.AlwaysOnTopLabel);
+
+    public string CatTranslatorLabelText => L(AppLanguageKeys.CatTranslatorLabel);
+
+    public string AutoHideOnStartupLabelText => L(AppLanguageKeys.AutoHideOnStartupLabel);
+
+    public string ResetAllSettingsButtonText => L(AppLanguageKeys.ResetAllSettingsButton);
+
+    public string BugCheckingHeaderText => L(AppLanguageKeys.BugCheckingHeader);
+
+    public string BugCheckingHelperText => L(AppLanguageKeys.BugCheckingHelperText);
+
+    public string CopyLogButtonText => L(AppLanguageKeys.CopyLogButton);
+
+    public bool ShouldSuppressGlobalHotkeys => false;
 
     public async Task InitializeAsync()
     {
@@ -363,8 +493,8 @@ public partial class MainWindowViewModel : ObservableObject
         var settings = await settingsStore.LoadAsync();
         ApplySettings(settings);
         RefreshSavedMacrosInternal();
-        StatusMessage = "Ready.";
-        AddActivityLog("Settings loaded.");
+        StatusMessage = L(AppLanguageKeys.MainStatusReady);
+        AddActivityLog(L(AppLanguageKeys.MainActivitySettingsLoaded));
         initialized = true;
         StartInstallerInitialization();
     }
@@ -384,35 +514,15 @@ public partial class MainWindowViewModel : ObservableObject
 
         await autoClickerController.ToggleAsync(BuildClickSettings());
         UpdateRunningState(autoClickerController.IsRunning);
-        StatusMessage = autoClickerController.IsRunning ? "Automation running." : "Automation stopped.";
+        StatusMessage = autoClickerController.IsRunning
+            ? L(AppLanguageKeys.MainStatusClicking)
+            : L(AppLanguageKeys.MainStatusAutomationStopped);
     }
 
     [RelayCommand]
     private async Task SaveAsync()
     {
-        await SaveSettingsAsync("Settings saved.", updateStatusOnSuccess: true);
-    }
-
-    [RelayCommand]
-    private async Task OpenHotkeySettingsAsync()
-    {
-        var updated = hotkeySettingsDialogService.Edit(hotkeySettings.Clone());
-        if (updated is null)
-        {
-            return;
-        }
-
-        var validation = settingsValidator.ValidateHotkeys(updated);
-        if (!validation.IsValid)
-        {
-            StatusMessage = validation.Summary;
-            return;
-        }
-
-        hotkeySettings = updated;
-        RefreshHotkeyLabels();
-        HotkeysChanged?.Invoke(this, EventArgs.Empty);
-        await SaveSettingsAsync("Hotkeys updated.", updateStatusOnSuccess: true);
+        await SaveSettingsAsync(L(AppLanguageKeys.MainStatusSettingsSaved), updateStatusOnSuccess: true);
     }
 
     [RelayCommand]
@@ -427,7 +537,7 @@ public partial class MainWindowViewModel : ObservableObject
         FixedX = point.Value.X;
         FixedY = point.Value.Y;
         SelectedLocationMode = ClickLocationMode.FixedPoint;
-        StatusMessage = $"Captured coordinates: {FixedX}, {FixedY}.";
+        StatusMessage = F(AppLanguageKeys.MainStatusCapturedCoordinatesFormat, FixedX, FixedY);
     }
 
     [RelayCommand]
@@ -453,13 +563,13 @@ public partial class MainWindowViewModel : ObservableObject
                     UseShellExecute = true,
                 });
 
-            ScreenshotStatusMessage = "Opened screenshot folder.";
-            AddScreenshotLog("Opened screenshot folder.");
+            ScreenshotStatusMessage = L(AppLanguageKeys.MainScreenshotStatusOpenedFolder);
+            AddScreenshotLog(ScreenshotStatusMessage);
         }
         catch (Exception ex)
         {
-            ScreenshotStatusMessage = $"Unable to open screenshot folder: {ex.Message}";
-            AddScreenshotLog($"Unable to open screenshot folder: {ex.Message}");
+            ScreenshotStatusMessage = F(AppLanguageKeys.MainScreenshotStatusOpenFolderFailedFormat, ex.Message);
+            AddScreenshotLog(ScreenshotStatusMessage);
         }
     }
 
@@ -469,10 +579,10 @@ public partial class MainWindowViewModel : ObservableObject
     private void NewMacro()
     {
         macroService.Clear();
-        MacroName = "New Macro";
+        MacroName = L(AppLanguageKeys.MainMacroNameDefault);
         HasRecordedMacro = false;
-        MacroSummaryText = "No macro recorded yet.";
-        MacroStatusMessage = "Started a new macro.";
+        MacroSummaryText = L(AppLanguageKeys.MainMacroSummaryNoRecorded);
+        MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusStartedNew);
         AddMacroLog(MacroStatusMessage);
     }
 
@@ -483,21 +593,21 @@ public partial class MainWindowViewModel : ObservableObject
     {
         try
         {
-            var name = string.IsNullOrWhiteSpace(MacroName) ? "New Macro" : MacroName.Trim();
+            var name = string.IsNullOrWhiteSpace(MacroName) ? L(AppLanguageKeys.MainMacroNameDefault) : MacroName.Trim();
             macroService.StartRecording(name, RecordMacroMouseMovement);
             MacroName = name;
             IsMacroRecording = true;
             HasRecordedMacro = false;
-            MacroSummaryText = $"Recording '{name}'...";
+            MacroSummaryText = F(AppLanguageKeys.MainMacroSummaryRecordingFormat, name);
             MacroStatusMessage = RecordMacroMouseMovement
-                ? $"Recording '{name}' with mouse movement. Input inside this window is ignored while it stays focused."
-                : $"Recording '{name}' without mouse movement. Input inside this window is ignored while it stays focused.";
-            AddMacroLog($"Started recording '{name}'.");
+                ? F(AppLanguageKeys.MainMacroStatusRecordingWithMouseFormat, name)
+                : F(AppLanguageKeys.MainMacroStatusRecordingWithoutMouseFormat, name);
+            AddMacroLog(F(AppLanguageKeys.MainMacroLogStartedRecordingFormat, name));
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Unable to start recording: {ex.Message}";
-            AddMacroLog($"Unable to start recording: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusStartRecordingFailedFormat, ex.Message);
+            AddMacroLog(MacroStatusMessage);
         }
     }
 
@@ -511,8 +621,8 @@ public partial class MainWindowViewModel : ObservableObject
 
         if (IsMacroPlaying)
         {
-            MacroStatusMessage = "Cannot start recording while a macro is playing.";
-            AddMacroLog("Record hotkey ignored because a macro is currently playing.");
+            MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusCannotRecordWhilePlaying);
+            AddMacroLog(L(AppLanguageKeys.MainMacroLogRecordHotkeyIgnoredPlaying));
             return;
         }
 
@@ -532,17 +642,17 @@ public partial class MainWindowViewModel : ObservableObject
             HasRecordedMacro = macro.Events.Count > 0;
             MacroName = macro.Name;
             MacroSummaryText = HasRecordedMacro
-                ? $"{macro.Name}: {macro.Events.Count} events over {macro.Duration.TotalMilliseconds:N0} ms"
-                : $"{macro.Name}: no input captured";
+                ? F(AppLanguageKeys.MainMacroSummaryRecordedFormat, macro.Name, macro.Events.Count, macro.Duration.TotalMilliseconds)
+                : F(AppLanguageKeys.MainMacroSummaryNoInputCapturedFormat, macro.Name);
             MacroStatusMessage = HasRecordedMacro
-                ? $"Stopped recording '{macro.Name}'."
-                : $"Stopped recording '{macro.Name}', but no input was captured.";
-            AddMacroLog($"Stopped recording '{macro.Name}' with {macro.Events.Count} events.");
+                ? F(AppLanguageKeys.MainMacroStatusStoppedRecordingFormat, macro.Name)
+                : F(AppLanguageKeys.MainMacroStatusStoppedRecordingNoInputFormat, macro.Name);
+            AddMacroLog(F(AppLanguageKeys.MainMacroLogStoppedRecordingFormat, macro.Name, macro.Events.Count));
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Unable to stop recording: {ex.Message}";
-            AddMacroLog($"Unable to stop recording: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusStopRecordingFailedFormat, ex.Message);
+            AddMacroLog(MacroStatusMessage);
         }
     }
 
@@ -556,26 +666,26 @@ public partial class MainWindowViewModel : ObservableObject
             var macro = macroService.CurrentMacro;
             if (macro is null || macro.Events.Count == 0)
             {
-                MacroStatusMessage = "There is no recorded macro to play.";
-                AddMacroLog("Playback requested, but no recorded macro is available.");
+                MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusNoRecordedToPlay);
+                AddMacroLog(L(AppLanguageKeys.MainMacroLogPlaybackRequestedNoMacro));
                 return;
             }
 
             var count = Math.Max(1, MacroPlaybackCount);
             MacroPlaybackCount = count;
             IsMacroPlaying = true;
-            MacroStatusMessage = $"Playing '{macro.Name}' x{count}.";
-            AddMacroLog($"Playing '{macro.Name}' x{count}.");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusPlayingFormat, macro.Name, count);
+            AddMacroLog(MacroStatusMessage);
 
             await macroService.PlayAsync(count);
 
-            MacroStatusMessage = $"Finished playing '{macro.Name}'.";
-            AddMacroLog($"Finished playing '{macro.Name}'.");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusFinishedPlayingFormat, macro.Name);
+            AddMacroLog(MacroStatusMessage);
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Unable to play macro: {ex.Message}";
-            AddMacroLog($"Unable to play macro: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusPlayFailedFormat, ex.Message);
+            AddMacroLog(MacroStatusMessage);
         }
         finally
         {
@@ -593,8 +703,8 @@ public partial class MainWindowViewModel : ObservableObject
             var macro = macroService.CurrentMacro;
             if (macro is null)
             {
-                MacroStatusMessage = "There is no recorded macro to save.";
-                AddMacroLog("Save requested, but no macro is available.");
+                MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusNoRecordedToSave);
+                AddMacroLog(L(AppLanguageKeys.MainMacroLogSaveRequestedNoMacro));
                 return;
             }
 
@@ -602,8 +712,8 @@ public partial class MainWindowViewModel : ObservableObject
             var chosenName = macroNamePromptService.PromptForName(suggestedName);
             if (string.IsNullOrWhiteSpace(chosenName))
             {
-                MacroStatusMessage = "Save canceled.";
-                AddMacroLog("Save canceled.");
+                MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusSaveCanceled);
+                AddMacroLog(MacroStatusMessage);
                 return;
             }
 
@@ -613,13 +723,13 @@ public partial class MainWindowViewModel : ObservableObject
             macroService.SetCurrentMacro(macroToSave);
             ApplyLoadedMacro(macroToSave);
             RefreshSavedMacrosInternal(filePath);
-            MacroStatusMessage = $"Saved macro to Macros\\{Path.GetFileName(filePath)}.";
-            AddMacroLog($"Saved macro to {filePath}.");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusSavedToMacrosFormat, Path.GetFileName(filePath));
+            AddMacroLog(F(AppLanguageKeys.MainMacroLogSavedToPathFormat, filePath));
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Unable to save macro: {ex.Message}";
-            AddMacroLog($"Unable to save macro: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusSaveFailedFormat, ex.Message);
+            AddMacroLog(MacroStatusMessage);
         }
     }
 
@@ -633,21 +743,21 @@ public partial class MainWindowViewModel : ObservableObject
             var filePath = macroFileDialogService.PickOpenPath();
             if (string.IsNullOrWhiteSpace(filePath))
             {
-                MacroStatusMessage = "Load canceled.";
-                AddMacroLog("Load canceled.");
+                MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusLoadCanceled);
+                AddMacroLog(MacroStatusMessage);
                 return;
             }
 
             var macro = await macroFileStore.LoadAsync(filePath);
             macroService.SetCurrentMacro(macro);
             ApplyLoadedMacro(macro);
-            MacroStatusMessage = $"Loaded macro from {Path.GetFileName(filePath)}.";
-            AddMacroLog($"Loaded macro from {filePath}.");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusLoadedFromFileFormat, Path.GetFileName(filePath));
+            AddMacroLog(F(AppLanguageKeys.MainMacroLogLoadedFromPathFormat, filePath));
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Unable to load macro: {ex.Message}";
-            AddMacroLog($"Unable to load macro: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusLoadFailedFormat, ex.Message);
+            AddMacroLog(MacroStatusMessage);
         }
     }
 
@@ -658,8 +768,8 @@ public partial class MainWindowViewModel : ObservableObject
     {
         if (SelectedSavedMacro is null)
         {
-            MacroStatusMessage = "Choose a saved macro first.";
-            AddMacroLog("Load selected requested, but no saved macro is selected.");
+            MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusChooseSavedFirst);
+            AddMacroLog(L(AppLanguageKeys.MainMacroLogLoadSelectedNoSaved));
             return;
         }
 
@@ -668,13 +778,13 @@ public partial class MainWindowViewModel : ObservableObject
             var macro = await macroFileStore.LoadAsync(SelectedSavedMacro.FilePath);
             macroService.SetCurrentMacro(macro);
             ApplyLoadedMacro(macro);
-            MacroStatusMessage = $"Loaded saved macro '{SelectedSavedMacro.DisplayName}'.";
-            AddMacroLog($"Loaded saved macro from {SelectedSavedMacro.FilePath}.");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusLoadedSavedFormat, SelectedSavedMacro.DisplayName);
+            AddMacroLog(F(AppLanguageKeys.MainMacroLogLoadedSavedPathFormat, SelectedSavedMacro.FilePath));
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Unable to load saved macro: {ex.Message}";
-            AddMacroLog($"Unable to load saved macro: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusLoadSavedFailedFormat, ex.Message);
+            AddMacroLog(MacroStatusMessage);
         }
     }
 
@@ -685,8 +795,8 @@ public partial class MainWindowViewModel : ObservableObject
     {
         if (SelectedSavedMacro is null)
         {
-            MacroStatusMessage = "Choose a saved macro first.";
-            AddMacroLog("Edit requested, but no saved macro is selected.");
+            MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusChooseSavedFirst);
+            AddMacroLog(L(AppLanguageKeys.MainMacroLogEditRequestedNoSaved));
             return;
         }
 
@@ -697,8 +807,8 @@ public partial class MainWindowViewModel : ObservableObject
             var editedMacro = macroEditorDialogService.Edit(macro);
             if (editedMacro is null)
             {
-                MacroStatusMessage = "Edit canceled.";
-                AddMacroLog("Edit canceled.");
+                MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusEditCanceled);
+                AddMacroLog(MacroStatusMessage);
                 return;
             }
 
@@ -714,13 +824,13 @@ public partial class MainWindowViewModel : ObservableObject
             ApplyLoadedMacro(editedMacro);
             UpdateAssignedMacroHotkeyPath(originalPath, updatedPath, editedMacro.Name);
             RefreshSavedMacrosInternal(updatedPath);
-            MacroStatusMessage = $"Saved edits to '{editedMacro.Name}'.";
-            AddMacroLog($"Saved edited macro to {updatedPath}.");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusSavedEditsFormat, editedMacro.Name);
+            AddMacroLog(F(AppLanguageKeys.MainMacroLogSavedEditedToPathFormat, updatedPath));
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Unable to edit saved macro: {ex.Message}";
-            AddMacroLog($"Unable to edit saved macro: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusEditSavedFailedFormat, ex.Message);
+            AddMacroLog(MacroStatusMessage);
         }
     }
 
@@ -729,8 +839,8 @@ public partial class MainWindowViewModel : ObservableObject
     {
         RefreshSavedMacrosInternal();
         MacroStatusMessage = HasSavedMacros
-            ? $"Found {SavedMacros.Count} saved macro{(SavedMacros.Count == 1 ? string.Empty : "s")}."
-            : "No saved macros found in the default macros folder.";
+            ? F(AppLanguageKeys.MainMacroStatusFoundSavedFormat, SavedMacros.Count, PluralSuffix(SavedMacros.Count))
+            : L(AppLanguageKeys.MainMacroStatusNoSavedInDefaultFolder);
         AddMacroLog(MacroStatusMessage);
     }
 
@@ -747,13 +857,13 @@ public partial class MainWindowViewModel : ObservableObject
                     UseShellExecute = true,
                 });
 
-            MacroStatusMessage = "Opened the saved macros folder.";
-            AddMacroLog("Opened the saved macros folder.");
+            MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusOpenedSavedFolder);
+            AddMacroLog(MacroStatusMessage);
         }
         catch (Exception ex)
         {
-            MacroStatusMessage = $"Unable to open the saved macros folder: {ex.Message}";
-            AddMacroLog($"Unable to open the saved macros folder: {ex.Message}");
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusOpenSavedFolderFailedFormat, ex.Message);
+            AddMacroLog(MacroStatusMessage);
         }
     }
 
@@ -761,8 +871,8 @@ public partial class MainWindowViewModel : ObservableObject
     private void ClearMacroLog()
     {
         MacroLogEntries.Clear();
-        AddMacroLog("Macro log cleared.");
-        MacroStatusMessage = "Macro log cleared.";
+        AddMacroLog(L(AppLanguageKeys.MainMacroStatusLogCleared));
+        MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusLogCleared);
     }
 
     public HotkeySettings CurrentHotkeys => hotkeySettings.Clone();
@@ -771,7 +881,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     public MacroSettings CurrentMacroSettings => BuildMacroSettings();
 
-    public Task<bool> AutoSaveAsync() => SaveSettingsAsync("Settings auto-saved.", updateStatusOnSuccess: false, addActivityLogOnSuccess: false);
+    public Task<bool> AutoSaveAsync() => SaveSettingsAsync(L(AppLanguageKeys.MainStatusSettingsAutoSaved), updateStatusOnSuccess: false, addActivityLogOnSuccess: false);
 
     public void CaptureCustomKey(Key key)
     {
@@ -782,7 +892,7 @@ public partial class MainWindowViewModel : ObservableObject
         CustomKeyVirtualKey = virtualKey;
         CustomMouseButton = ClickMouseButton.Left;
         CustomKeyDisplayText = displayName;
-        StatusMessage = $"Custom key set to {displayName}.";
+        StatusMessage = F(AppLanguageKeys.MainStatusCustomKeySetFormat, displayName);
     }
 
     public void CaptureScreenshotHotkey(Key key)
@@ -796,9 +906,27 @@ public partial class MainWindowViewModel : ObservableObject
 
         ScreenshotHotkeyVirtualKey = virtualKey;
         ScreenshotHotkeyDisplay = HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey);
-        ScreenshotStatusMessage = $"Screenshot hotkey set to {ScreenshotHotkeyDisplay}.";
-        AddScreenshotLog($"Screenshot hotkey set to {ScreenshotHotkeyDisplay}.");
+        ScreenshotStatusMessage = F(AppLanguageKeys.MainScreenshotStatusHotkeySetFormat, ScreenshotHotkeyDisplay);
+        AddScreenshotLog(ScreenshotStatusMessage);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void CaptureClickerHotkey(Key key)
+    {
+        var capturedKey = key == Key.System ? Key.None : key;
+        var virtualKey = HotkeyDisplayNameFormatter.ToVirtualKey(capturedKey);
+        if (virtualKey <= 0)
+        {
+            return;
+        }
+
+        hotkeySettings.Toggle = new HotkeyBinding(
+            virtualKey,
+            HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey));
+        OnPropertyChanged(nameof(ClickerHotkeyDisplay));
+        HotkeysChanged?.Invoke(this, EventArgs.Empty);
+        ScheduleSettingsAutoSave();
+        StatusMessage = F(AppLanguageKeys.MainStatusClickerHotkeySetFormat, ClickerHotkeyDisplay);
     }
 
     public void CaptureMacroHotkey(Key key)
@@ -812,8 +940,8 @@ public partial class MainWindowViewModel : ObservableObject
 
         MacroHotkeyVirtualKey = virtualKey;
         MacroHotkeyDisplay = HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey);
-        MacroStatusMessage = $"Macro hotkey set to {MacroHotkeyDisplay}.";
-        AddMacroLog($"Macro hotkey set to {MacroHotkeyDisplay}.");
+        MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusHotkeySetFormat, MacroHotkeyDisplay);
+        AddMacroLog(MacroStatusMessage);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -828,8 +956,8 @@ public partial class MainWindowViewModel : ObservableObject
 
         MacroRecordHotkeyVirtualKey = virtualKey;
         MacroRecordHotkeyDisplay = HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey);
-        MacroStatusMessage = $"Macro record hotkey set to {MacroRecordHotkeyDisplay}.";
-        AddMacroLog($"Macro record hotkey set to {MacroRecordHotkeyDisplay}.");
+        MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusRecordHotkeySetFormat, MacroRecordHotkeyDisplay);
+        AddMacroLog(MacroStatusMessage);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -839,7 +967,7 @@ public partial class MainWindowViewModel : ObservableObject
         CustomKeyVirtualKey = 0;
         CustomMouseButton = mouseButton;
         CustomKeyDisplayText = FormatMouseButtonDisplay(mouseButton);
-        StatusMessage = $"Custom input set to {CustomKeyDisplayText}.";
+        StatusMessage = F(AppLanguageKeys.MainStatusCustomInputSetFormat, CustomKeyDisplayText);
     }
 
     public void UpdateRunningState(bool running)
@@ -864,6 +992,13 @@ public partial class MainWindowViewModel : ObservableObject
             case HotkeyAction.ScreenshotCapture:
                 if (await screenshotOptionsDialogService.TryHandleCaptureHotkeyAsync())
                 {
+                    var videoWasSaved = RefreshLatestVideoFromCaptureService();
+                    if (videoWasSaved)
+                    {
+                        ScreenshotStatusMessage = F(AppLanguageKeys.MainScreenshotStatusSavedVideoFormat, LatestVideoCaption);
+                        AddScreenshotLog(ScreenshotStatusMessage);
+                    }
+
                     return;
                 }
 
@@ -880,6 +1015,9 @@ public partial class MainWindowViewModel : ObservableObject
                 return;
             case HotkeyAction.MacroAssigned:
                 await HandleAssignedMacroHotkeyAsync(payload);
+                return;
+            case HotkeyAction.WindowPinToggle:
+                ToggleWindowPinFromHotkey();
                 return;
             default:
                 throw new NotSupportedException($"Hotkey action {action} is not supported.");
@@ -922,11 +1060,36 @@ public partial class MainWindowViewModel : ObservableObject
             StringComparer.OrdinalIgnoreCase);
         suppressThemeChange = true;
         IsDarkMode = settings.Ui.IsDarkMode ?? themeService.GetSystemPrefersDarkMode();
-        IsCtrlWheelResizeEnabled = settings.Ui.EnableCtrlWheelResize;
+        IsCtrlWheelResizeEnabled = true;
         IsAutoHideOnStartupEnabled = settings.Ui.AutoHideOnStartup;
+        IsSillyModeEnabled = settings.Ui.SillyMode;
+        OnPropertyChanged(nameof(AppearanceHelperText));
+        OnPropertyChanged(nameof(ClickerTabHeaderText));
+        OnPropertyChanged(nameof(ClickerHotkeyLabelText));
+        OnPropertyChanged(nameof(ScreenshotTabHeaderText));
+        OnPropertyChanged(nameof(MacroTabHeaderText));
+        OnPropertyChanged(nameof(MacroSetShortcutButtonText));
+        OnPropertyChanged(nameof(MacroEditShortcutsButtonText));
+        OnPropertyChanged(nameof(ToolsTabHeaderText));
+        OnPropertyChanged(nameof(NicheToolsHeaderText));
+        OnPropertyChanged(nameof(ShortcutKeyExplorerHeaderText));
+        OnPropertyChanged(nameof(ShortcutExplorerButtonText));
+        OnPropertyChanged(nameof(InstallerTabHeaderText));
+        OnPropertyChanged(nameof(SettingsTabHeaderText));
+        OnPropertyChanged(nameof(AppearanceHeaderText));
+        OnPropertyChanged(nameof(DarkModeLabelText));
+        OnPropertyChanged(nameof(AlwaysOnTopLabelText));
+        OnPropertyChanged(nameof(CatTranslatorLabelText));
+        OnPropertyChanged(nameof(AutoHideOnStartupLabelText));
+        OnPropertyChanged(nameof(ResetAllSettingsButtonText));
+        OnPropertyChanged(nameof(BugCheckingHeaderText));
+        OnPropertyChanged(nameof(BugCheckingHelperText));
+        OnPropertyChanged(nameof(CopyLogButtonText));
         suppressThemeChange = false;
         themeService.ApplyTheme(IsDarkMode);
-        SettingsStatusMessage = IsDarkMode ? "Dark mode is on." : "Dark mode is off.";
+        SettingsStatusMessage = IsDarkMode
+            ? L(AppLanguageKeys.MainSettingsStatusDarkModeOn)
+            : L(AppLanguageKeys.MainSettingsStatusDarkModeOff);
         RefreshHotkeyLabels();
     }
 
@@ -963,8 +1126,9 @@ public partial class MainWindowViewModel : ObservableObject
             Ui = new UiSettings
             {
                 IsDarkMode = IsDarkMode,
-                EnableCtrlWheelResize = IsCtrlWheelResizeEnabled,
+                EnableCtrlWheelResize = true,
                 AutoHideOnStartup = IsAutoHideOnStartupEnabled,
+                SillyMode = IsSillyModeEnabled,
             },
         };
 
@@ -1002,9 +1166,14 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void RefreshHotkeyLabels()
     {
-        var actionText = IsRunning ? "Stop Clicking" : "Start Clicking";
-        ToggleButtonText = $"{actionText} ({hotkeySettings.Toggle.DisplayName})";
+        OnPropertyChanged(nameof(ClickerHotkeyDisplay));
+        OnPropertyChanged(nameof(PinWindowHotkeyLabel));
     }
+
+    private string GetPinWindowHotkeyDisplay() =>
+        hotkeySettings.PinWindow.VirtualKey > 0 && !string.IsNullOrWhiteSpace(hotkeySettings.PinWindow.DisplayName)
+            ? hotkeySettings.PinWindow.DisplayName
+            : HotkeySettings.UnassignedDisplayName;
 
     partial void OnSelectedMouseButtonChanged(ClickMouseButton value)
     {
@@ -1087,6 +1256,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     partial void OnIsTopMostChanged(bool value)
     {
+        OnPropertyChanged(nameof(IsWindowPinned));
         ScheduleSettingsAutoSave();
     }
 
@@ -1147,6 +1317,14 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnLatestScreenshotPreviewChanged(ImageSource? value)
     {
         OnPropertyChanged(nameof(HasLatestScreenshot));
+        OnPropertyChanged(nameof(IsLatestMediaVideo));
+    }
+
+    partial void OnLatestVideoPathChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasLatestVideo));
+        OnPropertyChanged(nameof(IsLatestMediaVideo));
+        OnPropertyChanged(nameof(LatestVideoSource));
     }
 
     partial void OnIsMacroRecordingChanged(bool value)
@@ -1172,12 +1350,16 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         themeService.ApplyTheme(value);
-        SettingsStatusMessage = value ? "Dark mode is on." : "Dark mode is off.";
+        SettingsStatusMessage = value
+            ? L(AppLanguageKeys.MainSettingsStatusDarkModeOn)
+            : L(AppLanguageKeys.MainSettingsStatusDarkModeOff);
         ScheduleSettingsAutoSave();
 
         if (initialized)
         {
-            AddActivityLog(value ? "Dark mode enabled." : "Dark mode disabled.");
+            AddActivityLog(value
+                ? L(AppLanguageKeys.MainActivityDarkModeEnabled)
+                : L(AppLanguageKeys.MainActivityDarkModeDisabled));
         }
     }
 
@@ -1189,15 +1371,15 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         SettingsStatusMessage = value
-            ? "Ctrl + mouse wheel UI zoom is on."
-            : "Ctrl + mouse wheel UI zoom is off.";
+            ? L(AppLanguageKeys.MainSettingsStatusCtrlWheelZoomOn)
+            : L(AppLanguageKeys.MainSettingsStatusCtrlWheelZoomOff);
         ScheduleSettingsAutoSave();
 
         if (initialized)
         {
             AddActivityLog(value
-                ? "Enabled Ctrl + mouse wheel UI zoom."
-                : "Disabled Ctrl + mouse wheel UI zoom.");
+                ? L(AppLanguageKeys.MainActivityCtrlWheelZoomEnabled)
+                : L(AppLanguageKeys.MainActivityCtrlWheelZoomDisabled));
         }
     }
 
@@ -1209,15 +1391,60 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         SettingsStatusMessage = value
-            ? "Auto-hide on startup is on."
-            : "Auto-hide on startup is off.";
+            ? L(AppLanguageKeys.MainSettingsStatusAutoHideOn)
+            : L(AppLanguageKeys.MainSettingsStatusAutoHideOff);
         ScheduleSettingsAutoSave();
 
         if (initialized)
         {
             AddActivityLog(value
-                ? "Enabled auto-hide on startup."
-                : "Disabled auto-hide on startup.");
+                ? L(AppLanguageKeys.MainActivityAutoHideEnabled)
+                : L(AppLanguageKeys.MainActivityAutoHideDisabled));
+        }
+    }
+
+    partial void OnIsSillyModeEnabledChanged(bool value)
+    {
+        if (suppressThemeChange)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(AppearanceHelperText));
+        OnPropertyChanged(nameof(ClickerTabHeaderText));
+        OnPropertyChanged(nameof(ClickerHotkeyLabelText));
+        OnPropertyChanged(nameof(ScreenshotTabHeaderText));
+        OnPropertyChanged(nameof(MacroTabHeaderText));
+        OnPropertyChanged(nameof(MacroSetShortcutButtonText));
+        OnPropertyChanged(nameof(MacroEditShortcutsButtonText));
+        OnPropertyChanged(nameof(ToolsTabHeaderText));
+        OnPropertyChanged(nameof(NicheToolsHeaderText));
+        OnPropertyChanged(nameof(ShortcutKeyExplorerHeaderText));
+        OnPropertyChanged(nameof(ShortcutExplorerButtonText));
+        OnPropertyChanged(nameof(InstallerTabHeaderText));
+        OnPropertyChanged(nameof(SettingsTabHeaderText));
+        OnPropertyChanged(nameof(AppearanceHeaderText));
+        OnPropertyChanged(nameof(DarkModeLabelText));
+        OnPropertyChanged(nameof(AlwaysOnTopLabelText));
+        OnPropertyChanged(nameof(CatTranslatorLabelText));
+        OnPropertyChanged(nameof(AutoHideOnStartupLabelText));
+        OnPropertyChanged(nameof(ResetAllSettingsButtonText));
+        OnPropertyChanged(nameof(BugCheckingHeaderText));
+        OnPropertyChanged(nameof(BugCheckingHelperText));
+        OnPropertyChanged(nameof(CopyLogButtonText));
+
+        SettingsStatusMessage = value
+            ? L(AppLanguageKeys.MainSettingsStatusCatTranslatorOn)
+            : (IsDarkMode
+                ? L(AppLanguageKeys.MainSettingsStatusDarkModeOn)
+                : L(AppLanguageKeys.MainSettingsStatusDarkModeOff));
+        ScheduleSettingsAutoSave();
+
+        if (initialized)
+        {
+            AddActivityLog(value
+                ? L(AppLanguageKeys.MainActivityCatTranslatorEnabled)
+                : L(AppLanguageKeys.MainActivityCatTranslatorDisabled));
         }
     }
 
@@ -1250,16 +1477,16 @@ public partial class MainWindowViewModel : ObservableObject
     private static string GetCustomKeyDisplayText(ClickSettings settings) =>
         !string.IsNullOrWhiteSpace(settings.CustomKeyDisplayName)
             ? settings.CustomKeyDisplayName
-            : "Click here and press a key or mouse button";
+            : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainCustomKeyOrMousePrompt);
 
     private static string FormatMouseButtonDisplay(ClickMouseButton mouseButton) =>
         mouseButton switch
         {
-            ClickMouseButton.Left => "Left Mouse Button",
-            ClickMouseButton.Right => "Right Mouse Button",
-            ClickMouseButton.Middle => "Middle Mouse Button",
-            ClickMouseButton.XButton1 => "Mouse Button 4",
-            ClickMouseButton.XButton2 => "Mouse Button 5",
+            ClickMouseButton.Left => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainMouseButtonLeft),
+            ClickMouseButton.Right => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainMouseButtonRight),
+            ClickMouseButton.Middle => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainMouseButtonMiddle),
+            ClickMouseButton.XButton1 => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainMouseButton4),
+            ClickMouseButton.XButton2 => AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainMouseButton5),
             _ => mouseButton.ToString(),
         };
 
@@ -1290,19 +1517,19 @@ public partial class MainWindowViewModel : ObservableObject
         RefreshWindowTitle();
         if (!IsRunningAsAdministrator)
         {
-            AddActivityLog("Running without administrator access. Open MultiTool as administrator for full access to elevated features.");
+            AddActivityLog(L(AppLanguageKeys.MainAdminActivityNotAdmin));
         }
     }
 
     private void RefreshWindowTitle()
     {
         WindowTitle = IsRunning
-            ? "MultiTool - Running..."
-            : "MultiTool";
+            ? L(AppLanguageKeys.MainWindowTitleRunning)
+            : L(AppLanguageKeys.MainWindowTitleDefault);
 
         if (!IsRunningAsAdministrator)
         {
-            WindowTitle += " (Not Admin)";
+            WindowTitle += L(AppLanguageKeys.MainWindowTitleNotAdminSuffix);
         }
     }
 
@@ -1316,6 +1543,34 @@ public partial class MainWindowViewModel : ObservableObject
     {
         LatestScreenshotPreview = LoadPreview(filePath);
         LatestScreenshotCaption = fileName;
+        latestScreenshotUpdatedAtUtc = File.GetLastWriteTimeUtc(filePath);
+        OnPropertyChanged(nameof(IsLatestMediaVideo));
+    }
+
+    private bool RefreshLatestVideoFromCaptureService()
+    {
+        var previousPath = LatestVideoPath;
+        var filePath = screenshotCaptureService.LastSavedVideoPath;
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return false;
+        }
+
+        var fileLastWriteTimeUtc = File.GetLastWriteTimeUtc(filePath);
+        var isSamePath = string.Equals(previousPath, filePath, StringComparison.OrdinalIgnoreCase);
+        var wasUpdated = !isSamePath || fileLastWriteTimeUtc != latestVideoUpdatedAtUtc;
+
+        // Force a source refresh when the recorder writes to the same file path.
+        if (isSamePath)
+        {
+            LatestVideoPath = null;
+        }
+
+        LatestVideoPath = filePath;
+        LatestVideoCaption = Path.GetFileName(filePath);
+        latestVideoUpdatedAtUtc = fileLastWriteTimeUtc;
+        OnPropertyChanged(nameof(IsLatestMediaVideo));
+        return wasUpdated;
     }
 
     private static ImageSource LoadPreview(string filePath)
@@ -1341,8 +1596,8 @@ public partial class MainWindowViewModel : ObservableObject
 
     private static string BuildMacroSummary(RecordedMacro macro) =>
         macro.Events.Count > 0
-            ? $"{macro.Name}: {macro.Events.Count} events over {macro.Duration.TotalMilliseconds:N0} ms"
-            : $"{macro.Name}: no input captured";
+            ? AppLanguageStrings.FormatForCurrentLanguage(AppLanguageKeys.MainMacroSummaryRecordedFormat, macro.Name, macro.Events.Count, macro.Duration.TotalMilliseconds)
+            : AppLanguageStrings.FormatForCurrentLanguage(AppLanguageKeys.MainMacroSummaryNoInputCapturedFormat, macro.Name);
 
     private void RefreshSavedMacrosInternal(string? preferredPath = null)
     {
@@ -1356,7 +1611,7 @@ public partial class MainWindowViewModel : ObservableObject
             SavedMacros.Clear();
             SelectedSavedMacro = null;
             OnPropertyChanged(nameof(HasSavedMacros));
-            MacroStatusMessage = $"Saved macros folder is unavailable: {ex.Message}";
+            MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusSavedFolderUnavailableFormat, ex.Message);
             AddMacroLog(MacroStatusMessage);
             return;
         }
@@ -1382,17 +1637,17 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void BrowseScreenshotFolder()
     {
-        var selectedPath = folderPickerService.PickFolder(ScreenshotFolderPath, "Select the folder to save screenshots in");
+        var selectedPath = folderPickerService.PickFolder(ScreenshotFolderPath, L(AppLanguageKeys.MainScreenshotFolderPickerPrompt));
         if (string.IsNullOrWhiteSpace(selectedPath))
         {
-            ScreenshotStatusMessage = "Folder selection canceled.";
-            AddScreenshotLog("Folder selection canceled.");
+            ScreenshotStatusMessage = L(AppLanguageKeys.MainScreenshotStatusFolderSelectionCanceled);
+            AddScreenshotLog(ScreenshotStatusMessage);
             return;
         }
 
         ScreenshotFolderPath = selectedPath;
-        ScreenshotStatusMessage = $"Screenshot folder set to {selectedPath}.";
-        AddScreenshotLog($"Screenshot folder set to {selectedPath}.");
+        ScreenshotStatusMessage = F(AppLanguageKeys.MainScreenshotStatusFolderSetFormat, selectedPath);
+        AddScreenshotLog(ScreenshotStatusMessage);
     }
 
     [RelayCommand]
@@ -1400,11 +1655,11 @@ public partial class MainWindowViewModel : ObservableObject
     {
         var text = ActivityLogEntries.Count > 0
             ? string.Join(Environment.NewLine, ActivityLogEntries)
-            : "Activity log is empty.";
+            : L(AppLanguageKeys.MainActivityLogEmpty);
 
         clipboardTextService.SetText(text);
-        SettingsStatusMessage = "Copied activity log to the clipboard.";
-        AddActivityLog("Copied the activity log to the clipboard.");
+        SettingsStatusMessage = L(AppLanguageKeys.MainSettingsStatusCopiedActivityLog);
+        AddActivityLog(SettingsStatusMessage);
     }
 
     [RelayCommand]
@@ -1414,10 +1669,10 @@ public partial class MainWindowViewModel : ObservableObject
         ApplySettings(defaults);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
 
-        var saved = await SaveSettingsAsync("Settings reset to defaults.", updateStatusOnSuccess: true);
+        var saved = await SaveSettingsAsync(L(AppLanguageKeys.MainSettingsStatusResetRequested), updateStatusOnSuccess: true);
         SettingsStatusMessage = saved
-            ? "All settings were reset to defaults."
-            : "Reset applied in the UI, but saving the defaults failed.";
+            ? L(AppLanguageKeys.MainSettingsStatusResetCompleted)
+            : L(AppLanguageKeys.MainSettingsStatusResetSaveFailed);
     }
 
     private async Task ShowScreenshotOptionsAsync()
@@ -1439,15 +1694,18 @@ public partial class MainWindowViewModel : ObservableObject
 
         if (result.WasHandledInDialog)
         {
-            ScreenshotStatusMessage = "Video recording was handled in the screenshot options window.";
-            AddScreenshotLog("Handled video recording from the screenshot options window.");
+            var videoWasSaved = RefreshLatestVideoFromCaptureService();
+            ScreenshotStatusMessage = videoWasSaved
+                ? F(AppLanguageKeys.MainScreenshotStatusSavedVideoFormat, LatestVideoCaption)
+                : L(AppLanguageKeys.MainScreenshotStatusVideoHandledInOptionsWindow);
+            AddScreenshotLog(ScreenshotStatusMessage);
             return;
         }
 
         if (result.WasCanceled || result.Mode is null)
         {
-            ScreenshotStatusMessage = "Screenshot options canceled.";
-            AddScreenshotLog("Screenshot options canceled.");
+            ScreenshotStatusMessage = L(AppLanguageKeys.MainScreenshotStatusOptionsCanceled);
+            AddScreenshotLog(ScreenshotStatusMessage);
             return;
         }
 
@@ -1474,25 +1732,31 @@ public partial class MainWindowViewModel : ObservableObject
                         var path = await screenshotCaptureService.CaptureDesktopAsync(settings.SaveFolderPath, settings.FilePrefix);
                         var fileName = Path.GetFileName(path);
                         UpdateLatestScreenshotPreview(path, fileName);
-                        ScreenshotStatusMessage = $"Saved {fileName} and copied it to the clipboard.";
-                        AddScreenshotLog($"Saved full-screen capture to {path} and copied it to the clipboard.");
+                        ScreenshotStatusMessage = F(AppLanguageKeys.MainScreenshotStatusSavedAndCopiedFormat, fileName);
+                        AddScreenshotLog(F(AppLanguageKeys.MainScreenshotLogSavedFullScreenFormat, path));
                         break;
                     }
                 case ScreenshotMode.Area:
                     {
+                        AppLog.Info("Area capture requested from MainWindowViewModel.");
                         var area = screenshotAreaSelectionService.SelectArea();
                         if (area is null)
                         {
-                            ScreenshotStatusMessage = "Area capture canceled.";
-                            AddScreenshotLog("Area capture canceled.");
+                            AppLog.Info("Area capture canceled before capture service call.");
+                            ScreenshotStatusMessage = L(AppLanguageKeys.MainScreenshotStatusAreaCanceled);
+                            AddScreenshotLog(ScreenshotStatusMessage);
                             return;
                         }
 
+                        // Give the area-selection overlay a moment to fully disappear before capturing.
+                        await Task.Delay(120);
+                        AppLog.Info($"Area capture calling capture service with area=({area.Value.X},{area.Value.Y},{area.Value.Width}x{area.Value.Height}) saveFolder={settings.SaveFolderPath} prefix={settings.FilePrefix}");
                         var path = await screenshotCaptureService.CaptureAreaAsync(area.Value, settings.SaveFolderPath, settings.FilePrefix);
                         var fileName = Path.GetFileName(path);
+                        AppLog.Info($"Area capture completed. OutputPath={path}");
                         UpdateLatestScreenshotPreview(path, fileName);
-                        ScreenshotStatusMessage = $"Saved {fileName} and copied it to the clipboard.";
-                        AddScreenshotLog($"Saved area capture to {path} and copied it to the clipboard.");
+                        ScreenshotStatusMessage = F(AppLanguageKeys.MainScreenshotStatusSavedAndCopiedFormat, fileName);
+                        AddScreenshotLog(F(AppLanguageKeys.MainScreenshotLogSavedAreaFormat, path));
                         break;
                     }
                 case ScreenshotMode.Video:
@@ -1503,8 +1767,8 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ScreenshotStatusMessage = $"Screenshot failed: {ex.Message}";
-            AddScreenshotLog($"Screenshot failed: {ex.Message}");
+            ScreenshotStatusMessage = F(AppLanguageKeys.MainScreenshotStatusFailedFormat, ex.Message);
+            AddScreenshotLog(ScreenshotStatusMessage);
         }
     }
 
@@ -1532,7 +1796,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Unable to save settings: {ex.Message}";
+            StatusMessage = F(AppLanguageKeys.MainStatusUnableSaveSettingsFormat, ex.Message);
             return false;
         }
         finally

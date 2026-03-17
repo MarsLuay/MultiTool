@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Windows;
+using AutoClicker.App.Localization;
 
 namespace AutoClicker.App.Views;
 
@@ -8,10 +9,14 @@ public partial class AboutWindow : Window
     public AboutWindow()
     {
         InitializeComponent();
-        DataContext = new
-        {
-            VersionText = $"Version {Assembly.GetExecutingAssembly().GetName().Version}",
-        };
+
+        Title = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.AboutWindowTitle);
+        AboutSubtitleTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.AboutSubtitle);
+        var versionText = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
+        VersionTextBlock.Text = AppLanguageStrings.FormatForCurrentLanguage(
+            AppLanguageKeys.AboutVersionFormat,
+            versionText);
+        CloseButton.Content = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.AboutCloseButton);
     }
 
     private void CloseButton_OnClick(object sender, RoutedEventArgs e)

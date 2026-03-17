@@ -53,6 +53,9 @@ public sealed class ThemeService : IThemeService
         SetBrush(resources, "InputActiveBackgroundBrush", isDarkMode ? "#FF23466A" : "#FF1F4D78");
         SetBrush(resources, "InputActiveBorderBrush", isDarkMode ? "#FF9FD1FF" : "#FF6CB4FF");
         SetBrush(resources, "InputActiveTextBrush", "#FFFFFFFF");
+        SetBrush(resources, "ScrollBarTrackBrush", isDarkMode ? "#FF20242D" : "#FFE5E8ED");
+        SetBrush(resources, "ScrollBarThumbBrush", isDarkMode ? "#FF5E687A" : "#FF9AA3B2");
+        SetBrush(resources, "ScrollBarThumbHoverBrush", isDarkMode ? "#FF76839A" : "#FF7E889B");
 
         foreach (System.Windows.Window window in System.Windows.Application.Current.Windows)
         {

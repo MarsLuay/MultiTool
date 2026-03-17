@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
 using AutoClicker.App.Helpers;
+using AutoClicker.App.Localization;
 using AutoClicker.App.Models;
 using AutoClicker.Core.Enums;
 using AutoClicker.Core.Models;
@@ -43,19 +44,45 @@ public partial class MacroHotkeyAssignmentsWindowViewModel : ObservableObject
                     savedMacro.DisplayName,
                     savedMacro.FilePath,
                     existingAssignment.Hotkey.VirtualKey,
-                    string.IsNullOrWhiteSpace(existingAssignment.Hotkey.DisplayName) ? "Click to assign" : existingAssignment.Hotkey.DisplayName,
+                    string.IsNullOrWhiteSpace(existingAssignment.Hotkey.DisplayName)
+                        ? L(AppLanguageKeys.MacroHotkeyAssignmentsClickToAssign)
+                        : existingAssignment.Hotkey.DisplayName,
                     existingAssignment.PlaybackMode,
                     existingAssignment.IsEnabled));
         }
 
         StatusMessage = MacroItems.Count == 0
-            ? "No saved macros were found in the Macros folder."
-            : "Pick a keyboard shortcut for any saved macro. 'Run once' plays it one time. 'Start/stop' keeps it running until you press the same key again.";
+            ? L(AppLanguageKeys.MacroHotkeyAssignmentsStatusNoSaved)
+            : L(AppLanguageKeys.MacroHotkeyAssignmentsStatusPick);
     }
 
     public ObservableCollection<MacroHotkeyAssignmentItemViewModel> MacroItems { get; }
 
     public IReadOnlyList<MacroHotkeyPlaybackMode> PlaybackModes { get; }
+
+    public string WindowTitleText => L(AppLanguageKeys.MacroHotkeyAssignmentsTitle);
+
+    public string HeadingText => L(AppLanguageKeys.MacroHotkeyAssignmentsHeading);
+
+    public string DescriptionText => L(AppLanguageKeys.MacroHotkeyAssignmentsDescription);
+
+    public string EmptyText => L(AppLanguageKeys.MacroHotkeyAssignmentsEmpty);
+
+    public string ActiveLabelText => L(AppLanguageKeys.MacroHotkeyAssignmentsActive);
+
+    public string ShortcutKeyLabelText => L(AppLanguageKeys.MacroHotkeyAssignmentsShortcutKey);
+
+    public string BehaviorLabelText => L(AppLanguageKeys.MacroHotkeyAssignmentsBehavior);
+
+    public string RemoveKeyLabelText => L(AppLanguageKeys.MacroHotkeyAssignmentsRemoveKey);
+
+    public string ClearButtonText => L(AppLanguageKeys.MacroHotkeyAssignmentsClear);
+
+    public string CancelButtonText => L(AppLanguageKeys.MacroHotkeyAssignmentsCancel);
+
+    public string SaveButtonText => L(AppLanguageKeys.MacroHotkeyAssignmentsSave);
+
+    public string CaptureTooltipText => L(AppLanguageKeys.MacroHotkeyAssignmentsCaptureTooltip);
 
     public bool HasSavedMacros => MacroItems.Count > 0;
 
@@ -72,7 +99,7 @@ public partial class MacroHotkeyAssignmentsWindowViewModel : ObservableObject
         }
 
         item.SetHotkey(virtualKey, HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey));
-        StatusMessage = $"'{item.MacroDisplayName}' will now run when you press {item.HotkeyDisplay}.";
+        StatusMessage = F(AppLanguageKeys.MacroHotkeyAssignmentsStatusAssignedFormat, item.MacroDisplayName, item.HotkeyDisplay);
     }
 
     [RelayCommand]
@@ -84,7 +111,7 @@ public partial class MacroHotkeyAssignmentsWindowViewModel : ObservableObject
         }
 
         item.ClearHotkey();
-        StatusMessage = $"Removed the keyboard shortcut for '{item.MacroDisplayName}'.";
+        StatusMessage = F(AppLanguageKeys.MacroHotkeyAssignmentsStatusRemovedFormat, item.MacroDisplayName);
     }
 
     public IReadOnlyList<MacroHotkeyAssignment> BuildAssignments() =>
@@ -95,4 +122,8 @@ public partial class MacroHotkeyAssignmentsWindowViewModel : ObservableObject
             .OrderBy(assignment => assignment.MacroDisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(assignment => Path.GetFileName(assignment.MacroFilePath), StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+    private static string L(string key) => AppLanguageStrings.GetForCurrentLanguage(key);
+
+    private static string F(string key, params object[] args) => AppLanguageStrings.FormatForCurrentLanguage(key, args);
 }

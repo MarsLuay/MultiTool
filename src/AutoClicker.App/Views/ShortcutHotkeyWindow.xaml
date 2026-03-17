@@ -1,7 +1,7 @@
 <Window x:Class="AutoClicker.App.Views.ShortcutHotkeyWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Shortcut Key Explorer"
+        Title="{Binding WindowTitleText}"
         Width="1120"
         Height="720"
         MinWidth="820"
@@ -78,7 +78,7 @@
 
       <TextBlock FontSize="22"
                  FontWeight="SemiBold"
-                 Text="Shortcut Key Explorer" />
+                 Text="{Binding HeadingText}" />
 
       <StackPanel Grid.Row="1" Margin="0,10,0,0">
         <TextBlock Text="{Binding SummaryText}" TextWrapping="Wrap" />
@@ -140,13 +140,13 @@
         <TextBlock Grid.Column="0"
                    Margin="0,0,8,0"
                    VerticalAlignment="Center"
-                   Text="Search" />
+                   Text="{Binding SearchLabelText}" />
         <TextBox Grid.Column="1"
                  Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
         <CheckBox Grid.Column="2"
                   Margin="12,0,0,0"
                   VerticalAlignment="Center"
-                  Content="Show only conflicts"
+                  Content="{Binding ConflictsOnlyText}"
                   IsChecked="{Binding ShowOnlyConflicts}" />
       </Grid>
 
@@ -160,25 +160,25 @@
                 ItemsSource="{Binding ShortcutsView}"
                 SelectionMode="Extended">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Hotkey"
+          <DataGridTextColumn Header="{Binding DataContext.ColumnHotkeyText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding Hotkey}"
                               Width="140" />
-          <DataGridTextColumn Header="Shortcut"
+          <DataGridTextColumn Header="{Binding DataContext.ColumnShortcutText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding ShortcutName}"
                               Width="170" />
-          <DataGridTextColumn Header="Source"
+          <DataGridTextColumn Header="{Binding DataContext.ColumnSourceText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding SourceLabel}"
                               Width="170" />
-          <DataGridTextColumn Header="Applies To"
+          <DataGridTextColumn Header="{Binding DataContext.ColumnAppliesToText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding AppliesTo}"
                               Width="190" />
-          <DataGridTextColumn Header="Conflict"
+          <DataGridTextColumn Header="{Binding DataContext.ColumnConflictText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding ConflictSummary}"
                               Width="220" />
-          <DataGridTextColumn Header="Details"
+          <DataGridTextColumn Header="{Binding DataContext.ColumnDetailsText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding Details}"
                               Width="2*" />
-          <DataGridTextColumn Header="Shortcut File"
+          <DataGridTextColumn Header="{Binding DataContext.ColumnFileText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding ShortcutPath}"
                               Width="2*" />
         </DataGrid.Columns>
@@ -191,7 +191,7 @@
                    Text="{Binding FilterSummary}" />
         <Button Width="88"
                 HorizontalAlignment="Right"
-                Content="Close"
+          Content="{Binding CloseButtonText}"
                 Click="CloseButton_OnClick" />
       </DockPanel>
     </Grid>

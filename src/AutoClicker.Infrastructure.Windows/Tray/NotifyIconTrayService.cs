@@ -110,6 +110,18 @@ public sealed class NotifyIconTrayService : ITrayIconService
     private Icon LoadIcon(string fileName)
     {
         var path = Path.Combine(iconDirectoryPath, fileName);
-        return File.Exists(path) ? new Icon(path) : (Icon)SystemIcons.Application.Clone();
+        if (!File.Exists(path))
+        {
+            return (Icon)SystemIcons.Application.Clone();
+        }
+
+        try
+        {
+            return new Icon(path);
+        }
+        catch (Exception)
+        {
+            return (Icon)SystemIcons.Application.Clone();
+        }
     }
 }

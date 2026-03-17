@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace AutoClicker.Infrastructure.Windows.Interop;
 
@@ -33,6 +34,7 @@ internal static class User32
     internal const uint XButton1 = 0x0001;
     internal const uint XButton2 = 0x0002;
     internal const uint KeyEventFKeyUp = 0x0002;
+    internal const uint GuiCaretBlinking = 0x00000001;
 
     [DllImport("user32.dll", EntryPoint = "SetCursorPos", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -64,6 +66,13 @@ internal static class User32
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(uint numberOfInputs, INPUT[] inputs, int sizeOfInputStructure);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int GetClassName(nint hWnd, StringBuilder lpClassName, int nMaxCount);
 
     internal delegate nint HookProc(int nCode, nint wParam, nint lParam);
 
@@ -130,5 +139,28 @@ internal static class User32
         public uint flags;
         public uint time;
         public nuint dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct RECT
+    {
+        public int left;
+        public int top;
+        public int right;
+        public int bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct GUITHREADINFO
+    {
+        public int cbSize;
+        public uint flags;
+        public nint hwndActive;
+        public nint hwndFocus;
+        public nint hwndCapture;
+        public nint hwndMenuOwner;
+        public nint hwndMoveSize;
+        public nint hwndCaret;
+        public RECT rcCaret;
     }
 }

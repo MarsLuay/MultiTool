@@ -11,6 +11,7 @@ public sealed class WindowsHardwareInventoryServiceTests
     {
         var expectedReport = new HardwareInventoryReport(
             "WORKSTATION  |  Example Corp Model X",
+            "No critical issues detected.",
             "Windows 11 Pro  |  Version 10.0.26100  |  Build 26100",
             "AMD Ryzen 7 7800X3D (8 cores / 16 threads)",
             "32 GB installed across 2 modules at up to 6000 MHz.",

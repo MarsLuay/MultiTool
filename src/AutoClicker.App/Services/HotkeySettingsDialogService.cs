@@ -8,10 +8,12 @@ namespace AutoClicker.App.Services;
 public sealed class HotkeySettingsDialogService : IHotkeySettingsDialogService
 {
     private readonly IServiceProvider serviceProvider;
+    private readonly IThemeService themeService;
 
-    public HotkeySettingsDialogService(IServiceProvider serviceProvider)
+    public HotkeySettingsDialogService(IServiceProvider serviceProvider, IThemeService themeService)
     {
         this.serviceProvider = serviceProvider;
+        this.themeService = themeService;
     }
 
     public HotkeySettings? Edit(HotkeySettings currentSettings)
@@ -22,6 +24,9 @@ public sealed class HotkeySettingsDialogService : IHotkeySettingsDialogService
         {
             window.Owner = owner;
         }
+
+        window.SourceInitialized += (_, _) => themeService.ApplyThemeToWindow(window);
+        window.ContentRendered += (_, _) => themeService.ApplyThemeToWindow(window);
 
         return window.ShowDialog() == true ? viewModel.BuildSettings() : null;
     }

@@ -15,6 +15,7 @@ set "LEGACY_APP_LEGACY_EXE=%LEGACY_APP_DIR%\AutoClicker.exe"
 set "ROOT_STAGE_DIR=%ROOT_DIR%\.publish-root"
 set "ROOT_PUBLISH_EXE=%ROOT_STAGE_DIR%\MultiTool.exe"
 set "RUNTIME_EXE=%RUNTIME_DIR%\MultiTool.exe"
+set "RUNTIME_EXE_FALLBACK=%RUNTIME_DIR%\MultiTool-new.exe"
 set "RUNTIME_LEGACY_EXE=%RUNTIME_DIR%\AutoClicker.exe"
 set "RUNTIME_FFMPEG_EXE=%RUNTIME_DIR%\ffmpeg.exe"
 set "DEPENDENCY_INSTALLER=%ROOT_DIR%\tools\install-runtime-dependencies.bat"
@@ -55,6 +56,14 @@ if not errorlevel 1 (
     timeout /t 1 /nobreak >nul
 )
 
+tasklist /FI "IMAGENAME eq MultiTool.exe" 2>nul | find /I "MultiTool.exe" >nul
+if not errorlevel 1 (
+    echo.
+    echo ERROR: MultiTool.exe is still running and could not be closed.
+    echo Close MultiTool and its tray process, then run this script again.
+    exit /b 1
+)
+
 taskkill /IM AutoClicker.exe /F /T >nul 2>&1
 if not errorlevel 1 (
     echo Closed running AutoClicker.exe.
@@ -78,6 +87,10 @@ if not "%EXIT_CODE%"=="0" (
 
 if exist "%RUNTIME_EXE%" (
     del /q "%RUNTIME_EXE%"
+)
+
+if exist "%RUNTIME_EXE_FALLBACK%" (
+    del /q "%RUNTIME_EXE_FALLBACK%"
 )
 
 if exist "%RUNTIME_LEGACY_EXE%" (
@@ -107,6 +120,17 @@ move /y "%ROOT_PUBLISH_EXE%" "%RUNTIME_EXE%" >nul
 if errorlevel 1 (
     echo.
     echo Moving the published EXE into MultiTool.exe failed.
+    echo MultiTool.exe is likely locked by another process.
+
+    copy /y "%ROOT_PUBLISH_EXE%" "%RUNTIME_EXE_FALLBACK%" >nul
+    if errorlevel 1 (
+        echo Could not create fallback MultiTool-new.exe either.
+        exit /b 1
+    )
+
+    echo Created fallback EXE with latest build:
+    echo   %RUNTIME_EXE_FALLBACK%
+    echo Close all running MultiTool processes, then replace MultiTool.exe manually.
     exit /b 1
 )
 
@@ -167,3 +191,4 @@ if exist "%DEPENDENCY_INSTALLER%" (
     echo Install ffmpeg manually or add ffmpeg.exe next to MultiTool.exe.
 )
 exit /b 0
+

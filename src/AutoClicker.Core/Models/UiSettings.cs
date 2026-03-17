@@ -8,11 +8,14 @@ public sealed class UiSettings
 
     public bool AutoHideOnStartup { get; set; }
 
+    public bool SillyMode { get; set; }
+
     public UiSettings Clone() =>
         new()
         {
             IsDarkMode = IsDarkMode,
             EnableCtrlWheelResize = EnableCtrlWheelResize,
             AutoHideOnStartup = AutoHideOnStartup,
+            SillyMode = SillyMode,
         };
 }

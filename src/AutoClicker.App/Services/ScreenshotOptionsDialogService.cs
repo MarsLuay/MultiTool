@@ -66,11 +66,22 @@ public sealed class ScreenshotOptionsDialogService : IScreenshotOptionsDialogSer
 
     public Task<bool> TryHandleCaptureHotkeyAsync()
     {
-        if (currentWindow is not { IsVisible: true })
+        if (currentWindow is { IsVisible: true })
+        {
+            return currentWindow.HandleCaptureHotkeyAsync();
+        }
+
+        if (!screenshotCaptureService.IsVideoCaptureRunning)
         {
             return Task.FromResult(false);
         }
 
-        return currentWindow.HandleCaptureHotkeyAsync();
+        return StopVideoCaptureFromHotkeyAsync();
+    }
+
+    private async Task<bool> StopVideoCaptureFromHotkeyAsync()
+    {
+        await screenshotCaptureService.StopVideoCaptureAsync();
+        return true;
     }
 }

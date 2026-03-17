@@ -2,6 +2,7 @@ namespace AutoClicker.Core.Models;
 
 public sealed record HardwareInventoryReport(
     string SystemSummary,
+    string HealthSummary,
     string OperatingSystemSummary,
     string ProcessorSummary,
     string MemorySummary,

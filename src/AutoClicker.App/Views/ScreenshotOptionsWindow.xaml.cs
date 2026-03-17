@@ -2,7 +2,9 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using AutoClicker.App.Localization;
 using AutoClicker.App.Services;
+using AutoClicker.App.ViewModels;
 using AutoClicker.Core.Enums;
 using AutoClicker.Core.Models;
 using AutoClicker.Core.Services;
@@ -17,6 +19,13 @@ public partial class ScreenshotOptionsWindow : Window
     private bool suppressVideoToggleEvents;
     private ScreenshotMode? videoTargetMode;
     private ScreenRectangle? videoTargetArea;
+    private MainWindowViewModel? mainWindowViewModel;
+
+    private bool IsCatTranslatorEnabled =>
+        System.Windows.Application.Current?.MainWindow?.DataContext is MainWindowViewModel viewModel
+        && viewModel.IsSillyModeEnabled;
+
+    private AppLanguage CurrentLanguage => IsCatTranslatorEnabled ? AppLanguage.CatSpeak : AppLanguage.English;
 
     public ScreenshotOptionsWindow(
         IScreenshotCaptureService screenshotCaptureService,
@@ -29,6 +38,7 @@ public partial class ScreenshotOptionsWindow : Window
         this.screenshotSettings = screenshotSettings.Clone();
         Loaded += ScreenshotOptionsWindow_Loaded;
         Closing += ScreenshotOptionsWindow_Closing;
+        Closed += ScreenshotOptionsWindow_Closed;
     }
 
     public ScreenshotMode? SelectedMode { get; private set; }
@@ -39,7 +49,43 @@ public partial class ScreenshotOptionsWindow : Window
 
     private void ScreenshotOptionsWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        AttachMainWindowViewModel();
+        ApplyLocalizedText();
         Keyboard.Focus(FullScreenButton);
+        RefreshVideoUi();
+    }
+
+    private void ScreenshotOptionsWindow_Closed(object? sender, EventArgs e)
+    {
+        if (mainWindowViewModel is not null)
+        {
+            mainWindowViewModel.PropertyChanged -= MainWindowViewModel_PropertyChanged;
+            mainWindowViewModel = null;
+        }
+    }
+
+    private void AttachMainWindowViewModel()
+    {
+        if (mainWindowViewModel is not null)
+        {
+            return;
+        }
+
+        if (System.Windows.Application.Current?.MainWindow?.DataContext is MainWindowViewModel vm)
+        {
+            mainWindowViewModel = vm;
+            mainWindowViewModel.PropertyChanged += MainWindowViewModel_PropertyChanged;
+        }
+    }
+
+    private void MainWindowViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainWindowViewModel.IsSillyModeEnabled))
+        {
+            return;
+        }
+
+        ApplyLocalizedText();
         RefreshVideoUi();
     }
 
@@ -52,21 +98,21 @@ public partial class ScreenshotOptionsWindow : Window
 
         Activate();
 
-        if (!IsVideoModeArmed)
-        {
-            VideoStatusTextBlock.Text = "Screenshot options are open. Choose Full Screen, Area, or arm Record Video first.";
-            return true;
-        }
-
         if (screenshotCaptureService.IsVideoCaptureRunning)
         {
             await StopRecordingAndCloseAsync();
             return true;
         }
 
+        if (!IsVideoModeArmed)
+        {
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusOptionsOpen);
+            return true;
+        }
+
         if (videoTargetMode is null)
         {
-            VideoStatusTextBlock.Text = "Choose Full Screen or Area first, then press the screenshot hotkey to start recording.";
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusChooseModeFirst);
             return true;
         }
 
@@ -79,11 +125,11 @@ public partial class ScreenshotOptionsWindow : Window
 
             WasHandledInDialog = true;
             RefreshVideoUi();
-            VideoStatusTextBlock.Text = "Recording started. Press the screenshot hotkey again to stop and save the video.";
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusRecordingStarted);
         }
         catch (Exception ex)
         {
-            VideoStatusTextBlock.Text = $"Unable to start video recording: {ex.Message}";
+            VideoStatusTextBlock.Text = LF(AppLanguageKeys.ScreenshotStatusUnableToStart, ex.Message);
             RefreshVideoUi();
         }
 
@@ -96,14 +142,13 @@ public partial class ScreenshotOptionsWindow : Window
         {
             videoTargetMode = ScreenshotMode.FullScreen;
             videoTargetArea = null;
-            VideoStatusTextBlock.Text = "Video target set to Full Screen. Press the screenshot hotkey to start recording.";
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusVideoTargetFullScreen);
             RefreshVideoUi();
             return;
         }
 
         SelectedMode = ScreenshotMode.FullScreen;
-        DialogResult = true;
-        Close();
+        CloseWithDialogResult(true);
     }
 
     private void AreaButton_OnClick(object sender, RoutedEventArgs e)
@@ -119,13 +164,13 @@ public partial class ScreenshotOptionsWindow : Window
 
                 if (area is null)
                 {
-                    VideoStatusTextBlock.Text = "Area selection canceled. Choose Area again or switch back to Full Screen.";
+                    VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusAreaSelectionCanceled);
                     return;
                 }
 
                 videoTargetMode = ScreenshotMode.Area;
                 videoTargetArea = area.Value;
-                VideoStatusTextBlock.Text = $"Area selected ({area.Value.Width} x {area.Value.Height}). Press the screenshot hotkey to start recording.";
+                VideoStatusTextBlock.Text = LF(AppLanguageKeys.ScreenshotStatusAreaSelected, area.Value.Width, area.Value.Height);
                 RefreshVideoUi();
                 return;
             }
@@ -141,8 +186,7 @@ public partial class ScreenshotOptionsWindow : Window
         }
 
         SelectedMode = ScreenshotMode.Area;
-        DialogResult = true;
-        Close();
+        CloseWithDialogResult(true);
     }
 
     private void VideoRecordingCheckBox_OnChecked(object sender, RoutedEventArgs e)
@@ -155,7 +199,7 @@ public partial class ScreenshotOptionsWindow : Window
         videoTargetMode = null;
         videoTargetArea = null;
         RefreshVideoUi();
-        VideoStatusTextBlock.Text = "Video mode armed. Choose Full Screen or Area, then press the screenshot hotkey to start recording.";
+        VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusVideoModeArmed);
     }
 
     private void VideoRecordingCheckBox_OnUnchecked(object sender, RoutedEventArgs e)
@@ -170,26 +214,25 @@ public partial class ScreenshotOptionsWindow : Window
             suppressVideoToggleEvents = true;
             VideoRecordingCheckBox.IsChecked = true;
             suppressVideoToggleEvents = false;
-            VideoStatusTextBlock.Text = "Press the screenshot hotkey again to stop recording first.";
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusStopRecordingFirst);
             return;
         }
 
         videoTargetMode = null;
         videoTargetArea = null;
         RefreshVideoUi();
-        VideoStatusTextBlock.Text = "Video mode turned off.";
+        VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusVideoModeOff);
     }
 
     private void CancelButton_OnClick(object sender, RoutedEventArgs e)
     {
         if (screenshotCaptureService.IsVideoCaptureRunning)
         {
-            VideoStatusTextBlock.Text = "Recording is still running. Press the screenshot hotkey again to stop and save it first.";
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusStillRecordingSaveFirst);
             return;
         }
 
-        DialogResult = false;
-        Close();
+        CloseWithDialogResult(false);
     }
 
     private void ScreenshotOptionsWindow_Closing(object? sender, CancelEventArgs e)
@@ -197,7 +240,7 @@ public partial class ScreenshotOptionsWindow : Window
         if (screenshotCaptureService.IsVideoCaptureRunning)
         {
             e.Cancel = true;
-            VideoStatusTextBlock.Text = "Recording is still running. Press the screenshot hotkey again to stop and save it first.";
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusStillRecordingSaveFirst);
         }
     }
 
@@ -208,16 +251,30 @@ public partial class ScreenshotOptionsWindow : Window
             var filePath = await screenshotCaptureService.StopVideoCaptureAsync();
             WasHandledInDialog = true;
             VideoStatusTextBlock.Text = string.IsNullOrWhiteSpace(filePath)
-                ? "Video recording stopped."
-                : $"Saved video to {Path.GetFileName(filePath)}.";
-            DialogResult = false;
-            Close();
+                ? L(AppLanguageKeys.ScreenshotStatusRecordingStopped)
+                : LF(AppLanguageKeys.ScreenshotStatusSavedVideoTo, Path.GetFileName(filePath));
+            CloseWithDialogResult(false);
         }
         catch (Exception ex)
         {
-            VideoStatusTextBlock.Text = $"Unable to stop video recording: {ex.Message}";
+            VideoStatusTextBlock.Text = LF(AppLanguageKeys.ScreenshotStatusUnableToStop, ex.Message);
             RefreshVideoUi();
         }
+    }
+
+    private void CloseWithDialogResult(bool result)
+    {
+        // Hotkey and button events can race with window lifecycle; avoid throwing if WPF no longer treats this as modal.
+        try
+        {
+            DialogResult = result;
+            return;
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        Close();
     }
 
     private void RefreshVideoUi()
@@ -231,25 +288,57 @@ public partial class ScreenshotOptionsWindow : Window
 
         FullScreenButton.IsEnabled = !isRecording;
         AreaButton.IsEnabled = !isRecording;
-        CancelButton.Content = isRecording ? "Waiting..." : "Cancel";
+        CancelButton.Content = isRecording
+            ? L(AppLanguageKeys.ScreenshotWaiting)
+            : L(AppLanguageKeys.ScreenshotCancel);
 
         if (isRecording)
         {
-            VideoStatusTextBlock.Text = "Recording started. Press the screenshot hotkey again to stop and save the video.";
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusRecordingStarted);
             return;
         }
 
         if (!isArmed)
         {
-            VideoStatusTextBlock.Text = "Video recording is off.";
+            VideoStatusTextBlock.Text = L(AppLanguageKeys.ScreenshotStatusVideoOff);
             return;
         }
 
         VideoStatusTextBlock.Text = videoTargetMode switch
         {
-            ScreenshotMode.FullScreen => "Video target set to Full Screen. Press the screenshot hotkey to start recording.",
-            ScreenshotMode.Area when videoTargetArea is not null => $"Area selected ({videoTargetArea.Value.Width} x {videoTargetArea.Value.Height}). Press the screenshot hotkey to start recording.",
-            _ => "Video mode armed. Choose Full Screen or Area, then press the screenshot hotkey to start recording.",
+            ScreenshotMode.FullScreen => L(AppLanguageKeys.ScreenshotStatusVideoTargetFullScreen),
+            ScreenshotMode.Area when videoTargetArea is not null => LF(AppLanguageKeys.ScreenshotStatusAreaSelected, videoTargetArea.Value.Width, videoTargetArea.Value.Height),
+            _ => L(AppLanguageKeys.ScreenshotStatusVideoModeArmed),
         };
     }
+
+    private void ApplyLocalizedText()
+    {
+        Title = L(AppLanguageKeys.ScreenshotOptionsTitle);
+
+        if (FullScreenButton.Content is System.Windows.Controls.StackPanel fullScreenPanel
+            && fullScreenPanel.Children.Count >= 2
+            && fullScreenPanel.Children[0] is System.Windows.Controls.TextBlock fullScreenHeader
+            && fullScreenPanel.Children[1] is System.Windows.Controls.TextBlock fullScreenDescription)
+        {
+            fullScreenHeader.Text = L(AppLanguageKeys.ScreenshotFullScreenHeader);
+            fullScreenDescription.Text = L(AppLanguageKeys.ScreenshotFullScreenDescription);
+        }
+
+        if (AreaButton.Content is System.Windows.Controls.StackPanel areaPanel
+            && areaPanel.Children.Count >= 2
+            && areaPanel.Children[0] is System.Windows.Controls.TextBlock areaHeader
+            && areaPanel.Children[1] is System.Windows.Controls.TextBlock areaDescription)
+        {
+            areaHeader.Text = L(AppLanguageKeys.ScreenshotAreaHeader);
+            areaDescription.Text = L(AppLanguageKeys.ScreenshotAreaDescription);
+        }
+
+        VideoRecordingCheckBox.Content = L(AppLanguageKeys.ScreenshotRecordVideo);
+        CancelButton.Content = L(AppLanguageKeys.ScreenshotCancel);
+    }
+
+    private string L(string key) => AppLanguageStrings.Get(key, CurrentLanguage);
+
+    private string LF(string key, params object[] args) => AppLanguageStrings.Format(key, CurrentLanguage, args);
 }

@@ -1,4 +1,5 @@
 using System.Windows;
+using AutoClicker.App.Localization;
 using AutoClicker.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -13,6 +14,10 @@ public partial class CoordinateCaptureWindow : Window
         InitializeComponent();
         DataContext = viewModel;
 
+        CaptureInstructionTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.CoordinateCaptureInstruction);
+        CaptureCancelHintTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.CoordinateCaptureEscHint);
+        viewModel.CoordinateText = AppLanguageStrings.FormatForCurrentLanguage(AppLanguageKeys.CoordinateCapturePositionFormat, 0, 0);
+
         Left = SystemParameters.VirtualScreenLeft;
         Top = SystemParameters.VirtualScreenTop;
         Width = SystemParameters.VirtualScreenWidth;
@@ -26,7 +31,10 @@ public partial class CoordinateCaptureWindow : Window
     {
         base.OnMouseMove(e);
         var point = System.Windows.Forms.Cursor.Position;
-        viewModel.CoordinateText = $"X: {point.X}  Y: {point.Y}";
+        viewModel.CoordinateText = AppLanguageStrings.FormatForCurrentLanguage(
+            AppLanguageKeys.CoordinateCapturePositionFormat,
+            point.X,
+            point.Y);
     }
 
     protected override void OnMouseDown(System.Windows.Input.MouseButtonEventArgs e)
@@ -53,6 +61,6 @@ public partial class CoordinateCaptureWindow : Window
     private sealed partial class OverlayViewModel : ObservableObject
     {
         [ObservableProperty]
-        private string coordinateText = "X: 0  Y: 0";
+        private string coordinateText = string.Empty;
     }
 }

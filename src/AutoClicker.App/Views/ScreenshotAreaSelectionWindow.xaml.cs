@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using AutoClicker.App.Localization;
+using AutoClicker.App.Services;
 using AutoClicker.Core.Models;
 
 namespace AutoClicker.App.Views;
@@ -7,16 +9,23 @@ namespace AutoClicker.App.Views;
 public partial class ScreenshotAreaSelectionWindow : Window
 {
     private System.Windows.Point? dragStart;
+    private global::System.Drawing.Point? dragStartScreen;
+    private global::System.Drawing.Point? dragCurrentScreen;
 
     public ScreenshotAreaSelectionWindow()
     {
         InitializeComponent();
+
+        AreaInstructionTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.AreaSelectionInstruction);
+        AreaInstructionHintTextBlock.Text = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.AreaSelectionEscHint);
 
         Left = SystemParameters.VirtualScreenLeft;
         Top = SystemParameters.VirtualScreenTop;
         Width = SystemParameters.VirtualScreenWidth;
         Height = SystemParameters.VirtualScreenHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
+
+        AppLog.Info($"AreaSelectionWindow opened. WindowBounds=({Left},{Top},{Width}x{Height}) VirtualScreen=({SystemParameters.VirtualScreenLeft},{SystemParameters.VirtualScreenTop},{SystemParameters.VirtualScreenWidth}x{SystemParameters.VirtualScreenHeight}) Monitors={DescribeMonitors()}");
     }
 
     public ScreenRectangle? SelectedArea { get; private set; }
@@ -25,6 +34,9 @@ public partial class ScreenshotAreaSelectionWindow : Window
     {
         base.OnMouseLeftButtonDown(e);
         dragStart = e.GetPosition(this);
+        dragStartScreen = global::System.Windows.Forms.Cursor.Position;
+        dragCurrentScreen = dragStartScreen;
+        AppLog.Info($"AreaSelection drag start. WindowPoint=({dragStart.Value.X:F2},{dragStart.Value.Y:F2}) ScreenPoint=({dragStartScreen.Value.X},{dragStartScreen.Value.Y})");
         UpdateSelection(dragStart.Value, dragStart.Value);
         SelectionBorder.Visibility = Visibility.Visible;
         CaptureMouse();
@@ -39,6 +51,7 @@ public partial class ScreenshotAreaSelectionWindow : Window
             return;
         }
 
+        dragCurrentScreen = global::System.Windows.Forms.Cursor.Position;
         UpdateSelection(dragStart.Value, e.GetPosition(this));
     }
 
@@ -53,16 +66,26 @@ public partial class ScreenshotAreaSelectionWindow : Window
 
         var end = e.GetPosition(this);
         ReleaseMouseCapture();
-        SelectedArea = BuildScreenRectangle(dragStart.Value, end);
+        var endScreen = dragCurrentScreen ?? global::System.Windows.Forms.Cursor.Position;
+        AppLog.Info($"AreaSelection drag end. WindowPoint=({end.X:F2},{end.Y:F2}) ScreenPoint=({endScreen.X},{endScreen.Y})");
+        SelectedArea = dragStartScreen is null
+            ? null
+            : BuildScreenRectangle(dragStartScreen.Value, endScreen);
         dragStart = null;
+        dragStartScreen = null;
+        dragCurrentScreen = null;
 
         if (SelectedArea is { Width: > 1, Height: > 1 })
         {
+            AppLog.Info($"AreaSelection accepted. SelectedArea=({SelectedArea.Value.X},{SelectedArea.Value.Y},{SelectedArea.Value.Width}x{SelectedArea.Value.Height})");
+            // Hide immediately so the translucent overlay does not leak into the next screen capture frame.
+            Opacity = 0;
             DialogResult = true;
             Close();
             return;
         }
 
+        AppLog.Info("AreaSelection rejected (too small). Returning null area.");
         SelectionBorder.Visibility = Visibility.Collapsed;
         SelectedArea = null;
     }
@@ -75,6 +98,8 @@ public partial class ScreenshotAreaSelectionWindow : Window
             return;
         }
 
+        AppLog.Info("AreaSelection canceled via Escape key.");
+        Opacity = 0;
         DialogResult = false;
         Close();
     }
@@ -92,17 +117,29 @@ public partial class ScreenshotAreaSelectionWindow : Window
         SelectionBorder.Height = height;
     }
 
-    private ScreenRectangle BuildScreenRectangle(System.Windows.Point start, System.Windows.Point end)
+    private static ScreenRectangle BuildScreenRectangle(global::System.Drawing.Point start, global::System.Drawing.Point end)
     {
-        var left = Math.Min(start.X, end.X) + Left;
-        var top = Math.Min(start.Y, end.Y) + Top;
+        var left = Math.Min(start.X, end.X);
+        var top = Math.Min(start.Y, end.Y);
         var width = Math.Abs(end.X - start.X);
         var height = Math.Abs(end.Y - start.Y);
 
         return new ScreenRectangle(
-            (int)Math.Round(left),
-            (int)Math.Round(top),
-            (int)Math.Round(width),
-            (int)Math.Round(height));
+            left,
+            top,
+            width,
+            height);
+    }
+
+    private static string DescribeMonitors()
+    {
+        var parts = new List<string>();
+        foreach (var screen in global::System.Windows.Forms.Screen.AllScreens)
+        {
+            var bounds = screen.Bounds;
+            parts.Add($"{screen.DeviceName}:{bounds.X},{bounds.Y},{bounds.Width}x{bounds.Height}{(screen.Primary ? ":Primary" : string.Empty)}");
+        }
+
+        return string.Join(" | ", parts);
     }
 }

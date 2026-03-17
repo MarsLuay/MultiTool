@@ -264,11 +264,45 @@
           <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Column="0"
-                   Margin="12,0,0,0"
-                   VerticalAlignment="Center"
-                   FontWeight="SemiBold"
-                   Text="{Binding WindowTitle}" />
+        <StackPanel Grid.Column="0"
+                    Margin="12,0,0,0"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+          <Image Width="14"
+                 Height="14"
+                 Margin="0,0,6,0"
+                 Source="Resources/Icons/icon.ico">
+            <Image.Style>
+              <Style TargetType="Image">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsWindowPinned}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Image.Style>
+          </Image>
+
+          <TextBlock FontWeight="SemiBold"
+                     Text="{Binding WindowTitle}" />
+
+          <TextBlock Margin="8,0,0,0"
+                     Foreground="{DynamicResource AccentBrush}"
+                     FontWeight="SemiBold"
+                     Text="[PINNED]">
+            <TextBlock.Style>
+              <Style TargetType="TextBlock">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsWindowPinned}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </TextBlock.Style>
+          </TextBlock>
+        </StackPanel>
 
         <Button Grid.Column="1"
                 Width="38"
@@ -343,7 +377,7 @@
                             ScaleX="1"
                             ScaleY="1" />
           </TabControl.LayoutTransform>
-      <TabItem Header="Clicker">
+      <TabItem Header="{Binding ClickerTabHeaderText}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Grid Margin="0,12,0,0">
             <Grid.RowDefinitions>
@@ -363,22 +397,22 @@
                 <StackPanel Grid.Column="0">
                   <TextBlock Margin="4,0,4,6"
                              FontWeight="SemiBold"
-                             Text="Interval" />
+                             Text="{Binding IntervalLabelText}" />
                   <UniformGrid Columns="2">
                     <StackPanel Margin="4">
-                      <TextBlock Margin="0,0,0,4" Text="Hours" />
+                      <TextBlock Margin="0,0,0,4" Text="{Binding HoursLabelText}" />
                       <TextBox Text="{Binding Hours, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                     <StackPanel Margin="4">
-                      <TextBlock Margin="0,0,0,4" Text="Minutes" />
+                      <TextBlock Margin="0,0,0,4" Text="{Binding MinutesLabelText}" />
                       <TextBox Text="{Binding Minutes, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                     <StackPanel Margin="4">
-                      <TextBlock Margin="0,0,0,4" Text="Seconds" />
+                      <TextBlock Margin="0,0,0,4" Text="{Binding SecondsLabelText}" />
                       <TextBox Text="{Binding Seconds, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                     <StackPanel Margin="4">
-                      <TextBlock Margin="0,0,0,4" Text="Milliseconds" />
+                      <TextBlock Margin="0,0,0,4" Text="{Binding MillisecondsLabelText}" />
                       <TextBox Text="{Binding Milliseconds, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                   </UniformGrid>
@@ -387,15 +421,13 @@
                 <StackPanel Grid.Column="2">
                   <TextBlock Margin="4,0,4,6"
                              FontWeight="SemiBold"
-                             Text="Repeat" />
+                             Text="{Binding RepeatLabelText}" />
                   <Grid Margin="4,0,4,10">
                     <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="Auto" />
                       <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" Text="Mode" />
-                    <ComboBox Grid.Column="1"
+                    <ComboBox Grid.Column="0"
                               Margin="0,0,8,0"
                               ItemsSource="{Binding RepeatModes}"
                               SelectedItem="{Binding SelectedRepeatMode}">
@@ -405,7 +437,7 @@
                         </DataTemplate>
                       </ComboBox.ItemTemplate>
                     </ComboBox>
-                    <TextBox Grid.Column="2"
+                    <TextBox Grid.Column="1"
                              Style="{StaticResource RepeatCountTextBoxStyle}"
                              Width="72"
                              IsEnabled="{Binding IsRepeatCountEnabled}"
@@ -415,19 +447,17 @@
                   <StackPanel IsEnabled="{Binding UsesMousePositionSettings}">
                     <TextBlock Margin="4,0,4,6"
                                FontWeight="SemiBold"
-                               Text="Position" />
+                               Text="{Binding PositionLabelText}" />
                     <Grid Margin="4,0,4,0">
                       <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                       </Grid.RowDefinitions>
                       <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                       </Grid.ColumnDefinitions>
-                      <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" Text="Mode" />
-                      <ComboBox Grid.Column="1"
+                      <ComboBox Grid.Column="0"
                                 Grid.Row="0"
                                 Margin="0,0,8,0"
                                 MinWidth="110"
@@ -439,12 +469,12 @@
                           </DataTemplate>
                         </ComboBox.ItemTemplate>
                       </ComboBox>
-                      <Button Grid.Row="0" Grid.Column="2" Width="68" Command="{Binding CaptureCoordinatesCommand}" Content="Capture" />
+                      <Button Grid.Row="0" Grid.Column="1" Width="68" Command="{Binding CaptureCoordinatesCommand}" Content="{Binding CaptureButtonText}" />
 
-                      <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,8,0,0" Orientation="Horizontal">
-                        <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="X" />
+                      <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Orientation="Horizontal">
+                        <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="{Binding XLabelText}" />
                         <TextBox Width="64" Margin="0,0,12,0" Text="{Binding FixedX, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="Y" />
+                        <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="{Binding YLabelText}" />
                         <TextBox Width="64" Text="{Binding FixedY, UpdateSourceTrigger=PropertyChanged}" />
                       </StackPanel>
                     </Grid>
@@ -464,7 +494,7 @@
                   <ColumnDefinition Width="Auto" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Input" />
+                <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding InputLabelText}" />
                 <ComboBox Grid.Row="0"
                           Grid.Column="1"
                           Margin="4"
@@ -477,7 +507,7 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Type" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding TypeLabelText}" />
                 <ComboBox Grid.Row="1"
                           Grid.Column="1"
                           Margin="4"
@@ -490,7 +520,7 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Custom Input" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding CustomInputLabelText}" />
                 <TextBox x:Name="CustomKeyTextBox"
                          Grid.Row="2"
                          Grid.Column="1"
@@ -500,12 +530,13 @@
                          PreviewMouseDown="CustomInputTextBox_OnPreviewMouseDown"
                          PreviewKeyDown="CustomKeyTextBox_OnPreviewKeyDown"
                          Text="{Binding CustomKeyDisplayText}"
-                         ToolTip="Click here and press the keyboard key or mouse button you want to use when Custom is selected." />
+                         ToolTip="{Binding CustomKeyOrMousePromptText}" />
               </Grid>
             </GroupBox>
 
             <Grid Grid.Row="2">
               <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
@@ -516,17 +547,29 @@
                          TextWrapping="Wrap"
                          Text="{Binding StatusMessage}" />
 
-              <WrapPanel Grid.Row="1" HorizontalAlignment="Right">
-                <Button Margin="4" Padding="12,6" Content="{Binding ToggleButtonText}" Command="{Binding ToggleCommand}" />
-                <Button Margin="4" Padding="12,6" Content="Hotkeys" Command="{Binding OpenHotkeySettingsCommand}" />
-                <CheckBox Margin="12,0,0,0" VerticalAlignment="Center" Content="Always on top" IsChecked="{Binding IsTopMost}" />
+              <WrapPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Margin="4,0,8,0" VerticalAlignment="Center" Text="{Binding ClickerHotkeyLabelText}" />
+                <ToggleButton x:Name="ClickerHotkeyTextBox"
+                              Margin="4"
+                              MinWidth="96"
+                              Style="{StaticResource CaptureReadyButtonStyle}"
+                              GotKeyboardFocus="ClickerHotkeyTextBox_OnGotKeyboardFocus"
+                              LostKeyboardFocus="CaptureButton_OnLostKeyboardFocus"
+                              PreviewMouseDown="ClickerHotkeyTextBox_OnPreviewMouseDown"
+                              PreviewKeyDown="ClickerHotkeyTextBox_OnPreviewKeyDown"
+                              Content="{Binding ClickerHotkeyDisplay}"
+                              ToolTip="{Binding HotkeyEditToolTip}" />
+              </WrapPanel>
+
+              <WrapPanel Grid.Row="2" HorizontalAlignment="Right">
+                <CheckBox Margin="12,0,0,0" VerticalAlignment="Center" Content="{Binding AlwaysOnTopLabelText}" IsChecked="{Binding IsTopMost}" />
               </WrapPanel>
             </Grid>
           </Grid>
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="Screenshot">
+      <TabItem Header="{Binding ScreenshotTabHeaderText}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="0,12,0,0">
           <GroupBox Header="Capture" Margin="0,0,0,12">
@@ -545,7 +588,7 @@
                 <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Hotkey" />
+              <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding ScreenshotHotkeyLabelText}" />
               <ToggleButton x:Name="ScreenshotHotkeyTextBox"
                             Grid.Row="0"
                             Grid.Column="1"
@@ -555,14 +598,15 @@
                             LostKeyboardFocus="CaptureButton_OnLostKeyboardFocus"
                             PreviewMouseDown="ScreenshotHotkeyTextBox_OnPreviewMouseDown"
                             PreviewKeyDown="ScreenshotHotkeyTextBox_OnPreviewKeyDown"
-                            Content="{Binding ScreenshotHotkeyDisplay}" />
+                            Content="{Binding ScreenshotHotkeyDisplay}"
+                            ToolTip="{Binding HotkeyEditToolTip}" />
 
               <TextBlock Grid.Row="1"
                          Grid.Column="1"
                          Margin="4,-2,4,8"
                          Foreground="{DynamicResource AccentBrush}"
                          Visibility="Collapsed"
-                         Text="Waiting for a key...">
+                         Text="{Binding WaitingForKeyText}">
                 <TextBlock.Style>
                   <Style TargetType="TextBlock">
                     <Setter Property="Visibility" Value="Collapsed" />
@@ -575,19 +619,19 @@
                 </TextBlock.Style>
               </TextBlock>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Folder" />
+              <TextBlock Grid.Row="2" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding FolderLabelText}" />
               <TextBox Grid.Row="2"
                        Grid.Column="1"
                        Margin="4"
                        Text="{Binding ScreenshotFolderPath, UpdateSourceTrigger=PropertyChanged}" />
-              <Button Grid.Row="2"
+                      <Button Grid.Row="2"
                       Grid.Column="2"
                       Margin="4"
                       Padding="10,4"
                       Command="{Binding BrowseScreenshotFolderCommand}"
-                      Content="Browse" />
+                      Content="{Binding BrowseButtonText}" />
 
-              <TextBlock Grid.Row="3" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Prefix" />
+              <TextBlock Grid.Row="3" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding PrefixLabelText}" />
               <TextBox Grid.Row="3"
                        Grid.Column="1"
                        Margin="4"
@@ -597,12 +641,12 @@
                          Grid.ColumnSpan="3"
                          Margin="4,4,4,0"
                          Foreground="{DynamicResource MutedTextBrush}"
-                         Text="Press the screenshot hotkey to save a full-screen PNG and copy it to the clipboard. Press Shift + that same hotkey to choose Full Screen, Area, or start and stop local Video recording."
+                         Text="{Binding ScreenshotHelperText}"
                          TextWrapping="Wrap" />
 
-              <WrapPanel Grid.Row="5" Grid.ColumnSpan="3" Margin="0,12,0,0" HorizontalAlignment="Right">
-                <Button Margin="4" Padding="12,6" Command="{Binding CaptureScreenshotCommand}" Content="Capture Screen" />
-                <Button Margin="4" Padding="12,6" Command="{Binding OpenScreenshotFolderCommand}" Content="Open Folder" />
+                <WrapPanel Grid.Row="5" Grid.ColumnSpan="3" Margin="0,12,0,0" HorizontalAlignment="Right">
+                <Button Margin="4" Padding="12,6" Command="{Binding CaptureScreenshotCommand}" Content="{Binding CaptureScreenButtonText}" />
+                <Button Margin="4" Padding="12,6" Command="{Binding OpenScreenshotFolderCommand}" Content="{Binding OpenFolderButtonText}" />
               </WrapPanel>
             </Grid>
           </GroupBox>
@@ -610,6 +654,7 @@
           <GroupBox Header="Latest Screenshot">
             <Grid Margin="12">
               <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -624,6 +669,25 @@
                        BorderThickness="1"
                       CornerRadius="6">
                 <Grid>
+                  <MediaElement x:Name="LatestVideoPlayer"
+                                Stretch="Uniform"
+                                Source="{Binding LatestVideoSource}"
+                                LoadedBehavior="Manual"
+                                UnloadedBehavior="Stop"
+                                MediaOpened="LatestVideoPlayer_OnMediaOpened"
+                                MediaEnded="LatestVideoPlayer_OnMediaEnded">
+                    <MediaElement.Style>
+                      <Style TargetType="MediaElement">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsLatestMediaVideo}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </MediaElement.Style>
+                  </MediaElement>
+
                   <Image Stretch="Uniform"
                          Source="{Binding LatestScreenshotPreview}">
                     <Image.Style>
@@ -631,6 +695,9 @@
                         <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
                           <DataTrigger Binding="{Binding HasLatestScreenshot}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding IsLatestMediaVideo}" Value="True">
                             <Setter Property="Visibility" Value="Collapsed" />
                           </DataTrigger>
                         </Style.Triggers>
@@ -642,7 +709,7 @@
                              VerticalAlignment="Center"
                              Foreground="{DynamicResource MutedTextBrush}"
                              MaxWidth="260"
-                             Text="Take a screenshot and the latest image will appear here."
+                             Text="{Binding LatestScreenshotPlaceholderText}"
                              TextAlignment="Center"
                              TextWrapping="Wrap">
                     <TextBlock.Style>
@@ -650,6 +717,9 @@
                         <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
                           <DataTrigger Binding="{Binding HasLatestScreenshot}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding HasLatestVideo}" Value="True">
                             <Setter Property="Visibility" Value="Collapsed" />
                           </DataTrigger>
                         </Style.Triggers>
@@ -662,9 +732,44 @@
               <TextBlock Grid.Row="1"
                          Margin="0,0,0,6"
                          FontWeight="SemiBold"
-                         Text="{Binding LatestScreenshotCaption}" />
+                         Text="{Binding LatestScreenshotCaption}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsLatestMediaVideo}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+
+              <TextBlock Grid.Row="1"
+                         Margin="0,0,0,6"
+                         FontWeight="SemiBold"
+                         Text="{Binding LatestVideoCaption, StringFormat=Video: {0}}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsLatestMediaVideo}" Value="True">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
 
               <TextBlock Grid.Row="2"
+                         Margin="0,0,0,6"
+                         Foreground="{DynamicResource MutedTextBrush}"
+                         TextWrapping="Wrap">
+                <Run Text="Latest video: " />
+                <Run Text="{Binding LatestVideoCaption}" />
+              </TextBlock>
+
+              <TextBlock Grid.Row="3"
                          Foreground="{DynamicResource MutedTextBrush}"
                          Text="{Binding ScreenshotStatusMessage}"
                          TextWrapping="Wrap" />
@@ -674,7 +779,7 @@
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="Macro">
+      <TabItem Header="{Binding MacroTabHeaderText}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Grid Margin="0,12,0,0">
             <Grid.RowDefinitions>
@@ -701,13 +806,13 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Name" />
+                <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding NameLabelText}" />
                 <TextBox Grid.Row="0"
                          Grid.Column="1"
                          Margin="4"
                          Text="{Binding MacroName, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="Play Count" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding PlayCountLabelText}" />
                 <TextBox Grid.Row="1"
                          Grid.Column="1"
                          Margin="4"
@@ -718,14 +823,14 @@
                 <CheckBox Grid.Row="2"
                           Grid.ColumnSpan="2"
                           Margin="4,4,4,0"
-                          Content="Record mouse movement"
+                          Content="{Binding RecordMouseMovementLabelText}"
                           IsChecked="{Binding RecordMacroMouseMovement}" />
 
                 <TextBlock Grid.Row="3"
                            Grid.Column="0"
                            Margin="4"
                            VerticalAlignment="Center"
-                           Text="Play Hotkey" />
+                           Text="{Binding PlayHotkeyLabelText}" />
                 <ToggleButton x:Name="MacroHotkeyTextBox"
                               Grid.Row="3"
                               Grid.Column="1"
@@ -742,7 +847,7 @@
                            Margin="4,-2,4,8"
                            Foreground="{DynamicResource AccentBrush}"
                            Visibility="Collapsed"
-                           Text="Waiting for a key...">
+                           Text="{Binding WaitingForKeyText}">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
                       <Setter Property="Visibility" Value="Collapsed" />
@@ -759,7 +864,7 @@
                            Grid.Column="0"
                            Margin="4"
                            VerticalAlignment="Center"
-                           Text="Record Hotkey" />
+                           Text="{Binding RecordHotkeyLabelText}" />
                 <ToggleButton x:Name="MacroRecordHotkeyTextBox"
                               Grid.Row="5"
                               Grid.Column="1"
@@ -776,7 +881,7 @@
                            Margin="4,-2,4,8"
                            Foreground="{DynamicResource AccentBrush}"
                            Visibility="Collapsed"
-                           Text="Waiting for a key...">
+                           Text="{Binding WaitingForKeyText}">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
                       <Setter Property="Visibility" Value="Collapsed" />
@@ -805,12 +910,12 @@
                            Grid.ColumnSpan="2"
                            Margin="0,14,0,0"
                            HorizontalAlignment="Right">
-                  <Button Margin="4" Padding="12,6" Command="{Binding NewMacroCommand}" Content="New Macro" />
-                  <Button Margin="4" Padding="12,6" Command="{Binding StartMacroRecordingCommand}" Content="Record" />
-                  <Button Margin="4" Padding="12,6" Command="{Binding StopMacroRecordingCommand}" Content="Stop" />
-                  <Button Margin="4" Padding="12,6" Command="{Binding PlayMacroCommand}" Content="Play" />
-                  <Button Margin="4" Padding="12,6" Command="{Binding SaveMacroCommand}" Content="Save" />
-                  <Button Margin="4" Padding="12,6" Command="{Binding LoadMacroCommand}" Content="Load" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding NewMacroCommand}" Content="{Binding NewMacroButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding StartMacroRecordingCommand}" Content="{Binding RecordButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding StopMacroRecordingCommand}" Content="{Binding StopButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding PlayMacroCommand}" Content="{Binding PlayButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding SaveMacroCommand}" Content="{Binding SaveButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding LoadMacroCommand}" Content="{Binding LoadButtonText}" />
                 </WrapPanel>
               </Grid>
             </GroupBox>
@@ -830,7 +935,7 @@
                            Grid.Column="0"
                            Margin="4"
                            VerticalAlignment="Center"
-                           Text="Saved" />
+                           Text="{Binding SavedLabelText}" />
                 <ComboBox Grid.Row="0"
                           Grid.Column="1"
                           Margin="4"
@@ -880,7 +985,7 @@
                                  VerticalAlignment="Center"
                                  Foreground="{DynamicResource MutedTextBrush}"
                                  Visibility="Collapsed"
-                                 Text="No keyboard shortcuts are set yet.">
+                                 Text="{Binding NoAssignedMacroShortcutsText}">
                         <TextBlock.Style>
                           <Style TargetType="TextBlock">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -939,33 +1044,33 @@
                     </Grid>
                   </Border>
 
-                  <WrapPanel Grid.Row="4"
-                             HorizontalAlignment="Right">
-                    <Button Margin="4"
-                            Padding="12,6"
-                            Command="{Binding RefreshSavedMacrosCommand}"
-                            Content="Refresh" />
-                    <Button Margin="4"
-                            Padding="12,6"
-                            Command="{Binding LoadSelectedSavedMacroCommand}"
-                            Content="Load Selected" />
-                    <Button Margin="4"
-                            Padding="12,6"
-                            Command="{Binding EditSelectedSavedMacroCommand}"
-                            Content="Edit Selected" />
-                    <Button Margin="4"
-                            Padding="12,6"
-                            Command="{Binding AssignSelectedMacroHotkeyCommand}"
-                            Content="Set Shortcut" />
-                    <Button Margin="4"
-                            Padding="12,6"
-                            Command="{Binding ManageMacroHotkeysCommand}"
-                            Content="Edit Shortcuts" />
-                    <Button Margin="4"
-                            Padding="12,6"
-                            Command="{Binding OpenSavedMacrosFolderCommand}"
-                            Content="Open Folder" />
-                  </WrapPanel>
+                      <WrapPanel Grid.Row="4"
+                         HorizontalAlignment="Right">
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding RefreshSavedMacrosCommand}"
+                        Content="{Binding RefreshButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding LoadSelectedSavedMacroCommand}"
+                        Content="{Binding LoadSelectedButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding EditSelectedSavedMacroCommand}"
+                        Content="{Binding EditSelectedButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding AssignSelectedMacroHotkeyCommand}"
+                      Content="{Binding MacroSetShortcutButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding ManageMacroHotkeysCommand}"
+                      Content="{Binding MacroEditShortcutsButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding OpenSavedMacrosFolderCommand}"
+                        Content="{Binding OpenFolderButtonText}" />
+                    </WrapPanel>
                 </Grid>
               </Grid>
             </GroupBox>
@@ -974,13 +1079,13 @@
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="Installer">
+      <TabItem Header="{Binding InstallerTabHeaderText}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="0,12,0,0">
             <GroupBox Header="Package Picker" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Pick a batch of common apps and MultiTool will install them, update them, or scan the full list for available updates with winget in quiet mode."
+                           Text="{Binding InstallerPackagePickerDescriptionText}"
                            TextWrapping="Wrap" />
 
                 <Grid Margin="0,12,0,0">
@@ -992,7 +1097,7 @@
                   <TextBlock Grid.Column="0"
                              Margin="0,0,8,0"
                              VerticalAlignment="Center"
-                             Text="Search" />
+                             Text="{Binding InstallerSearchLabelText}" />
                   <TextBox Grid.Column="1"
                            Text="{Binding InstallerSearchText, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
@@ -1479,10 +1584,10 @@
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="Tools">
+      <TabItem Header="{Binding ToolsTabHeaderText}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="0,12,0,0">
-            <GroupBox Header="Niche Tools" Margin="0,0,0,12">
+            <GroupBox Header="{Binding NicheToolsHeaderText}" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
                            Text="Focused utility tools for cleanup and one-off maintenance jobs that do not fit neatly into the main tabs."
@@ -1491,12 +1596,12 @@
             </GroupBox>
 
             <Expander Header="Input and Display"
-                      IsExpanded="True"
+                      IsExpanded="False"
                       Margin="0,0,0,12"
                       Style="{StaticResource InstallerInlineExpanderStyle}">
               <StackPanel>
 
-            <GroupBox Header="Shortcut Key Explorer" Margin="0,0,0,12">
+            <GroupBox Header="{Binding ShortcutKeyExplorerHeaderText}" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
                            Text="Deep-scan fixed drives for Windows .lnk shortcut files with assigned hotkeys, detect supported app keymap files, then combine those with built-in Windows and common shortcuts like Ctrl + C, Alt + Tab, and Win + R in one viewer."
@@ -1507,7 +1612,7 @@
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding ShowAssignedShortcutHotkeysCommand}"
-                          Content="Open Shortcut Explorer" />
+                      Content="{Binding ShortcutExplorerButtonText}" />
                 </WrapPanel>
 
                 <Border Margin="0,12,0,0"
@@ -1688,23 +1793,23 @@
                     <TextBlock HorizontalAlignment="Left"
                                FontSize="11"
                                Foreground="{DynamicResource MutedTextBrush}"
-                               Text="Very Slow" />
+                               Text="{Binding MouseSensitivityVerySlowLabelText}" />
                     <TextBlock HorizontalAlignment="Center"
                                FontSize="11"
                                Foreground="{DynamicResource MutedTextBrush}"
-                               Text="Slow" />
+                               Text="{Binding MouseSensitivitySlowLabelText}" />
                     <TextBlock HorizontalAlignment="Center"
                                FontSize="11"
                                Foreground="{DynamicResource MutedTextBrush}"
-                               Text="Balanced" />
+                               Text="{Binding MouseSensitivityBalancedLabelText}" />
                     <TextBlock HorizontalAlignment="Center"
                                FontSize="11"
                                Foreground="{DynamicResource MutedTextBrush}"
-                               Text="Fast" />
+                               Text="{Binding MouseSensitivityFastLabelText}" />
                     <TextBlock HorizontalAlignment="Right"
                                FontSize="11"
                                Foreground="{DynamicResource MutedTextBrush}"
-                               Text="Very Fast" />
+                               Text="{Binding MouseSensitivityVeryFastLabelText}" />
                   </UniformGrid>
                 </Grid>
 
@@ -1766,6 +1871,11 @@
                   <StackPanel>
                     <TextBlock FontWeight="SemiBold"
                                Text="{Binding HardwareCheckSystemSummary}" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding HardwareCheckHealthSummary}"
+                               TextWrapping="Wrap" />
 
                     <TextBlock Margin="0,8,0,0"
                                Foreground="{DynamicResource MutedTextBrush}"
@@ -2406,6 +2516,34 @@
               </StackPanel>
             </GroupBox>
 
+            <GroupBox Header="Pin Window" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Pin MultiTool so it stays above other windows."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Assigned hotkey:"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,2,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding PinWindowHotkeyLabel}" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ToggleWindowPinCommand}"
+                          Content="Toggle Pin" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding PinWindowToolStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
             <GroupBox Header="Replace Windows Search" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
@@ -2435,6 +2573,58 @@
 
                 <TextBlock Margin="0,10,0,0"
                            Text="{Binding SearchReplacementStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Re-index Windows Search" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Force Windows Search to rebuild its index if files are missing from search results or indexing got stuck. This can take several minutes and may prompt for administrator permission."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshSearchReindexStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ReindexWindowsSearchCommand}"
+                          Content="Re-index Now" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding SearchReindexStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Stop Telemetry" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Reduce Windows telemetry by setting machine-level data collection policy to minimum, disabling common telemetry services, and turning off high-noise telemetry scheduled tasks. An administrator prompt may appear."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshTelemetryStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                    Padding="12,6"
+                    Command="{Binding RestoreTelemetryDefaultsCommand}"
+                    Content="Restore Defaults" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ApplyTelemetryReductionCommand}"
+                          Content="Stop Telemetry" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding TelemetryToolStatusMessage}"
                            TextWrapping="Wrap" />
               </StackPanel>
             </GroupBox>
@@ -2762,33 +2952,33 @@
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="Settings">
+      <TabItem x:Name="SettingsTabItem" Header="{Binding SettingsTabHeaderText}">
           <ScrollViewer Margin="0,12,0,0"
                         VerticalScrollBarVisibility="Auto">
             <StackPanel>
-              <GroupBox Header="Appearance" Margin="0,0,0,12">
+              <GroupBox Header="{Binding AppearanceHeaderText}" Margin="0,0,0,12">
                 <StackPanel Margin="12">
-                  <CheckBox Content="Dark mode"
+                  <CheckBox Content="{Binding DarkModeLabelText}"
                             IsChecked="{Binding IsDarkMode}" />
                   <CheckBox Margin="0,8,0,0"
-                            Content="Ctrl + scroll zooms the UI"
-                            IsChecked="{Binding IsCtrlWheelResizeEnabled}" />
-                  <CheckBox Margin="0,8,0,0"
-                            Content="Always on top"
+                            Content="{Binding AlwaysOnTopLabelText}"
                             IsChecked="{Binding IsTopMost}" />
                   <CheckBox Margin="0,8,0,0"
-                            Content="Auto-hide to tray on startup"
+                            Content="{Binding CatTranslatorLabelText}"
+                            IsChecked="{Binding IsSillyModeEnabled}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding AutoHideOnStartupLabelText}"
                             IsChecked="{Binding IsAutoHideOnStartupEnabled}" />
                   <WrapPanel Margin="0,10,0,0"
                              HorizontalAlignment="Right">
                     <Button Margin="4"
                             Padding="12,6"
                             Command="{Binding ResetAllSettingsCommand}"
-                            Content="Reset All Settings" />
+                        Content="{Binding ResetAllSettingsButtonText}" />
                   </WrapPanel>
                   <TextBlock Margin="0,8,0,0"
                              Foreground="{DynamicResource MutedTextBrush}"
-                             Text="On first run, the app starts in the same light or dark mode that Windows is already using. You can also let Ctrl + mouse wheel zoom the app UI, keep the window on top, or have startup launches hide straight to the tray."
+                             Text="{Binding AppearanceHelperText}"
                              TextWrapping="Wrap" />
                   <TextBlock Margin="0,8,0,0"
                              Text="{Binding SettingsStatusMessage}"
@@ -2796,7 +2986,7 @@
                 </StackPanel>
               </GroupBox>
 
-              <GroupBox Header="Bug Checking">
+              <GroupBox Header="{Binding BugCheckingHeaderText}">
                 <Grid Margin="12">
                   <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -2807,7 +2997,7 @@
                   <TextBlock Grid.Row="0"
                              Margin="0,0,0,10"
                              Foreground="{DynamicResource MutedTextBrush}"
-                             Text="If something looks off, use Copy Log and paste it when reporting the bug."
+                             Text="{Binding BugCheckingHelperText}"
                              TextWrapping="Wrap" />
 
                   <WrapPanel Grid.Row="1"
@@ -2816,7 +3006,7 @@
                     <Button Margin="4"
                             Padding="12,6"
                             Command="{Binding CopyActivityLogCommand}"
-                            Content="Copy Log" />
+                        Content="{Binding CopyLogButtonText}" />
                   </WrapPanel>
 
                   <ListBox Grid.Row="2"
@@ -2828,6 +3018,13 @@
           </ScrollViewer>
         </TabItem>
         </TabControl>
+
+      <Canvas x:Name="SillyConfettiCanvas"
+              Grid.RowSpan="3"
+              Panel.ZIndex="1000"
+              IsHitTestVisible="False"
+              Visibility="Collapsed"
+              ClipToBounds="True" />
       </Grid>
     </Grid>
   </Border>

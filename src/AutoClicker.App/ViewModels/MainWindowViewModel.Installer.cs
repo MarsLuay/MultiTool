@@ -1,7 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
+using System.Text;
 using System.Windows.Data;
+using AutoClicker.App.Localization;
 using AutoClicker.App.Models;
+using AutoClicker.App.Services;
 using AutoClicker.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,6 +15,7 @@ namespace AutoClicker.App.ViewModels;
 public partial class MainWindowViewModel
 {
     private const string FirefoxPackageId = "Mozilla.Firefox";
+    private const string EdgePackageId = "Microsoft.Edge";
     private const int MaxInstallerOperationHistory = 24;
 
     private int nextInstallerOperationSequenceNumber = 1;
@@ -44,13 +49,13 @@ public partial class MainWindowViewModel
     private string installerSearchText = string.Empty;
 
     [ObservableProperty]
-    private string installerStatusMessage = "Preparing the installer catalog...";
+    private string installerStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerStatusPreparingCatalog);
 
     [ObservableProperty]
-    private string installerEnvironmentMessage = "The installer tab uses winget for silent installs and updates.";
+    private string installerEnvironmentMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerEnvironmentDefault);
 
     [ObservableProperty]
-    private string installerAppUpdateSummary = "MultiTool release checks run with Check All Updates.";
+    private string installerAppUpdateSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerAppUpdateSummaryDefault);
 
     [ObservableProperty]
     private bool isInstallerBusy;
@@ -71,7 +76,7 @@ public partial class MainWindowViewModel
     private bool isWingetAvailable;
 
     [ObservableProperty]
-    private string cleanupStatusMessage = "Cleanup options are loading...";
+    private string cleanupStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerStatusCleanupLoading);
 
     private bool hasCompletedInstallerStatusCheck;
 
@@ -83,7 +88,7 @@ public partial class MainWindowViewModel
         {
             var packageItem = new InstallerPackageItem(package, installerService.GetPackageCapabilities(package.PackageId))
             {
-                StatusText = "Checking status...",
+                StatusText = L(AppLanguageKeys.InstallerStatusChecking),
             };
 
             if (string.Equals(package.PackageId, FirefoxPackageId, StringComparison.OrdinalIgnoreCase))
@@ -104,7 +109,7 @@ public partial class MainWindowViewModel
         {
             var packageItem = new InstallerPackageItem(package, installerService.GetPackageCapabilities(package.PackageId))
             {
-                StatusText = "Checking status...",
+                StatusText = L(AppLanguageKeys.InstallerStatusChecking),
             };
 
             packageItem.PropertyChanged += InstallerPackageItem_OnPropertyChanged;
@@ -211,11 +216,15 @@ public partial class MainWindowViewModel
     {
         try
         {
+            InstallerStatusMessage = L(AppLanguageKeys.InstallerStatusPreparingCatalog);
+            InstallerEnvironmentMessage = L(AppLanguageKeys.InstallerEnvironmentDefault);
+            InstallerAppUpdateSummary = L(AppLanguageKeys.InstallerAppUpdateSummaryDefault);
+            CleanupStatusMessage = L(AppLanguageKeys.InstallerStatusCleanupLoading);
             await RefreshInstallerStatusCoreAsync(addLogEntry: false).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            InstallerStatusMessage = $"Installer setup failed: {ex.Message}";
+            InstallerStatusMessage = F(AppLanguageKeys.InstallerSetupFailedFormat, ex.Message);
             AddInstallerLog(InstallerStatusMessage);
         }
     }
@@ -274,7 +283,7 @@ public partial class MainWindowViewModel
     [RelayCommand(CanExecute = nameof(CanRefreshInstallerStatus))]
     private async Task CheckAllInstallerUpdatesAsync()
     {
-        InstallerStatusMessage = $"Checking {InstallerPackages.Count} tracked app{(InstallerPackages.Count == 1 ? string.Empty : "s")} for updates...";
+        InstallerStatusMessage = F(AppLanguageKeys.InstallerCheckingTrackedAppsFormat, InstallerPackages.Count, PluralSuffix(InstallerPackages.Count));
         await RefreshInstallerStatusCoreAsync(addLogEntry: true, addDetailedUpdateLog: true);
         await RefreshMultiToolUpdateStatusAsync(addLogEntry: true).ConfigureAwait(true);
     }
@@ -287,7 +296,7 @@ public partial class MainWindowViewModel
             package.IsSelected = package.IsRecommended;
         }
 
-        InstallerStatusMessage = "Selected the recommended starter apps.";
+        InstallerStatusMessage = L(AppLanguageKeys.InstallerSelectedRecommended);
         AddInstallerLog(InstallerStatusMessage);
     }
 
@@ -299,7 +308,7 @@ public partial class MainWindowViewModel
             package.IsSelected = package.IsDeveloperTool;
         }
 
-        InstallerStatusMessage = "Selected the developer stack.";
+        InstallerStatusMessage = L(AppLanguageKeys.InstallerSelectedDeveloper);
         AddInstallerLog(InstallerStatusMessage);
     }
 
@@ -313,7 +322,7 @@ public partial class MainWindowViewModel
             package.IsSelected = false;
         }
 
-        InstallerStatusMessage = "Cleared the installer selection.";
+        InstallerStatusMessage = L(AppLanguageKeys.InstallerSelectionCleared);
         AddInstallerLog(InstallerStatusMessage);
     }
 
@@ -325,7 +334,7 @@ public partial class MainWindowViewModel
             package.IsSelected = package.IsRecommended;
         }
 
-        CleanupStatusMessage = "Selected the recommended cleanup apps.";
+        CleanupStatusMessage = L(AppLanguageKeys.CleanupSelectedRecommended);
         AddInstallerLog(CleanupStatusMessage);
     }
 
@@ -339,7 +348,7 @@ public partial class MainWindowViewModel
             package.IsSelected = false;
         }
 
-        CleanupStatusMessage = "Cleared the cleanup selection.";
+        CleanupStatusMessage = L(AppLanguageKeys.CleanupSelectionCleared);
         AddInstallerLog(CleanupStatusMessage);
     }
 
@@ -357,7 +366,7 @@ public partial class MainWindowViewModel
             syncFirefoxExtensions: true,
             canRunWithoutWinget: item => item.CanInstallWithoutWinget,
             packageFilter: item => item.IsSelected && !item.IsInstalled,
-            emptySelectionMessage: "All selected apps are already installed.");
+            emptySelectionMessage: L(AppLanguageKeys.InstallerSelectionAllSelectedAlreadyInstalled));
     }
 
     private bool CanUpgradeSelectedPackages =>
@@ -392,7 +401,7 @@ public partial class MainWindowViewModel
             syncFirefoxExtensions: false,
             canRunWithoutWinget: item => item.IsInstalled && item.CanUpdateWithoutWinget,
             packageFilter: item => item.IsInstalled && item.HasUpdateAvailable && (IsWingetAvailable || item.CanUpdateWithoutWinget),
-            emptySelectionMessage: "There are no apps with updates ready.");
+            emptySelectionMessage: L(AppLanguageKeys.InstallerSelectionNoUpdatesReady));
     }
 
     private bool CanQueuePrimaryInstallerPackageAction(InstallerPackageItem? package) =>
@@ -412,7 +421,9 @@ public partial class MainWindowViewModel
             action,
             syncFirefoxExtensions: !package.IsInstalled && string.Equals(package.PackageId, FirefoxPackageId, StringComparison.OrdinalIgnoreCase),
             sourceLabel: package.DisplayName,
-            addedLabel: action == InstallerPackageAction.Install ? "Queued install." : "Queued update.").ConfigureAwait(true);
+            addedLabel: action == InstallerPackageAction.Install
+                ? L(AppLanguageKeys.InstallerAddedQueuedInstall)
+                : L(AppLanguageKeys.InstallerAddedQueuedUpdate)).ConfigureAwait(true);
     }
 
     private bool CanQueueInteractiveInstallerPackageAction(InstallerPackageItem? package) =>
@@ -433,8 +444,8 @@ public partial class MainWindowViewModel
             syncFirefoxExtensions: false,
             sourceLabel: package.DisplayName,
             addedLabel: action == InstallerPackageAction.InstallInteractive
-                ? "Queued interactive install."
-                : "Queued interactive update.").ConfigureAwait(true);
+                ? L(AppLanguageKeys.InstallerAddedQueuedInteractiveInstall)
+                : L(AppLanguageKeys.InstallerAddedQueuedInteractiveUpdate)).ConfigureAwait(true);
     }
 
     private bool CanQueueReinstallInstallerPackageAction(InstallerPackageItem? package) =>
@@ -453,7 +464,7 @@ public partial class MainWindowViewModel
             InstallerPackageAction.Reinstall,
             syncFirefoxExtensions: false,
             sourceLabel: package.DisplayName,
-            addedLabel: "Queued reinstall.").ConfigureAwait(true);
+            addedLabel: L(AppLanguageKeys.InstallerAddedQueuedReinstall)).ConfigureAwait(true);
     }
 
     [RelayCommand]
@@ -469,7 +480,7 @@ public partial class MainWindowViewModel
             : package.Package.InstallUrl ?? package.Package.UpdateUrl;
         if (string.IsNullOrWhiteSpace(targetUrl))
         {
-            InstallerStatusMessage = $"{package.DisplayName} does not have an official page linked yet.";
+            InstallerStatusMessage = F(AppLanguageKeys.InstallerNoOfficialPageFormat, package.DisplayName);
             AddInstallerLog(InstallerStatusMessage);
             return;
         }
@@ -477,12 +488,12 @@ public partial class MainWindowViewModel
         try
         {
             var launchResult = browserLauncherService.OpenUrl(targetUrl);
-            InstallerStatusMessage = $"Opened {package.DisplayName}'s official page in {launchResult.BrowserDisplayName}.";
-            AddInstallerLog($"{package.DisplayName}: opened {targetUrl} in {launchResult.BrowserDisplayName}.");
+            InstallerStatusMessage = F(AppLanguageKeys.InstallerOpenedOfficialPageFormat, package.DisplayName, launchResult.BrowserDisplayName);
+            AddInstallerLog(F(AppLanguageKeys.InstallerLogOpenedOfficialPageInBrowserFormat, package.DisplayName, targetUrl, launchResult.BrowserDisplayName));
         }
         catch (Exception ex)
         {
-            InstallerStatusMessage = $"Unable to open {package.DisplayName}'s official page: {ex.Message}";
+            InstallerStatusMessage = F(AppLanguageKeys.InstallerOpenOfficialPageFailedFormat, package.DisplayName, ex.Message);
             AddInstallerLog(InstallerStatusMessage);
         }
     }
@@ -512,39 +523,159 @@ public partial class MainWindowViewModel
 
         if (selectedPackages.Length == 0)
         {
-            CleanupStatusMessage = "Select at least one installed cleanup app first.";
+            CleanupStatusMessage = L(AppLanguageKeys.CleanupSelectInstalledFirst);
             AddInstallerLog(CleanupStatusMessage);
             return;
         }
 
         IsInstallerBusy = true;
-        CleanupStatusMessage = $"Removing {selectedPackages.Length} app{(selectedPackages.Length == 1 ? string.Empty : "s")}...";
+        CleanupStatusMessage = F(AppLanguageKeys.CleanupRemovingAppsFormat, selectedPackages.Length, PluralSuffix(selectedPackages.Length));
         AddInstallerLog(CleanupStatusMessage);
 
         try
         {
             var results = await installerService.UninstallPackagesAsync(selectedPackages.Select(item => item.PackageId).ToArray());
-            foreach (var result in results)
+            var adjustedResults = results.ToList();
+
+            var edgeResultIndex = adjustedResults.FindIndex(result =>
+                string.Equals(result.PackageId, EdgePackageId, StringComparison.OrdinalIgnoreCase)
+                && !result.Succeeded);
+
+            if (edgeResultIndex >= 0)
             {
-                AddInstallerLog($"{result.DisplayName}: {result.Message}");
+                AddInstallerLog(L(AppLanguageKeys.InstallerLogEdgeWingetFailedTryingFallback));
+                var edgeFallbackResult = await edgeRemovalService.RemoveAsync().ConfigureAwait(true);
+                adjustedResults[edgeResultIndex] = new InstallerOperationResult(
+                    EdgePackageId,
+                    L(AppLanguageKeys.InstallerEdgeDisplayName),
+                    edgeFallbackResult.Succeeded,
+                    edgeFallbackResult.Changed,
+                    F(AppLanguageKeys.InstallerEdgeFallbackMessageFormat, edgeFallbackResult.Message),
+                    string.Empty,
+                    edgeFallbackResult.Succeeded ? string.Empty : L(AppLanguageKeys.InstallerEdgeFallbackGuidanceRunAsAdminRetry));
             }
 
-            var removedCount = results.Count(result => result.Succeeded && result.Changed);
-            var missingCount = results.Count(result => result.Succeeded && !result.Changed);
-            var failedCount = results.Count(result => !result.Succeeded);
+            foreach (var result in adjustedResults)
+            {
+                AddInstallerLog(F(AppLanguageKeys.InstallerLogResultDisplayMessageFormat, result.DisplayName, result.Message));
+            }
 
-            CleanupStatusMessage = $"{removedCount} removed, {missingCount} already gone, {failedCount} failed.";
+            var removedCount = adjustedResults.Count(result => result.Succeeded && result.Changed);
+            var missingCount = adjustedResults.Count(result => result.Succeeded && !result.Changed);
+            var failedCount = adjustedResults.Count(result => !result.Succeeded);
+            var manualStepCount = adjustedResults.Count(result => result.RequiresManualStep);
+
+            var summary = F(AppLanguageKeys.CleanupSummaryCountsFormat, removedCount, missingCount, failedCount);
+            if (manualStepCount > 0)
+            {
+                summary += F(AppLanguageKeys.CleanupSummaryManualStepsFormat, manualStepCount);
+            }
+
+            if (failedCount > 0)
+            {
+                var firstFailure = adjustedResults.First(result => !result.Succeeded);
+                summary += F(AppLanguageKeys.CleanupSummaryFirstFailureFormat, firstFailure.DisplayName, firstFailure.Message);
+                if (!string.IsNullOrWhiteSpace(firstFailure.Guidance))
+                {
+                    summary += F(AppLanguageKeys.CleanupSummaryNextStepFormat, firstFailure.Guidance);
+                }
+
+                var failureLogPath = WriteCleanupFailureLog(selectedPackages, adjustedResults);
+                summary += F(AppLanguageKeys.CleanupSummaryFailureLogPathFormat, failureLogPath);
+            }
+
+            CleanupStatusMessage = summary;
+            AddInstallerLog(CleanupStatusMessage);
             await RefreshInstallerStatusCoreAsync(addLogEntry: false);
         }
         catch (Exception ex)
         {
-            CleanupStatusMessage = $"Cleanup failed: {ex.Message}";
+            CleanupStatusMessage = F(AppLanguageKeys.CleanupFailedFormat, ex.Message);
             AddInstallerLog(CleanupStatusMessage);
+
+            var failureLogPath = WriteCleanupExceptionLog(selectedPackages, ex);
+            AddInstallerLog(F(AppLanguageKeys.CleanupLogFailureLogPathFormat, failureLogPath));
         }
         finally
         {
             IsInstallerBusy = false;
         }
+    }
+
+    private static string WriteCleanupFailureLog(
+        IReadOnlyList<InstallerPackageItem> selectedPackages,
+        IReadOnlyList<InstallerOperationResult> results)
+    {
+        Directory.CreateDirectory(AppLog.LogsDirectoryPath);
+
+        var filePath = Path.Combine(
+            AppLog.LogsDirectoryPath,
+            $"cleanup-uninstall-failure-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+
+        var builder = new StringBuilder();
+        builder.AppendLine(AppLanguageStrings.Get(AppLanguageKeys.CleanupUninstallFailureTitle, AppLanguage.English));
+        builder.AppendLine(AppLanguageStrings.Format(AppLanguageKeys.CleanupUninstallTimestampFormat, AppLanguage.English, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
+        builder.AppendLine(AppLanguageStrings.Format(AppLanguageKeys.CleanupUninstallSelectedCountFormat, AppLanguage.English, selectedPackages.Count));
+        builder.AppendLine();
+        builder.AppendLine(AppLanguageStrings.Get(AppLanguageKeys.CleanupUninstallSelectedPackages, AppLanguage.English));
+        foreach (var package in selectedPackages)
+        {
+            builder.AppendLine($"- {package.DisplayName} ({package.PackageId})");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine(AppLanguageStrings.Get(AppLanguageKeys.CleanupUninstallOperationResults, AppLanguage.English));
+        foreach (var result in results)
+        {
+            builder.AppendLine($"- {result.DisplayName} ({result.PackageId})");
+            builder.AppendLine(AppLanguageStrings.Format(AppLanguageKeys.CleanupResultSucceededFormat, AppLanguage.English, result.Succeeded));
+            builder.AppendLine(AppLanguageStrings.Format(AppLanguageKeys.CleanupResultChangedFormat, AppLanguage.English, result.Changed));
+            builder.AppendLine(AppLanguageStrings.Format(AppLanguageKeys.CleanupResultRequiresManualStepFormat, AppLanguage.English, result.RequiresManualStep));
+            builder.AppendLine(AppLanguageStrings.Format(AppLanguageKeys.CleanupResultMessageFormat, AppLanguage.English, result.Message));
+
+            if (!string.IsNullOrWhiteSpace(result.Guidance))
+            {
+                builder.AppendLine(AppLanguageStrings.Format(AppLanguageKeys.CleanupResultGuidanceFormat, AppLanguage.English, result.Guidance));
+            }
+
+            if (!string.IsNullOrWhiteSpace(result.Output))
+            {
+                builder.AppendLine(AppLanguageStrings.Get(AppLanguageKeys.CleanupResultOutputLabel, AppLanguage.English));
+                foreach (var line in result.Output.Split(Environment.NewLine))
+                {
+                    builder.AppendLine($"    {line}");
+                }
+            }
+        }
+
+        File.WriteAllText(filePath, builder.ToString());
+        return filePath;
+    }
+
+    private static string WriteCleanupExceptionLog(IReadOnlyList<InstallerPackageItem> selectedPackages, Exception ex)
+    {
+        Directory.CreateDirectory(AppLog.LogsDirectoryPath);
+
+        var filePath = Path.Combine(
+            AppLog.LogsDirectoryPath,
+            $"cleanup-uninstall-exception-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+
+        var builder = new StringBuilder();
+        builder.AppendLine(AppLanguageStrings.Get(AppLanguageKeys.CleanupUninstallExceptionTitle, AppLanguage.English));
+        builder.AppendLine(AppLanguageStrings.Format(AppLanguageKeys.CleanupUninstallTimestampFormat, AppLanguage.English, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
+        builder.AppendLine();
+        builder.AppendLine(AppLanguageStrings.Get(AppLanguageKeys.CleanupUninstallSelectedPackages, AppLanguage.English));
+        foreach (var package in selectedPackages)
+        {
+            builder.AppendLine($"- {package.DisplayName} ({package.PackageId})");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine(AppLanguageStrings.Get(AppLanguageKeys.CleanupUninstallException, AppLanguage.English));
+        builder.AppendLine(ex.ToString());
+
+        File.WriteAllText(filePath, builder.ToString());
+        return filePath;
     }
 
     private async Task QueueInstallerBatchAsync(
@@ -569,8 +700,8 @@ public partial class MainWindowViewModel
         {
             InstallerStatusMessage = emptySelectionMessage
                 ?? (requireInstalledSelection
-                    ? "There are no installed apps ready to update."
-                    : "Select at least one app first.");
+                    ? L(AppLanguageKeys.InstallerSelectionNoInstalledReadyToUpdate)
+                    : L(AppLanguageKeys.InstallerSelectionSelectAtLeastOneFirst));
             AddInstallerLog(InstallerStatusMessage);
             return;
         }
@@ -579,7 +710,7 @@ public partial class MainWindowViewModel
             selectedPackages,
             action,
             syncFirefoxExtensions,
-            "Installer queue",
+            L(AppLanguageKeys.InstallerQueueSourceLabel),
             BuildInstallerQueuedBatchMessage(actionLabel, selectedPackages.Length)).ConfigureAwait(true);
     }
 
@@ -619,7 +750,7 @@ public partial class MainWindowViewModel
                 action,
                 syncFirefoxExtensions && string.Equals(package.PackageId, FirefoxPackageId, StringComparison.OrdinalIgnoreCase));
             InstallerOperations.Add(operation);
-            package.StatusText = $"#{operation.SequenceNumber} queued";
+            package.StatusText = F(AppLanguageKeys.InstallerPackageStatusQueuedSequenceFormat, operation.SequenceNumber);
             addedCount++;
         }
 
@@ -628,10 +759,10 @@ public partial class MainWindowViewModel
         if (addedCount == 0)
         {
             InstallerStatusMessage = duplicateCount > 0
-                ? $"{sourceLabel}: that action is already queued or running."
+                ? F(AppLanguageKeys.InstallerStatusSourceAlreadyQueuedOrRunningFormat, sourceLabel)
                 : installedSkipCount > 0
-                    ? $"{sourceLabel}: selected app{(installedSkipCount == 1 ? " is" : "s are")} already installed."
-                : $"{sourceLabel}: nothing new was added to the installer queue.";
+                    ? F(AppLanguageKeys.InstallerStatusSourceSelectedAppsAlreadyInstalledFormat, sourceLabel, installedSkipCount == 1 ? L(AppLanguageKeys.InstallerPluralIs) : L(AppLanguageKeys.InstallerPluralAre))
+                : F(AppLanguageKeys.InstallerStatusSourceNothingNewAddedFormat, sourceLabel);
             AddInstallerLog(InstallerStatusMessage);
             return;
         }
@@ -639,12 +770,12 @@ public partial class MainWindowViewModel
         var suffixParts = new List<string>();
         if (duplicateCount > 0)
         {
-            suffixParts.Add($"Skipped {duplicateCount} duplicate request{(duplicateCount == 1 ? string.Empty : "s")}");
+            suffixParts.Add(F(AppLanguageKeys.InstallerSuffixSkippedDuplicateRequestsFormat, duplicateCount, duplicateCount == 1 ? string.Empty : L(AppLanguageKeys.InstallerPluralS)));
         }
 
         if (installedSkipCount > 0)
         {
-            suffixParts.Add($"Skipped {installedSkipCount} already installed app{(installedSkipCount == 1 ? string.Empty : "s")}");
+            suffixParts.Add(F(AppLanguageKeys.InstallerSuffixSkippedAlreadyInstalledAppsFormat, installedSkipCount, installedSkipCount == 1 ? string.Empty : L(AppLanguageKeys.InstallerPluralS)));
         }
 
         InstallerStatusMessage = suffixParts.Count > 0
@@ -701,8 +832,8 @@ public partial class MainWindowViewModel
                 if (primaryResult is null)
                 {
                     pendingOperation.State = InstallerOperationQueueState.Failed;
-                    pendingOperation.StatusText = "The installer did not return a result.";
-                    pendingOperation.GuidanceText = "Check the activity log, then try the action again.";
+                    pendingOperation.StatusText = L(AppLanguageKeys.InstallerOperationNoResult);
+                    pendingOperation.GuidanceText = L(AppLanguageKeys.InstallerOperationNoResultGuidance);
                     pendingOperation.RequiresManualStep = true;
                     pendingOperation.Package.StatusText = pendingOperation.StatusText;
                     continue;
@@ -723,7 +854,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            InstallerStatusMessage = $"Installer queue failed: {ex.Message}";
+            InstallerStatusMessage = F(AppLanguageKeys.InstallerQueueFailedFormat, ex.Message);
             AddInstallerLog(InstallerStatusMessage);
         }
         finally
@@ -763,20 +894,20 @@ public partial class MainWindowViewModel
                     package.IsInstalled = false;
                     package.HasUpdateAvailable = false;
                     package.StatusText = package.UsesGuidedInstall
-                        ? "Guided install"
-                        : "winget unavailable";
+                        ? L(AppLanguageKeys.InstallerPackageStatusGuidedInstall)
+                        : L(AppLanguageKeys.InstallerPackageStatusWingetUnavailable);
                 }
 
                 foreach (var package in CleanupPackages)
                 {
                     package.IsInstalled = false;
                     package.HasUpdateAvailable = false;
-                    package.StatusText = "winget unavailable";
+                    package.StatusText = L(AppLanguageKeys.InstallerPackageStatusWingetUnavailable);
                 }
 
                 var guidedCount = InstallerPackages.Count(item => item.UsesGuidedInstall);
                 InstallerStatusMessage = guidedCount > 0
-                    ? $"{environment.Message} {guidedCount} guided app{(guidedCount == 1 ? string.Empty : "s")} can still open official setup pages."
+                    ? F(AppLanguageKeys.InstallerStatusGuidedAppsCanOpenOfficialPagesFormat, environment.Message, guidedCount, guidedCount == 1 ? string.Empty : L(AppLanguageKeys.InstallerPluralS))
                     : environment.Message;
                 CleanupStatusMessage = environment.Message;
                 if (addLogEntry)
@@ -799,8 +930,9 @@ public partial class MainWindowViewModel
 
             var installedCount = InstallerPackages.Count(item => item.IsInstalled);
             var updateCount = InstallerPackages.Count(item => item.HasUpdateAvailable);
-            InstallerStatusMessage = $"{installedCount} installed, {updateCount} update{(updateCount == 1 ? string.Empty : "s")} available.";
-            CleanupStatusMessage = $"{CleanupPackages.Count(item => item.IsInstalled)} removable app{(CleanupPackages.Count(item => item.IsInstalled) == 1 ? string.Empty : "s")} currently installed.";
+            InstallerStatusMessage = F(AppLanguageKeys.InstallerStatusInstalledUpdatesFormat, installedCount, updateCount, PluralSuffix(updateCount));
+            var installedCleanupCount = CleanupPackages.Count(item => item.IsInstalled);
+            CleanupStatusMessage = F(AppLanguageKeys.CleanupStatusInstalledRemovableFormat, installedCleanupCount, PluralSuffix(installedCleanupCount));
 
             if (addLogEntry)
             {
@@ -813,7 +945,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            InstallerStatusMessage = $"Unable to refresh installer status: {ex.Message}";
+            InstallerStatusMessage = F(AppLanguageKeys.InstallerRefreshFailedFormat, ex.Message);
             hasCompletedInstallerStatusCheck = true;
 
             if (addLogEntry)
@@ -857,7 +989,12 @@ public partial class MainWindowViewModel
 
         InstallerProgressMaximum = Math.Max(totalCount, 1);
         InstallerProgressValue = completedCount;
-        InstallerProgressText = $"{BuildInstallerOperationActionLabel(operation.Action)} {operation.DisplayName} [{Math.Min(completedCount + 1, Math.Max(totalCount, 1))}/{Math.Max(totalCount, 1)}]...";
+        InstallerProgressText = F(
+            AppLanguageKeys.InstallerProgressTextFormat,
+            BuildInstallerOperationActionLabel(operation.Action),
+            operation.DisplayName,
+            Math.Min(completedCount + 1, Math.Max(totalCount, 1)),
+            Math.Max(totalCount, 1));
         IsInstallerProgressVisible = true;
     }
 
@@ -889,19 +1026,19 @@ public partial class MainWindowViewModel
         var selectedCount = InstallerPackages.Count(item => item.IsSelected);
         var installedCount = InstallerPackages.Count(item => item.IsInstalled);
         var updateCount = InstallerPackages.Count(item => item.HasUpdateAvailable);
-        return $"{selectedCount} selected  |  {installedCount} installed  |  {updateCount} updates ready";
+        return F(AppLanguageKeys.InstallerSelectionSummaryFormat, selectedCount, installedCount, updateCount);
     }
 
     private string BuildInstallerUpdateSummary()
     {
         if (!hasCompletedInstallerStatusCheck)
         {
-            return "Use Check All Updates to scan every tracked app.";
+            return L(AppLanguageKeys.InstallerUpdateSummaryInitial);
         }
 
         if (!IsWingetAvailable)
         {
-            return "Update checks are unavailable until winget is available.";
+            return L(AppLanguageKeys.InstallerUpdateSummaryUnavailable);
         }
 
         var updates = InstallerPackages
@@ -911,14 +1048,14 @@ public partial class MainWindowViewModel
             .ToArray();
         var customInstalledCount = InstallerPackages.Count(item => item.UsesCustomInstallFlow && item.IsInstalled);
         var customSuffix = customInstalledCount > 0
-            ? $" Update All Ready also refreshes {customInstalledCount} custom app{(customInstalledCount == 1 ? string.Empty : "s")}."
+            ? F(AppLanguageKeys.InstallerUpdateCustomSuffixFormat, customInstalledCount, PluralSuffix(customInstalledCount))
             : string.Empty;
 
         return updates.Length switch
         {
-            0 => $"No winget-tracked updates found.{customSuffix}".Trim(),
-            <= 5 => $"Updates ready: {string.Join(", ", updates)}.{customSuffix}",
-            _ => $"Updates ready: {string.Join(", ", updates[..5])}, +{updates.Length - 5} more.{customSuffix}",
+            0 => F(AppLanguageKeys.InstallerUpdateNoneFoundFormat, customSuffix).Trim(),
+            <= 5 => F(AppLanguageKeys.InstallerUpdateReadyListFormat, string.Join(", ", updates), customSuffix),
+            _ => F(AppLanguageKeys.InstallerUpdateReadyMoreFormat, string.Join(", ", updates[..5]), updates.Length - 5, customSuffix),
         };
     }
 
@@ -926,7 +1063,7 @@ public partial class MainWindowViewModel
     {
         var selectedCount = CleanupPackages.Count(item => item.IsSelected);
         var installedCount = CleanupPackages.Count(item => item.IsInstalled);
-        return $"{selectedCount} selected  |  {installedCount} currently installed";
+        return F(AppLanguageKeys.CleanupSelectionSummaryFormat, selectedCount, installedCount);
     }
 
     private string BuildDetailedUpdateLogMessage()
@@ -938,14 +1075,14 @@ public partial class MainWindowViewModel
             .ToArray();
         var customInstalledCount = InstallerPackages.Count(item => item.UsesCustomInstallFlow && item.IsInstalled);
         var customSuffix = customInstalledCount > 0
-            ? $" Update All Ready also refreshes {customInstalledCount} custom app{(customInstalledCount == 1 ? string.Empty : "s")}."
+            ? F(AppLanguageKeys.InstallerUpdateCustomSuffixFormat, customInstalledCount, customInstalledCount == 1 ? string.Empty : L(AppLanguageKeys.InstallerPluralS))
             : string.Empty;
 
         return updates.Length switch
         {
-            0 => $"No winget-tracked updates found.{customSuffix}".Trim(),
-            1 => $"Update ready for {updates[0]}.{customSuffix}",
-            _ => $"Updates ready for {updates.Length} apps: {string.Join(", ", updates)}.{customSuffix}",
+            0 => F(AppLanguageKeys.InstallerUpdateNoneFoundFormat, customSuffix).Trim(),
+            1 => F(AppLanguageKeys.InstallerUpdateReadyListFormat, updates[0], customSuffix),
+            _ => F(AppLanguageKeys.InstallerUpdateReadyMoreFormat, updates[0], updates.Length - 1, customSuffix),
         };
     }
 
@@ -956,7 +1093,7 @@ public partial class MainWindowViewModel
         var completedCount = InstallerOperations.Count(item => item.IsCompleted);
         var attentionCount = InstallerOperations.Count(item => item.RequiresAttention);
 
-        return $"Queue: {queuedCount} queued  |  {runningCount} running  |  {completedCount} finished  |  {attentionCount} attention";
+        return F(AppLanguageKeys.InstallerQueueSummaryFormat, queuedCount, runningCount, completedCount, attentionCount);
     }
 
     private static string BuildInstallerQueueCompletionSummary(IReadOnlyList<InstallerOperationItem> completedOperations)
@@ -964,31 +1101,31 @@ public partial class MainWindowViewModel
         var changedCount = completedOperations.Count(item => item.State == InstallerOperationQueueState.Succeeded);
         var unchangedCount = completedOperations.Count(item => item.State == InstallerOperationQueueState.Skipped);
         var failedCount = completedOperations.Count(item => item.State == InstallerOperationQueueState.Failed);
-        return $"{changedCount} applied, {unchangedCount} already current, {failedCount} need attention.";
+        return AppLanguageStrings.FormatForCurrentLanguage(AppLanguageKeys.InstallerQueueCompletionSummaryFormat, changedCount, unchangedCount, failedCount);
     }
 
-    private static string BuildInstallerOperationActionLabel(InstallerPackageAction action) =>
+    private string BuildInstallerOperationActionLabel(InstallerPackageAction action) =>
         action switch
         {
-            InstallerPackageAction.Install => "Installing",
-            InstallerPackageAction.Update => "Updating",
-            InstallerPackageAction.Uninstall => "Removing",
-            InstallerPackageAction.InstallInteractive => "Running interactive install for",
-            InstallerPackageAction.UpdateInteractive => "Running interactive update for",
-            InstallerPackageAction.Reinstall => "Reinstalling",
-            _ => "Working on",
+            InstallerPackageAction.Install => L(AppLanguageKeys.InstallerActionInstalling),
+            InstallerPackageAction.Update => L(AppLanguageKeys.InstallerActionUpdating),
+            InstallerPackageAction.Uninstall => L(AppLanguageKeys.InstallerActionRemoving),
+            InstallerPackageAction.InstallInteractive => L(AppLanguageKeys.InstallerActionInteractiveInstallRunningFor),
+            InstallerPackageAction.UpdateInteractive => L(AppLanguageKeys.InstallerActionInteractiveUpdateRunningFor),
+            InstallerPackageAction.Reinstall => L(AppLanguageKeys.InstallerActionReinstalling),
+            _ => L(AppLanguageKeys.InstallerActionWorkingOn),
         };
 
-    private static string BuildInstallerOperationActiveStatusText(InstallerPackageAction action) =>
+    private string BuildInstallerOperationActiveStatusText(InstallerPackageAction action) =>
         action switch
         {
-            InstallerPackageAction.Install => "Installing...",
-            InstallerPackageAction.Update => "Updating...",
-            InstallerPackageAction.Uninstall => "Removing...",
-            InstallerPackageAction.InstallInteractive => "Interactive install running...",
-            InstallerPackageAction.UpdateInteractive => "Interactive update running...",
-            InstallerPackageAction.Reinstall => "Reinstalling...",
-            _ => "Working...",
+            InstallerPackageAction.Install => L(AppLanguageKeys.InstallerActiveInstalling),
+            InstallerPackageAction.Update => L(AppLanguageKeys.InstallerActiveUpdating),
+            InstallerPackageAction.Uninstall => L(AppLanguageKeys.InstallerActiveRemoving),
+            InstallerPackageAction.InstallInteractive => L(AppLanguageKeys.InstallerActiveInteractiveInstall),
+            InstallerPackageAction.UpdateInteractive => L(AppLanguageKeys.InstallerActiveInteractiveUpdate),
+            InstallerPackageAction.Reinstall => L(AppLanguageKeys.InstallerActiveReinstalling),
+            _ => L(AppLanguageKeys.InstallerActiveWorking),
         };
 
     private static string BuildInstallerOperationDeduplicationKey(string packageId, InstallerPackageAction action) =>
@@ -1023,7 +1160,9 @@ public partial class MainWindowViewModel
             parts.Add(result.Guidance.Trim());
         }
 
-        var supplementalSummary = BuildSupplementalResultSummary(supplementalResults, "Firefox add-ons").Trim();
+        var supplementalSummary = BuildSupplementalResultSummary(
+            supplementalResults,
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerFirefoxAddonsLabel)).Trim();
         if (!string.IsNullOrWhiteSpace(supplementalSummary))
         {
             parts.Add(supplementalSummary);
@@ -1047,7 +1186,7 @@ public partial class MainWindowViewModel
             static result => string.Equals(result.PackageId, FirefoxPackageId, StringComparison.OrdinalIgnoreCase));
         if (firefoxInstallResult is not null && !firefoxInstallResult.Succeeded)
         {
-            AddInstallerLog("Firefox add-ons skipped because Firefox did not install cleanly.");
+            AddInstallerLog(L(AppLanguageKeys.InstallerLogFirefoxAddonsSkippedBecauseInstallFailed));
             return [];
         }
 
@@ -1067,14 +1206,14 @@ public partial class MainWindowViewModel
             if (addLogEntry)
             {
                 var logMessage = updateInfo.IsUpdateAvailable && !string.IsNullOrWhiteSpace(updateInfo.ReleaseUrl)
-                    ? $"{updateInfo.Message} {updateInfo.ReleaseUrl}"
+                    ? F(AppLanguageKeys.InstallerLogUpdateInfoWithUrlFormat, updateInfo.Message, updateInfo.ReleaseUrl)
                     : updateInfo.Message;
                 AddInstallerLog(logMessage);
             }
         }
         catch (Exception ex)
         {
-            InstallerAppUpdateSummary = $"Unable to check for MultiTool updates: {ex.Message}";
+            InstallerAppUpdateSummary = F(AppLanguageKeys.InstallerUpdateCheckFailedFormat, ex.Message);
             if (addLogEntry)
             {
                 AddInstallerLog(InstallerAppUpdateSummary);
@@ -1092,7 +1231,12 @@ public partial class MainWindowViewModel
         var changedCount = results.Count(result => result.Succeeded && result.Changed);
         var unchangedCount = results.Count(result => result.Succeeded && !result.Changed);
         var failedCount = results.Count(result => !result.Succeeded);
-        return $" {label}: {changedCount} applied, {unchangedCount} already ready, {failedCount} failed.";
+        return AppLanguageStrings.FormatForCurrentLanguage(
+            AppLanguageKeys.InstallerSupplementalSummaryFormat,
+            label,
+            changedCount,
+            unchangedCount,
+            failedCount);
     }
 
     private void LogInstallerOperationResults(InstallerOperationItem operation, IReadOnlyList<InstallerOperationResult> results)
@@ -1101,8 +1245,8 @@ public partial class MainWindowViewModel
         {
             var guidanceSuffix = string.IsNullOrWhiteSpace(result.Guidance)
                 ? string.Empty
-                : $" Next: {result.Guidance}";
-            AddInstallerLog($"#{operation.SequenceNumber} {result.DisplayName}: {result.Message}{guidanceSuffix}");
+                : F(AppLanguageKeys.InstallerLogGuidanceSuffixFormat, result.Guidance);
+            AddInstallerLog(F(AppLanguageKeys.InstallerLogOperationResultFormat, operation.SequenceNumber, result.DisplayName, result.Message, guidanceSuffix));
         }
     }
 
@@ -1131,7 +1275,7 @@ public partial class MainWindowViewModel
             {
                 package.IsInstalled = false;
                 package.HasUpdateAvailable = false;
-                package.StatusText = "Status unavailable";
+                package.StatusText = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerStatusUnavailable);
                 continue;
             }
 
@@ -1159,14 +1303,25 @@ public partial class MainWindowViewModel
         ?? results.LastOrDefault();
 
     private static string BuildInstallerQueuedBatchMessage(string actionLabel, int count) =>
-        $"Queued {count} {BuildInstallerActionNoun(actionLabel, count)}.";
+        AppLanguageStrings.FormatForCurrentLanguage(
+            AppLanguageKeys.InstallerQueuedBatchMessageFormat,
+            count,
+            BuildInstallerActionNoun(actionLabel, count));
 
     private static string BuildInstallerActionNoun(string actionLabel, int count) =>
         actionLabel.ToUpperInvariant() switch
         {
-            "INSTALL" => count == 1 ? "install" : "installs",
-            "UPDATE" => count == 1 ? "update" : "updates",
-            "REMOVE" => count == 1 ? "removal" : "removals",
-            _ => count == 1 ? "task" : "tasks",
+            "INSTALL" => count == 1
+                ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionNounInstallSingular)
+                : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionNounInstallPlural),
+            "UPDATE" => count == 1
+                ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionNounUpdateSingular)
+                : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionNounUpdatePlural),
+            "REMOVE" => count == 1
+                ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionNounRemovalSingular)
+                : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionNounRemovalPlural),
+            _ => count == 1
+                ? AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionNounTaskSingular)
+                : AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerActionNounTaskPlural),
         };
 }

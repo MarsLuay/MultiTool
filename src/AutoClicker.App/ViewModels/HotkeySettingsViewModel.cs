@@ -16,43 +16,48 @@ public partial class HotkeySettingsViewModel : ObservableObject
         workingCopy = currentSettings;
 
         toggleHotkeyDisplay = workingCopy.Toggle.DisplayName;
-        allowModifierVariants = workingCopy.AllowModifierVariants;
+        pinWindowHotkeyDisplay = GetDisplayNameOrUnassigned(workingCopy.PinWindow);
     }
 
     [ObservableProperty]
     private string toggleHotkeyDisplay = string.Empty;
 
     [ObservableProperty]
-    private bool allowModifierVariants;
-
-    public bool SupportsModifierVariants => workingCopy.Toggle.InputKind == HotkeyInputKind.Keyboard;
+    private string pinWindowHotkeyDisplay = string.Empty;
 
     [RelayCommand]
     private void Reset()
     {
         workingCopy.Toggle = HotkeySettings.CreateDefaultToggleBinding();
-        AllowModifierVariants = false;
+        workingCopy.PinWindow = HotkeySettings.CreateUnassignedBinding();
         RefreshDisplays();
-    }
-
-    partial void OnAllowModifierVariantsChanged(bool value)
-    {
-        workingCopy.AllowModifierVariants = value;
     }
 
     public void CaptureHotkey(HotkeyAction action, Key key)
     {
         var virtualKey = HotkeyDisplayNameFormatter.ToVirtualKey(key);
-        var binding = new HotkeyBinding(virtualKey, HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey));
-
-        if (action != HotkeyAction.Toggle)
+        if (virtualKey <= 0)
         {
-            throw new NotSupportedException($"Hotkey action {action} is not supported.");
+            return;
         }
 
-        workingCopy.Toggle = binding;
-        ToggleHotkeyDisplay = binding.DisplayName;
-        OnPropertyChanged(nameof(SupportsModifierVariants));
+        var binding = new HotkeyBinding(virtualKey, HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey));
+
+        if (action == HotkeyAction.Toggle)
+        {
+            workingCopy.Toggle = binding;
+            ToggleHotkeyDisplay = binding.DisplayName;
+            return;
+        }
+
+        if (action == HotkeyAction.WindowPinToggle)
+        {
+            workingCopy.PinWindow = binding;
+            PinWindowHotkeyDisplay = binding.DisplayName;
+            return;
+        }
+
+        throw new NotSupportedException($"Hotkey action {action} is not supported.");
     }
 
     public void CaptureMouseHotkey(HotkeyAction action, ClickMouseButton mouseButton)
@@ -69,9 +74,7 @@ public partial class HotkeySettingsViewModel : ObservableObject
         }
 
         workingCopy.Toggle = binding;
-        AllowModifierVariants = false;
         ToggleHotkeyDisplay = binding.DisplayName;
-        OnPropertyChanged(nameof(SupportsModifierVariants));
     }
 
     public HotkeySettings BuildSettings() => workingCopy.Clone();
@@ -79,6 +82,11 @@ public partial class HotkeySettingsViewModel : ObservableObject
     private void RefreshDisplays()
     {
         ToggleHotkeyDisplay = workingCopy.Toggle.DisplayName;
-        OnPropertyChanged(nameof(SupportsModifierVariants));
+        PinWindowHotkeyDisplay = GetDisplayNameOrUnassigned(workingCopy.PinWindow);
     }
+
+    private static string GetDisplayNameOrUnassigned(HotkeyBinding binding) =>
+        binding.VirtualKey > 0 && !string.IsNullOrWhiteSpace(binding.DisplayName)
+            ? binding.DisplayName
+            : HotkeySettings.UnassignedDisplayName;
 }

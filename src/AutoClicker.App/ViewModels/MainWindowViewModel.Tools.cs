@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using AutoClicker.App.Localization;
 using AutoClicker.App.Models;
 using AutoClicker.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -14,21 +15,26 @@ public partial class MainWindowViewModel
 {
     private const string WindowsUpdateOptionalUpdatesSettingsUri = "ms-settings:windowsupdate-optionalupdates";
     private const string WindowsUpdateSettingsUri = "ms-settings:windowsupdate";
+    private const string UsoClientExecutable = "UsoClient.exe";
 
     private static readonly IReadOnlyList<UsefulSiteItem> DefaultUsefulSites =
     [
         new(
-            "FMHY.net",
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsUsefulSiteFmhyName),
             "https://fmhy.net/",
-            "The largest collection of free stuff on the internet."),
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsUsefulSiteFmhyDescription)),
         new(
-            "Guide to sailing the Seven Seas",
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsUsefulSiteSevenSeasName),
             "https://rentry.co/megathread",
-            "A comprehensive guide to learn how to get free things!"),
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsUsefulSiteSevenSeasDescription)),
         new(
-            "Z-Library (the true edition)",
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsUsefulSiteZLibraryName),
             "http://zlibrary24tuxziyiyfr7zd46ytefdqbqd2axkmxm4o5374ptpc52fad.onion/",
-            "The largest free ebook library on the internet. Tor browser required (and recommended)."),
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsUsefulSiteZLibraryDescription)),
+        new(
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsUsefulSiteFmhyBackupName),
+            "https://rentry.co/FMHYB64",
+            AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsUsefulSiteFmhyBackupDescription)),
     ];
 
     public ObservableCollection<EmptyDirectoryItem> EmptyDirectoryCandidates { get; } = [];
@@ -101,16 +107,18 @@ public partial class MainWindowViewModel
 
     public string ShortcutHotkeyScanProgressSummary => BuildShortcutHotkeyScanProgressSummary();
 
-    public string UsefulSitesToggleText => AreUsefulSitesVisible ? "Hide Useful Sites" : "Useful Sites";
+    public string UsefulSitesToggleText => AreUsefulSitesVisible
+        ? L(AppLanguageKeys.ToolsUsefulSitesToggleHide)
+        : L(AppLanguageKeys.ToolsUsefulSitesToggleShow);
 
     [ObservableProperty]
     private string emptyDirectoryRootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
     [ObservableProperty]
-    private string emptyDirectoryStatusMessage = "Choose a folder tree to scan for empty directories.";
+    private string emptyDirectoryStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusEmptyDirectoryInitial);
 
     [ObservableProperty]
-    private string shortcutHotkeyStatusMessage = "Scan Windows .lnk hotkeys and supported app keymap files on this PC, then include built-in Windows and common shortcuts in one viewer.";
+    private string shortcutHotkeyStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusShortcutHotkeyInitial);
 
     [ObservableProperty]
     private bool isShortcutHotkeyScanProgressVisible;
@@ -146,52 +154,64 @@ public partial class MainWindowViewModel
     private int selectedMouseSensitivityLevel = 10;
 
     [ObservableProperty]
-    private string mouseSensitivityStatusMessage = "Pick a slower or faster mouse speed. 10/20 is the normal middle setting in Windows, so it is a good place to start if you are unsure.";
+    private string mouseSensitivityStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusMouseSensitivityInitial);
 
     [ObservableProperty]
-    private string displayRefreshStatusMessage = "Click Check Displays to see if your monitors can run at a faster refresh rate.";
+    private string displayRefreshStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusDisplayRefreshInitial);
 
     [ObservableProperty]
-    private string hardwareCheckSystemSummary = "No hardware scan yet.";
+    private string hardwareCheckSystemSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareSystemInitial);
 
     [ObservableProperty]
-    private string hardwareCheckOperatingSystemSummary = "Windows details will appear after scanning.";
+    private string hardwareCheckHealthSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareHealthInitial);
 
     [ObservableProperty]
-    private string hardwareCheckProcessorSummary = "Processor details will appear after scanning.";
+    private string hardwareCheckOperatingSystemSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareOperatingSystemInitial);
 
     [ObservableProperty]
-    private string hardwareCheckMemorySummary = "Memory details will appear after scanning.";
+    private string hardwareCheckProcessorSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareProcessorInitial);
 
     [ObservableProperty]
-    private string hardwareCheckMotherboardSummary = "Motherboard details will appear after scanning.";
+    private string hardwareCheckMemorySummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareMemoryInitial);
 
     [ObservableProperty]
-    private string hardwareCheckBiosSummary = "BIOS details will appear after scanning.";
+    private string hardwareCheckMotherboardSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareMotherboardInitial);
 
     [ObservableProperty]
-    private string hardwareCheckStatusMessage = "Scan the PC to review core hardware details, live sensor telemetry, PCIe devices, storage health, partitions, and RAID details.";
+    private string hardwareCheckBiosSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareBiosInitial);
 
     [ObservableProperty]
-    private string driverUpdateStatusMessage = "Scan this PC's hardware and check Windows Update for recommended and optional driver updates. Some driver offers can only be finished through Windows Update's own Optional Updates page.";
+    private string hardwareCheckStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareCheckInitial);
+
+    [ObservableProperty]
+    private string driverUpdateStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusDriverUpdateInitial);
 
     [ObservableProperty]
     private bool isToolBusy;
 
     [ObservableProperty]
-    private string darkModeToolStatusMessage = "Apply Windows dark mode preferences for the shell and supported apps.";
+    private string darkModeToolStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusDarkModeInitial);
 
     [ObservableProperty]
-    private string searchReplacementStatusMessage = "Replace the built-in Windows Search with Flow Launcher for a faster search experience. Use Restore to switch back to Windows Search at any time.";
+    private string searchReplacementStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusSearchReplacementInitial);
 
     [ObservableProperty]
-    private string oneDriveToolStatusMessage = "Check whether OneDrive is present, apply the system disable policy, and remove it with Windows' built-in uninstaller when available.";
+    private string searchReindexStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusSearchReindexInitial);
 
     [ObservableProperty]
-    private string edgeToolStatusMessage = "Detect whether Microsoft Edge is installed and remove it using the developer-override method. An administrator prompt will appear during removal.";
+    private string telemetryToolStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusTelemetryInitial);
 
     [ObservableProperty]
-    private string fnCtrlSwapStatusMessage = "Detect Lenovo BIOS Fn/Ctrl key swap support and switch the key positions when available.";
+    private string pinWindowToolStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusPinWindowInitial);
+
+    [ObservableProperty]
+    private string oneDriveToolStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusOneDriveInitial);
+
+    [ObservableProperty]
+    private string edgeToolStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusEdgeInitial);
+
+    [ObservableProperty]
+    private string fnCtrlSwapStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusFnCtrlSwapInitial);
 
     [ObservableProperty]
     private bool isFnCtrlSwapSupported;
@@ -200,10 +220,10 @@ public partial class MainWindowViewModel
     private bool areUsefulSitesVisible;
 
     [ObservableProperty]
-    private string usefulSitesStatusMessage = "Open a curated list of useful sites from inside MultiTool.";
+    private string usefulSitesStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusUsefulSitesInitial);
 
     [ObservableProperty]
-    private string windows11EeaInstallStatusMessage = "Build the official Windows 11 media prep files with Ireland as the EEA regional default, then let MultiTool watch for the finished USB and copy the answer file automatically.";
+    private string windows11EeaInstallStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusWindows11EeaInitial);
 
     private void InitializeToolsState()
     {
@@ -247,6 +267,9 @@ public partial class MainWindowViewModel
         RefreshEdgeStatusCore(addLogEntry: false);
         RefreshFnCtrlSwapStatusCore(addLogEntry: false);
         RefreshSearchReplacementStatusCore(addLogEntry: false);
+        RefreshSearchReindexStatusCore(addLogEntry: false);
+        RefreshTelemetryStatusCore(addLogEntry: false);
+        RefreshPinWindowStatusCore(addLogEntry: false);
     }
 
     partial void OnEmptyDirectoryRootPathChanged(string value)
@@ -339,7 +362,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            MouseSensitivityStatusMessage = $"Unable to read the Windows mouse sensitivity: {ex.Message}";
+            MouseSensitivityStatusMessage = F(AppLanguageKeys.ToolsErrorReadMouseSensitivityFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(MouseSensitivityStatusMessage);
@@ -360,7 +383,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            OneDriveToolStatusMessage = $"Unable to check OneDrive status: {ex.Message}";
+            OneDriveToolStatusMessage = F(AppLanguageKeys.ToolsErrorCheckOneDriveFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(OneDriveToolStatusMessage);
@@ -381,7 +404,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            EdgeToolStatusMessage = $"Unable to check Edge status: {ex.Message}";
+            EdgeToolStatusMessage = F(AppLanguageKeys.ToolsErrorCheckEdgeFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(EdgeToolStatusMessage);
@@ -402,7 +425,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            SearchReplacementStatusMessage = $"Unable to check the Flow Launcher search replacement: {ex.Message}";
+            SearchReplacementStatusMessage = F(AppLanguageKeys.ToolsErrorCheckSearchReplacementFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(SearchReplacementStatusMessage);
@@ -425,7 +448,7 @@ public partial class MainWindowViewModel
         catch (Exception ex)
         {
             IsFnCtrlSwapSupported = false;
-            FnCtrlSwapStatusMessage = $"Unable to check Fn/Ctrl swap status: {ex.Message}";
+            FnCtrlSwapStatusMessage = F(AppLanguageKeys.ToolsErrorCheckFnCtrlSwapFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(FnCtrlSwapStatusMessage);
@@ -465,16 +488,16 @@ public partial class MainWindowViewModel
     [RelayCommand]
     private void BrowseEmptyDirectoryRoot()
     {
-        var selectedPath = folderPickerService.PickFolder(EmptyDirectoryRootPath, "Select the folder tree to scan for empty directories");
+        var selectedPath = folderPickerService.PickFolder(EmptyDirectoryRootPath, L(AppLanguageKeys.ToolsFolderPickerSelectEmptyDirectoryRoot));
         if (string.IsNullOrWhiteSpace(selectedPath))
         {
-            EmptyDirectoryStatusMessage = "Folder selection canceled.";
+            EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusFolderSelectionCanceled);
             AddToolLog(EmptyDirectoryStatusMessage);
             return;
         }
 
         EmptyDirectoryRootPath = selectedPath;
-        EmptyDirectoryStatusMessage = $"Empty directory scan root set to {selectedPath}.";
+        EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryRootSetFormat, selectedPath);
         AddToolLog(EmptyDirectoryStatusMessage);
     }
 
@@ -484,7 +507,7 @@ public partial class MainWindowViewModel
     private async Task ShowAssignedShortcutHotkeysAsync()
     {
         IsToolBusy = true;
-        ShortcutHotkeyStatusMessage = "Scanning fixed drives for assigned Windows shortcut keys, loading supported app keymaps, and adding built-in shortcut references...";
+        ShortcutHotkeyStatusMessage = L(AppLanguageKeys.ToolsStatusShortcutScanRunning);
         StartShortcutHotkeyScanProgress();
         AddToolLog(ShortcutHotkeyStatusMessage);
 
@@ -497,13 +520,19 @@ public partial class MainWindowViewModel
 
             var warningSuffix = result.Warnings.Count == 0
                 ? string.Empty
-                : $" Skipped {result.Warnings.Count} folder or shortcut read{(result.Warnings.Count == 1 ? string.Empty : "s")}.";
+                : F(AppLanguageKeys.ToolsStatusShortcutScanWarningsSuffixFormat, result.Warnings.Count, PluralSuffix(result.Warnings.Count));
 
             var detectedCount = result.Shortcuts.Count(static shortcut => !shortcut.IsReferenceShortcut);
             var referenceCount = result.Shortcuts.Count(static shortcut => shortcut.IsReferenceShortcut);
             ShortcutHotkeyStatusMessage = detectedCount == 0 && referenceCount == 0
-                ? $"Scanned {result.ScannedShortcutCount} .lnk shortcut file{(result.ScannedShortcutCount == 1 ? string.Empty : "s")}. No shortcut keys were found.{warningSuffix}"
-                : $"Opened the shortcut viewer with {detectedCount} detected .lnk hotkey{(detectedCount == 1 ? string.Empty : "s")} and {referenceCount} built-in/common shortcut reference entr{(referenceCount == 1 ? "y" : "ies")}.{warningSuffix}";
+                ? F(AppLanguageKeys.ToolsStatusShortcutScanNoShortcutsFormat, result.ScannedShortcutCount, PluralSuffix(result.ScannedShortcutCount), warningSuffix)
+                : F(
+                    AppLanguageKeys.ToolsStatusShortcutScanOpenedViewerFormat,
+                    detectedCount,
+                    PluralSuffix(detectedCount),
+                    referenceCount,
+                    referenceCount == 1 ? "y" : "ies",
+                    warningSuffix);
             AddToolLog(ShortcutHotkeyStatusMessage);
 
             foreach (var warning in result.Warnings.Take(10))
@@ -513,7 +542,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            ShortcutHotkeyStatusMessage = $"Shortcut hotkey scan failed: {ex.Message}";
+            ShortcutHotkeyStatusMessage = F(AppLanguageKeys.ToolsStatusShortcutScanFailedFormat, ex.Message);
             AddToolLog(ShortcutHotkeyStatusMessage);
         }
         finally
@@ -528,8 +557,8 @@ public partial class MainWindowViewModel
     {
         AreUsefulSitesVisible = !AreUsefulSitesVisible;
         UsefulSitesStatusMessage = AreUsefulSitesVisible
-            ? $"Showing {UsefulSites.Count} useful site{(UsefulSites.Count == 1 ? string.Empty : "s")}."
-            : "Useful site list hidden.";
+            ? F(AppLanguageKeys.ToolsStatusUsefulSitesShowingFormat, UsefulSites.Count, PluralSuffix(UsefulSites.Count))
+            : L(AppLanguageKeys.ToolsStatusUsefulSitesHidden);
         AddToolLog(UsefulSitesStatusMessage);
     }
 
@@ -545,12 +574,12 @@ public partial class MainWindowViewModel
         {
             var launchResult = browserLauncherService.OpenUrl(site.Url);
 
-            UsefulSitesStatusMessage = $"Opened {site.DisplayName} in {launchResult.BrowserDisplayName}.";
+            UsefulSitesStatusMessage = F(AppLanguageKeys.ToolsStatusUsefulSiteOpenedFormat, site.DisplayName, launchResult.BrowserDisplayName);
             AddToolLog(UsefulSitesStatusMessage);
         }
         catch (Exception ex)
         {
-            UsefulSitesStatusMessage = $"Unable to open {site.DisplayName}: {ex.Message}";
+            UsefulSitesStatusMessage = F(AppLanguageKeys.ToolsStatusUsefulSiteOpenFailedFormat, site.DisplayName, ex.Message);
             AddToolLog(UsefulSitesStatusMessage);
         }
     }
@@ -561,7 +590,7 @@ public partial class MainWindowViewModel
     private async Task PrepareWindows11EeaMediaAsync()
     {
         IsToolBusy = true;
-        Windows11EeaInstallStatusMessage = "Downloading Microsoft's Windows 11 Media Creation Tool and preparing the EEA setup files...";
+        Windows11EeaInstallStatusMessage = L(AppLanguageKeys.ToolsStatusWindows11EeaPreparing);
         AddToolLog(Windows11EeaInstallStatusMessage);
 
         try
@@ -572,7 +601,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            Windows11EeaInstallStatusMessage = $"Windows 11 EEA media prep failed: {ex.Message}";
+            Windows11EeaInstallStatusMessage = F(AppLanguageKeys.ToolsStatusWindows11EeaFailedFormat, ex.Message);
             AddToolLog(Windows11EeaInstallStatusMessage);
         }
         finally
@@ -593,11 +622,19 @@ public partial class MainWindowViewModel
 
     private bool CanApplySearchReplacement => !IsToolBusy;
 
+    private bool CanRefreshSearchReindexStatus => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRefreshSearchReindexStatus))]
+    private void RefreshSearchReindexStatus()
+    {
+        RefreshSearchReindexStatusCore(addLogEntry: true);
+    }
+
     [RelayCommand(CanExecute = nameof(CanApplySearchReplacement))]
     private async Task ApplySearchReplacementAsync()
     {
         IsToolBusy = true;
-        SearchReplacementStatusMessage = "Setting up Flow Launcher + Everything as the Win + S search replacement...";
+        SearchReplacementStatusMessage = L(AppLanguageKeys.ToolsStatusSearchReplacementApplying);
         AddToolLog(SearchReplacementStatusMessage);
 
         try
@@ -608,7 +645,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            SearchReplacementStatusMessage = $"Search replacement setup failed: {ex.Message}";
+            SearchReplacementStatusMessage = F(AppLanguageKeys.ToolsStatusSearchReplacementApplyFailedFormat, ex.Message);
             AddToolLog(SearchReplacementStatusMessage);
         }
         finally
@@ -623,7 +660,7 @@ public partial class MainWindowViewModel
     private async Task RestoreSearchReplacementAsync()
     {
         IsToolBusy = true;
-        SearchReplacementStatusMessage = "Restoring Windows Search and removing the Flow Launcher Win + S replacement...";
+        SearchReplacementStatusMessage = L(AppLanguageKeys.ToolsStatusSearchReplacementRestoring);
         AddToolLog(SearchReplacementStatusMessage);
 
         try
@@ -634,13 +671,179 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            SearchReplacementStatusMessage = $"Search restoration failed: {ex.Message}";
+            SearchReplacementStatusMessage = F(AppLanguageKeys.ToolsStatusSearchReplacementRestoreFailedFormat, ex.Message);
             AddToolLog(SearchReplacementStatusMessage);
         }
         finally
         {
             IsToolBusy = false;
         }
+    }
+
+    private bool CanReindexWindowsSearch => !IsToolBusy;
+
+    private bool CanRefreshTelemetryStatus => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRefreshTelemetryStatus))]
+    private void RefreshTelemetryStatus()
+    {
+        RefreshTelemetryStatusCore(addLogEntry: true);
+    }
+
+    private bool CanApplyTelemetryReduction => !IsToolBusy;
+
+    private bool CanToggleWindowPin => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanToggleWindowPin))]
+    private void ToggleWindowPin()
+    {
+        ToggleWindowPinCore(L(AppLanguageKeys.ToolsPinWindowTriggerToolButton));
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyTelemetryReduction))]
+    private async Task ApplyTelemetryReductionAsync()
+    {
+        IsToolBusy = true;
+        TelemetryToolStatusMessage = L(AppLanguageKeys.ToolsStatusTelemetryApplying);
+        AddToolLog(TelemetryToolStatusMessage);
+
+        try
+        {
+            var result = await windowsTelemetryService.ApplyAsync().ConfigureAwait(true);
+            TelemetryToolStatusMessage = result.Message;
+            AddToolLog(result.Message);
+            RefreshTelemetryStatusCore(addLogEntry: false);
+        }
+        catch (Exception ex)
+        {
+            TelemetryToolStatusMessage = F(AppLanguageKeys.ToolsStatusTelemetryApplyFailedFormat, ex.Message);
+            AddToolLog(TelemetryToolStatusMessage);
+        }
+        finally
+        {
+            IsToolBusy = false;
+        }
+    }
+
+    private bool CanRestoreTelemetryDefaults => !IsToolBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRestoreTelemetryDefaults))]
+    private async Task RestoreTelemetryDefaultsAsync()
+    {
+        IsToolBusy = true;
+        TelemetryToolStatusMessage = L(AppLanguageKeys.ToolsStatusTelemetryRestoring);
+        AddToolLog(TelemetryToolStatusMessage);
+
+        try
+        {
+            var result = await windowsTelemetryService.RestoreAsync().ConfigureAwait(true);
+            TelemetryToolStatusMessage = result.Message;
+            AddToolLog(result.Message);
+            RefreshTelemetryStatusCore(addLogEntry: false);
+        }
+        catch (Exception ex)
+        {
+            TelemetryToolStatusMessage = F(AppLanguageKeys.ToolsStatusTelemetryRestoreFailedFormat, ex.Message);
+            AddToolLog(TelemetryToolStatusMessage);
+        }
+        finally
+        {
+            IsToolBusy = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanReindexWindowsSearch))]
+    private async Task ReindexWindowsSearchAsync()
+    {
+        IsToolBusy = true;
+        SearchReindexStatusMessage = L(AppLanguageKeys.ToolsStatusSearchReindexRequesting);
+        AddToolLog(SearchReindexStatusMessage);
+
+        try
+        {
+            var result = await windowsSearchReindexService.ReindexAsync().ConfigureAwait(true);
+            SearchReindexStatusMessage = result.Message;
+            AddToolLog(result.Message);
+        }
+        catch (Exception ex)
+        {
+            SearchReindexStatusMessage = F(AppLanguageKeys.ToolsStatusSearchReindexFailedFormat, ex.Message);
+            AddToolLog(SearchReindexStatusMessage);
+        }
+        finally
+        {
+            IsToolBusy = false;
+        }
+    }
+
+    private void RefreshSearchReindexStatusCore(bool addLogEntry)
+    {
+        try
+        {
+            var status = windowsSearchReindexService.GetStatus();
+            SearchReindexStatusMessage = status.Message;
+            if (addLogEntry)
+            {
+                AddToolLog(status.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            SearchReindexStatusMessage = F(AppLanguageKeys.ToolsErrorCheckSearchReindexFormat, ex.Message);
+            if (addLogEntry)
+            {
+                AddToolLog(SearchReindexStatusMessage);
+            }
+        }
+    }
+
+    private void RefreshTelemetryStatusCore(bool addLogEntry)
+    {
+        try
+        {
+            var status = windowsTelemetryService.GetStatus();
+            TelemetryToolStatusMessage = status.Message;
+            if (addLogEntry)
+            {
+                AddToolLog(status.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            TelemetryToolStatusMessage = F(AppLanguageKeys.ToolsErrorCheckTelemetryFormat, ex.Message);
+            if (addLogEntry)
+            {
+                AddToolLog(TelemetryToolStatusMessage);
+            }
+        }
+    }
+
+    private void RefreshPinWindowStatusCore(bool addLogEntry)
+    {
+        var hotkeyLabel = PinWindowHotkeyLabel;
+        PinWindowToolStatusMessage = IsTopMost
+            ? F(AppLanguageKeys.ToolsStatusPinWindowPinnedFormat, hotkeyLabel)
+            : F(AppLanguageKeys.ToolsStatusPinWindowUnpinnedFormat, hotkeyLabel);
+
+        if (addLogEntry)
+        {
+            AddToolLog(PinWindowToolStatusMessage);
+        }
+    }
+
+    private void ToggleWindowPinCore(string triggerSource)
+    {
+        IsTopMost = !IsTopMost;
+        var stateText = IsTopMost
+            ? L(AppLanguageKeys.ToolsPinWindowStatePinned)
+            : L(AppLanguageKeys.ToolsPinWindowStateUnpinned);
+        PinWindowToolStatusMessage = F(AppLanguageKeys.ToolsStatusPinWindowToggledFormat, stateText, triggerSource, PinWindowHotkeyLabel);
+        AddToolLog(PinWindowToolStatusMessage);
+    }
+
+    private void ToggleWindowPinFromHotkey()
+    {
+        ToggleWindowPinCore(L(AppLanguageKeys.ToolsPinWindowTriggerHotkey));
     }
 
     [RelayCommand(CanExecute = nameof(CanApplySystemDarkMode))]
@@ -657,7 +860,7 @@ public partial class MainWindowViewModel
                 IsDarkMode = true;
                 suppressThemeChange = false;
                 themeService.ApplyTheme(true);
-                SettingsStatusMessage = "Dark mode is on.";
+                SettingsStatusMessage = L(AppLanguageKeys.ToolsStatusSettingsDarkModeOn);
                 ScheduleSettingsAutoSave();
             }
 
@@ -682,12 +885,12 @@ public partial class MainWindowViewModel
                     UseShellExecute = true,
                 });
 
-            DarkModeToolStatusMessage = "Opened Windows color settings for anything that still needs a manual dark mode change.";
+            DarkModeToolStatusMessage = L(AppLanguageKeys.ToolsStatusOpenedColorSettings);
             AddToolLog(DarkModeToolStatusMessage);
         }
         catch (Exception ex)
         {
-            DarkModeToolStatusMessage = $"Unable to open Windows color settings: {ex.Message}";
+            DarkModeToolStatusMessage = F(AppLanguageKeys.ToolsStatusOpenColorSettingsFailedFormat, ex.Message);
             AddToolLog(DarkModeToolStatusMessage);
         }
     }
@@ -706,12 +909,12 @@ public partial class MainWindowViewModel
                     UseShellExecute = true,
                 });
 
-            EmptyDirectoryStatusMessage = "Opened the scan root folder.";
+            EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusOpenedScanRoot);
             AddToolLog(EmptyDirectoryStatusMessage);
         }
         catch (Exception ex)
         {
-            EmptyDirectoryStatusMessage = $"Unable to open the scan root folder: {ex.Message}";
+            EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusOpenScanRootFailedFormat, ex.Message);
             AddToolLog(EmptyDirectoryStatusMessage);
         }
     }
@@ -727,7 +930,7 @@ public partial class MainWindowViewModel
     private async Task ApplyMouseSensitivityAsync()
     {
         IsToolBusy = true;
-        MouseSensitivityStatusMessage = $"Applying {BuildMouseSensitivityLevelText(SelectedMouseSensitivityLevel)}...";
+        MouseSensitivityStatusMessage = F(AppLanguageKeys.ToolsStatusMouseSensitivityApplyingFormat, BuildMouseSensitivityLevelText(SelectedMouseSensitivityLevel));
         AddToolLog(MouseSensitivityStatusMessage);
 
         try
@@ -739,7 +942,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            MouseSensitivityStatusMessage = $"Mouse sensitivity update failed: {ex.Message}";
+            MouseSensitivityStatusMessage = F(AppLanguageKeys.ToolsStatusMouseSensitivityUpdateFailedFormat, ex.Message);
             AddToolLog(MouseSensitivityStatusMessage);
         }
         finally
@@ -760,12 +963,12 @@ public partial class MainWindowViewModel
                     UseShellExecute = true,
                 });
 
-            MouseSensitivityStatusMessage = "Opened Windows mouse settings.";
+            MouseSensitivityStatusMessage = L(AppLanguageKeys.ToolsStatusOpenedMouseSettings);
             AddToolLog(MouseSensitivityStatusMessage);
         }
         catch (Exception ex)
         {
-            MouseSensitivityStatusMessage = $"Unable to open Windows mouse settings: {ex.Message}";
+            MouseSensitivityStatusMessage = F(AppLanguageKeys.ToolsStatusOpenMouseSettingsFailedFormat, ex.Message);
             AddToolLog(MouseSensitivityStatusMessage);
         }
     }
@@ -784,7 +987,7 @@ public partial class MainWindowViewModel
     private async Task ApplyDisplayRefreshRecommendationsAsync()
     {
         IsToolBusy = true;
-        DisplayRefreshStatusMessage = "Applying top refresh rates to connected displays...";
+        DisplayRefreshStatusMessage = L(AppLanguageKeys.ToolsStatusDisplayRefreshApplying);
         AddToolLog(DisplayRefreshStatusMessage);
 
         try
@@ -800,13 +1003,13 @@ public partial class MainWindowViewModel
             var changedCount = results.Count(result => result.Succeeded && result.Changed);
             var failedCount = results.Count(result => !result.Succeeded);
             DisplayRefreshStatusMessage = changedCount == 0 && failedCount == 0
-                ? "All displays were already at their top refresh rate for the current resolution."
-                : $"{changedCount} display{(changedCount == 1 ? string.Empty : "s")} updated, {failedCount} failed.";
+                ? L(AppLanguageKeys.ToolsStatusDisplayRefreshAlreadyBest)
+                : F(AppLanguageKeys.ToolsStatusDisplayRefreshAppliedSummaryFormat, changedCount, PluralSuffix(changedCount), failedCount);
             AddToolLog(DisplayRefreshStatusMessage);
         }
         catch (Exception ex)
         {
-            DisplayRefreshStatusMessage = $"Display refresh update failed: {ex.Message}";
+            DisplayRefreshStatusMessage = F(AppLanguageKeys.ToolsStatusDisplayRefreshUpdateFailedFormat, ex.Message);
             AddToolLog(DisplayRefreshStatusMessage);
         }
         finally
@@ -831,12 +1034,12 @@ public partial class MainWindowViewModel
         try
         {
             clipboardTextService.SetText(BuildHardwareCheckClipboardText());
-            HardwareCheckStatusMessage = "Copied hardware check details to the clipboard.";
+            HardwareCheckStatusMessage = L(AppLanguageKeys.ToolsStatusHardwareCopiedClipboard);
             AddToolLog(HardwareCheckStatusMessage);
         }
         catch (Exception ex)
         {
-            HardwareCheckStatusMessage = $"Unable to copy the hardware check details: {ex.Message}";
+            HardwareCheckStatusMessage = F(AppLanguageKeys.ToolsStatusHardwareCopyFailedFormat, ex.Message);
             AddToolLog(HardwareCheckStatusMessage);
         }
     }
@@ -859,7 +1062,7 @@ public partial class MainWindowViewModel
             item.IsSelected = !item.IsOptional;
         }
 
-        DriverUpdateStatusMessage = "Selected recommended driver updates and left optional ones unchecked.";
+        DriverUpdateStatusMessage = L(AppLanguageKeys.ToolsStatusDriverSelectRecommended);
         AddToolLog(DriverUpdateStatusMessage);
     }
 
@@ -873,7 +1076,7 @@ public partial class MainWindowViewModel
             item.IsSelected = true;
         }
 
-        DriverUpdateStatusMessage = "Selected all discovered driver updates.";
+        DriverUpdateStatusMessage = L(AppLanguageKeys.ToolsStatusDriverSelectAll);
         AddToolLog(DriverUpdateStatusMessage);
     }
 
@@ -887,7 +1090,7 @@ public partial class MainWindowViewModel
             item.IsSelected = false;
         }
 
-        DriverUpdateStatusMessage = "Cleared the driver update selection.";
+        DriverUpdateStatusMessage = L(AppLanguageKeys.ToolsStatusDriverSelectionCleared);
         AddToolLog(DriverUpdateStatusMessage);
     }
 
@@ -901,13 +1104,13 @@ public partial class MainWindowViewModel
             .ToArray();
         if (selectedItems.Length == 0)
         {
-            DriverUpdateStatusMessage = "Select at least one driver update first.";
+            DriverUpdateStatusMessage = L(AppLanguageKeys.ToolsStatusDriverSelectAtLeastOne);
             AddToolLog(DriverUpdateStatusMessage);
             return;
         }
 
         IsToolBusy = true;
-        DriverUpdateStatusMessage = $"Installing {selectedItems.Length} driver update{(selectedItems.Length == 1 ? string.Empty : "s")} through Windows Update...";
+        DriverUpdateStatusMessage = F(AppLanguageKeys.ToolsStatusDriverInstallingFormat, selectedItems.Length, PluralSuffix(selectedItems.Length));
         AddToolLog(DriverUpdateStatusMessage);
 
         try
@@ -930,33 +1133,40 @@ public partial class MainWindowViewModel
             var statusParts = new List<string>();
             if (installedCount > 0)
             {
-                statusParts.Add($"{installedCount} installed");
+                statusParts.Add(F(AppLanguageKeys.ToolsStatusDriverResultInstalledFormat, installedCount));
             }
 
             if (manualFlowCount > 0)
             {
-                statusParts.Add($"{manualFlowCount} need Windows Update's own interactive flow");
+                statusParts.Add(F(AppLanguageKeys.ToolsStatusDriverResultManualFlowFormat, manualFlowCount));
             }
 
             if (failedCount > 0)
             {
-                statusParts.Add($"{failedCount} failed");
+                statusParts.Add(F(AppLanguageKeys.ToolsStatusDriverResultFailedFormat, failedCount));
             }
 
             if (statusParts.Count == 0)
             {
-                statusParts.Add("No driver changes were applied");
+                statusParts.Add(L(AppLanguageKeys.ToolsStatusDriverResultNoChanges));
             }
 
             DriverUpdateStatusMessage =
-                $"{string.Join(", ", statusParts)}. {DriverUpdateCandidates.Count} update{(DriverUpdateCandidates.Count == 1 ? string.Empty : "s")} remain." +
-                (manualFlowCount > 0 ? " Use Open Optional Updates for the ones Windows will not install silently." : string.Empty) +
-                (restartCount > 0 ? $" Restart required for {restartCount} item{(restartCount == 1 ? string.Empty : "s")}." : string.Empty);
+                F(AppLanguageKeys.ToolsStatusDriverSummaryFormat, string.Join(", ", statusParts), DriverUpdateCandidates.Count, PluralSuffix(DriverUpdateCandidates.Count)) +
+                (manualFlowCount > 0 ? L(AppLanguageKeys.ToolsStatusDriverManualFlowHint) : string.Empty) +
+                (restartCount > 0 ? F(AppLanguageKeys.ToolsStatusDriverRestartHintFormat, restartCount, PluralSuffix(restartCount)) : string.Empty);
             AddToolLog(DriverUpdateStatusMessage);
+
+            if (manualFlowCount > 0)
+            {
+                var handoffMessage = OpenWindowsUpdateOptionalUpdatesAndStartScan();
+                AddToolLog(handoffMessage);
+                DriverUpdateStatusMessage = $"{DriverUpdateStatusMessage} {handoffMessage}";
+            }
         }
         catch (Exception ex)
         {
-            DriverUpdateStatusMessage = $"Driver install failed: {ex.Message}";
+            DriverUpdateStatusMessage = F(AppLanguageKeys.ToolsStatusDriverInstallFailedFormat, ex.Message);
             AddToolLog(DriverUpdateStatusMessage);
         }
         finally
@@ -970,33 +1180,68 @@ public partial class MainWindowViewModel
     {
         try
         {
+            DriverUpdateStatusMessage = OpenWindowsUpdateOptionalUpdatesAndStartScan();
+            AddToolLog(DriverUpdateStatusMessage);
+        }
+        catch (Exception ex)
+        {
+            DriverUpdateStatusMessage = F(AppLanguageKeys.ToolsStatusDriverOpenOptionalUpdatesFailedFormat, ex.Message);
+            AddToolLog(DriverUpdateStatusMessage);
+        }
+    }
+
+    private string OpenWindowsUpdateOptionalUpdatesAndStartScan()
+    {
+        var openedOptionalPage = false;
+
+        try
+        {
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = WindowsUpdateOptionalUpdatesSettingsUri,
+                    UseShellExecute = true,
+                });
+            openedOptionalPage = true;
+        }
+        catch
+        {
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = WindowsUpdateSettingsUri,
+                    UseShellExecute = true,
+                });
+        }
+
+        var triggeredScan = false;
+        foreach (var argument in new[] { "StartScan", "StartInteractiveScan" })
+        {
             try
             {
                 Process.Start(
                     new ProcessStartInfo
                     {
-                        FileName = WindowsUpdateOptionalUpdatesSettingsUri,
+                        FileName = UsoClientExecutable,
+                        Arguments = argument,
                         UseShellExecute = true,
+                        CreateNoWindow = true,
                     });
+                triggeredScan = true;
+                break;
             }
             catch
             {
-                Process.Start(
-                    new ProcessStartInfo
-                    {
-                        FileName = WindowsUpdateSettingsUri,
-                        UseShellExecute = true,
-                    });
             }
+        }
 
-            DriverUpdateStatusMessage = "Opened Windows Update Optional Updates so you can finish any driver installs that need Windows' own interactive flow.";
-            AddToolLog(DriverUpdateStatusMessage);
-        }
-        catch (Exception ex)
-        {
-            DriverUpdateStatusMessage = $"Unable to open Windows Update Optional Updates: {ex.Message}";
-            AddToolLog(DriverUpdateStatusMessage);
-        }
+        return openedOptionalPage
+            ? triggeredScan
+                ? L(AppLanguageKeys.ToolsStatusDriverOpenOptionalUpdatesAndScan)
+                : L(AppLanguageKeys.ToolsStatusDriverOpenOptionalUpdatesNoScan)
+            : triggeredScan
+                ? L(AppLanguageKeys.ToolsStatusDriverOpenUpdatesAndScan)
+                : L(AppLanguageKeys.ToolsStatusDriverOpenUpdatesNoScan);
     }
 
     private bool CanRemoveOneDrive => !IsToolBusy;
@@ -1005,7 +1250,7 @@ public partial class MainWindowViewModel
     private async Task RemoveOneDriveAsync()
     {
         IsToolBusy = true;
-        OneDriveToolStatusMessage = "Removing OneDrive...";
+        OneDriveToolStatusMessage = L(AppLanguageKeys.ToolsStatusOneDriveRemoving);
         AddToolLog(OneDriveToolStatusMessage);
 
         try
@@ -1016,7 +1261,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            OneDriveToolStatusMessage = $"OneDrive removal failed: {ex.Message}";
+            OneDriveToolStatusMessage = F(AppLanguageKeys.ToolsStatusOneDriveRemoveFailedFormat, ex.Message);
             AddToolLog(OneDriveToolStatusMessage);
         }
         finally
@@ -1031,7 +1276,7 @@ public partial class MainWindowViewModel
     private async Task RemoveEdgeAsync()
     {
         IsToolBusy = true;
-        EdgeToolStatusMessage = "Removing Microsoft Edge...";
+        EdgeToolStatusMessage = L(AppLanguageKeys.ToolsStatusEdgeRemoving);
         AddToolLog(EdgeToolStatusMessage);
 
         try
@@ -1042,7 +1287,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            EdgeToolStatusMessage = $"Edge removal failed: {ex.Message}";
+            EdgeToolStatusMessage = F(AppLanguageKeys.ToolsStatusEdgeRemoveFailedFormat, ex.Message);
             AddToolLog(EdgeToolStatusMessage);
         }
         finally
@@ -1057,7 +1302,7 @@ public partial class MainWindowViewModel
     private async Task ToggleFnCtrlSwapAsync()
     {
         IsToolBusy = true;
-        FnCtrlSwapStatusMessage = "Applying Fn/Ctrl key swap setting...";
+        FnCtrlSwapStatusMessage = L(AppLanguageKeys.ToolsStatusFnCtrlSwapApplying);
         AddToolLog(FnCtrlSwapStatusMessage);
 
         try
@@ -1069,7 +1314,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            FnCtrlSwapStatusMessage = $"Fn/Ctrl swap failed: {ex.Message}";
+            FnCtrlSwapStatusMessage = F(AppLanguageKeys.ToolsStatusFnCtrlSwapFailedFormat, ex.Message);
             AddToolLog(FnCtrlSwapStatusMessage);
         }
         finally
@@ -1094,7 +1339,7 @@ public partial class MainWindowViewModel
             item.IsSelected = true;
         }
 
-        EmptyDirectoryStatusMessage = "Selected all empty-directory results.";
+        EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectorySelectAll);
         AddToolLog(EmptyDirectoryStatusMessage);
     }
 
@@ -1108,7 +1353,7 @@ public partial class MainWindowViewModel
             item.IsSelected = false;
         }
 
-        EmptyDirectoryStatusMessage = "Cleared the empty-directory selection.";
+        EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectorySelectionCleared);
         AddToolLog(EmptyDirectoryStatusMessage);
     }
 
@@ -1123,13 +1368,13 @@ public partial class MainWindowViewModel
             .ToArray();
         if (selectedPaths.Length == 0)
         {
-            EmptyDirectoryStatusMessage = "Select at least one empty directory first.";
+            EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectorySelectAtLeastOne);
             AddToolLog(EmptyDirectoryStatusMessage);
             return;
         }
 
         IsToolBusy = true;
-        EmptyDirectoryStatusMessage = $"Deleting {selectedPaths.Length} empty director{(selectedPaths.Length == 1 ? "y" : "ies")}...";
+        EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryDeletingFormat, selectedPaths.Length, selectedPaths.Length == 1 ? "y" : "ies");
         AddToolLog(EmptyDirectoryStatusMessage);
 
         try
@@ -1145,12 +1390,18 @@ public partial class MainWindowViewModel
             var failedCount = results.Count(result => !result.Succeeded);
 
             await ScanEmptyDirectoriesCoreAsync(addLogEntry: false, manageBusyState: false).ConfigureAwait(true);
-            EmptyDirectoryStatusMessage = $"{deletedCount} deleted, {missingCount} already gone, {failedCount} failed. {EmptyDirectoryCandidates.Count} deletable director{(EmptyDirectoryCandidates.Count == 1 ? "y" : "ies")} remain.";
+            EmptyDirectoryStatusMessage = F(
+                AppLanguageKeys.ToolsStatusEmptyDirectoryDeleteSummaryFormat,
+                deletedCount,
+                missingCount,
+                failedCount,
+                EmptyDirectoryCandidates.Count,
+                EmptyDirectoryCandidates.Count == 1 ? "y" : "ies");
             AddToolLog(EmptyDirectoryStatusMessage);
         }
         catch (Exception ex)
         {
-            EmptyDirectoryStatusMessage = $"Delete failed: {ex.Message}";
+            EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryDeleteFailedFormat, ex.Message);
             AddToolLog(EmptyDirectoryStatusMessage);
         }
         finally
@@ -1164,7 +1415,7 @@ public partial class MainWindowViewModel
         var rootPath = EmptyDirectoryRootPath?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(rootPath))
         {
-            EmptyDirectoryStatusMessage = "Choose a folder tree first.";
+            EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectoryChooseRootFirst);
             if (addLogEntry)
             {
                 AddToolLog(EmptyDirectoryStatusMessage);
@@ -1175,7 +1426,7 @@ public partial class MainWindowViewModel
 
         if (!Directory.Exists(rootPath))
         {
-            EmptyDirectoryStatusMessage = $"The folder '{rootPath}' does not exist.";
+            EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryRootMissingFormat, rootPath);
             if (addLogEntry)
             {
                 AddToolLog(EmptyDirectoryStatusMessage);
@@ -1191,7 +1442,7 @@ public partial class MainWindowViewModel
             IsToolBusy = true;
         }
 
-        EmptyDirectoryStatusMessage = $"Scanning {fullRootPath} for empty directories...";
+        EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryScanningFormat, fullRootPath);
         StartEmptyDirectoryScanProgress(fullRootPath);
         if (addLogEntry)
         {
@@ -1207,10 +1458,10 @@ public partial class MainWindowViewModel
 
             var warningSuffix = scanResult.Warnings.Count == 0
                 ? string.Empty
-                : $" Skipped {scanResult.Warnings.Count} folder{(scanResult.Warnings.Count == 1 ? string.Empty : "s")} due to access or IO errors.";
+                : F(AppLanguageKeys.ToolsStatusEmptyDirectoryWarningsSuffixFormat, scanResult.Warnings.Count, PluralSuffix(scanResult.Warnings.Count));
             EmptyDirectoryStatusMessage = scanResult.Candidates.Count == 0
-                ? $"No deletable empty directories found.{warningSuffix}"
-                : $"Found {scanResult.Candidates.Count} deletable empty director{(scanResult.Candidates.Count == 1 ? "y" : "ies")}.{warningSuffix}";
+                ? F(AppLanguageKeys.ToolsStatusEmptyDirectoryNoneFoundFormat, warningSuffix)
+                : F(AppLanguageKeys.ToolsStatusEmptyDirectoryFoundFormat, scanResult.Candidates.Count, scanResult.Candidates.Count == 1 ? "y" : "ies", warningSuffix);
 
             if (addLogEntry)
             {
@@ -1223,7 +1474,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            EmptyDirectoryStatusMessage = $"Scan failed: {ex.Message}";
+            EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryScanFailedFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(EmptyDirectoryStatusMessage);
@@ -1246,7 +1497,7 @@ public partial class MainWindowViewModel
             IsToolBusy = true;
         }
 
-        DriverUpdateStatusMessage = "Detecting hardware and checking Windows Update for driver updates...";
+        DriverUpdateStatusMessage = L(AppLanguageKeys.ToolsStatusDriverScanStarting);
         if (addLogEntry)
         {
             AddToolLog(DriverUpdateStatusMessage);
@@ -1263,14 +1514,22 @@ public partial class MainWindowViewModel
             var interactiveCount = scanResult.Updates.Count(update => update.RequiresUserInput);
             var warningSuffix = scanResult.Warnings.Count == 0
                 ? string.Empty
-                : $" Warnings: {scanResult.Warnings.Count}.";
+                : F(AppLanguageKeys.ToolsStatusDriverScanWarningsSuffixFormat, scanResult.Warnings.Count);
             var interactiveSuffix = interactiveCount == 0
                 ? string.Empty
-                : $" {interactiveCount} need Windows Update's own interactive flow instead of MultiTool's silent install path.";
+                : F(AppLanguageKeys.ToolsStatusDriverScanInteractiveSuffixFormat, interactiveCount);
 
             DriverUpdateStatusMessage = scanResult.Updates.Count == 0
-                ? $"Detected {scanResult.Hardware.Count} hardware component{(scanResult.Hardware.Count == 1 ? string.Empty : "s")}. No driver updates are currently available from Windows Update.{warningSuffix}"
-                : $"Detected {scanResult.Hardware.Count} hardware component{(scanResult.Hardware.Count == 1 ? string.Empty : "s")}. Found {recommendedCount} recommended and {optionalCount} optional driver update{(scanResult.Updates.Count == 1 ? string.Empty : "s")}.{interactiveSuffix}{warningSuffix}";
+                ? F(AppLanguageKeys.ToolsStatusDriverScanNoneFormat, scanResult.Hardware.Count, PluralSuffix(scanResult.Hardware.Count), warningSuffix)
+                : F(
+                    AppLanguageKeys.ToolsStatusDriverScanFoundFormat,
+                    scanResult.Hardware.Count,
+                    PluralSuffix(scanResult.Hardware.Count),
+                    recommendedCount,
+                    optionalCount,
+                    PluralSuffix(scanResult.Updates.Count),
+                    interactiveSuffix,
+                    warningSuffix);
 
             if (addLogEntry)
             {
@@ -1283,7 +1542,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            DriverUpdateStatusMessage = $"Driver scan failed: {ex.Message}";
+            DriverUpdateStatusMessage = F(AppLanguageKeys.ToolsStatusDriverScanFailedFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(DriverUpdateStatusMessage);
@@ -1305,7 +1564,7 @@ public partial class MainWindowViewModel
             IsToolBusy = true;
         }
 
-        HardwareCheckStatusMessage = "Scanning this PC's hardware details...";
+        HardwareCheckStatusMessage = L(AppLanguageKeys.ToolsStatusHardwareScanStarting);
         if (addLogEntry)
         {
             AddToolLog(HardwareCheckStatusMessage);
@@ -1318,9 +1577,24 @@ public partial class MainWindowViewModel
 
             var warningSuffix = report.Warnings.Count == 0
                 ? string.Empty
-                : $" Warnings: {report.Warnings.Count}.";
+                : F(AppLanguageKeys.ToolsStatusHardwareScanWarningsSuffixFormat, report.Warnings.Count);
             HardwareCheckStatusMessage =
-                $"Hardware scan complete. Found {report.GraphicsAdapters.Count} graphics adapter{(report.GraphicsAdapters.Count == 1 ? string.Empty : "s")}, {report.StorageDrives.Count} storage drive{(report.StorageDrives.Count == 1 ? string.Empty : "s")}, {report.StoragePartitions.Count} partition{(report.StoragePartitions.Count == 1 ? string.Empty : "s")}, {report.PciDevices.Count} PCI/PCIe device{(report.PciDevices.Count == 1 ? string.Empty : "s")}, {report.Sensors.Count} sensor reading{(report.Sensors.Count == 1 ? string.Empty : "s")}, and {report.RaidDetails.Count} RAID/storage detail{(report.RaidDetails.Count == 1 ? string.Empty : "s")}.{warningSuffix}";
+                F(
+                    AppLanguageKeys.ToolsStatusHardwareScanCompleteFormat,
+                    report.HealthSummary,
+                    report.GraphicsAdapters.Count,
+                    PluralSuffix(report.GraphicsAdapters.Count),
+                    report.StorageDrives.Count,
+                    PluralSuffix(report.StorageDrives.Count),
+                    report.StoragePartitions.Count,
+                    PluralSuffix(report.StoragePartitions.Count),
+                    report.PciDevices.Count,
+                    PluralSuffix(report.PciDevices.Count),
+                    report.Sensors.Count,
+                    PluralSuffix(report.Sensors.Count),
+                    report.RaidDetails.Count,
+                    PluralSuffix(report.RaidDetails.Count),
+                    warningSuffix);
 
             if (addLogEntry)
             {
@@ -1333,7 +1607,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            HardwareCheckStatusMessage = $"Hardware scan failed: {ex.Message}";
+            HardwareCheckStatusMessage = F(AppLanguageKeys.ToolsStatusHardwareScanFailedFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(HardwareCheckStatusMessage);
@@ -1355,7 +1629,7 @@ public partial class MainWindowViewModel
             IsToolBusy = true;
         }
 
-        DisplayRefreshStatusMessage = "Checking display refresh rate recommendations...";
+        DisplayRefreshStatusMessage = L(AppLanguageKeys.ToolsStatusDisplayRefreshScanStarting);
         if (addLogEntry)
         {
             AddToolLog(DisplayRefreshStatusMessage);
@@ -1368,10 +1642,10 @@ public partial class MainWindowViewModel
 
             var needsChangeCount = recommendations.Count(item => item.NeedsChange);
             DisplayRefreshStatusMessage = recommendations.Count == 0
-                ? "No desktop-attached displays were detected."
+                ? L(AppLanguageKeys.ToolsStatusDisplayRefreshNoDisplays)
                 : needsChangeCount == 0
-                    ? $"Checked {recommendations.Count} display{(recommendations.Count == 1 ? string.Empty : "s")}. All are already at their top refresh rate for the current resolution."
-                    : $"Checked {recommendations.Count} display{(recommendations.Count == 1 ? string.Empty : "s")}. {needsChangeCount} can be switched to a higher refresh rate.";
+                    ? F(AppLanguageKeys.ToolsStatusDisplayRefreshCheckedAllBestFormat, recommendations.Count, PluralSuffix(recommendations.Count))
+                    : F(AppLanguageKeys.ToolsStatusDisplayRefreshCheckedCanRunFasterFormat, recommendations.Count, PluralSuffix(recommendations.Count), needsChangeCount);
 
             if (addLogEntry)
             {
@@ -1380,7 +1654,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            DisplayRefreshStatusMessage = $"Display refresh scan failed: {ex.Message}";
+            DisplayRefreshStatusMessage = F(AppLanguageKeys.ToolsStatusDisplayRefreshScanFailedFormat, ex.Message);
             if (addLogEntry)
             {
                 AddToolLog(DisplayRefreshStatusMessage);
@@ -1398,6 +1672,7 @@ public partial class MainWindowViewModel
     private void ApplyHardwareInventoryReport(HardwareInventoryReport report)
     {
         HardwareCheckSystemSummary = report.SystemSummary;
+        HardwareCheckHealthSummary = report.HealthSummary;
         HardwareCheckOperatingSystemSummary = report.OperatingSystemSummary;
         HardwareCheckProcessorSummary = report.ProcessorSummary;
         HardwareCheckMemorySummary = report.MemorySummary;
@@ -1560,7 +1835,7 @@ public partial class MainWindowViewModel
         ShortcutHotkeyScanProgressValue = 0;
         ShortcutHotkeyScanProgressMaximum = GetShortcutHotkeyScanCachedMaxFolderCount();
         ShortcutHotkeyScannedShortcutCount = 0;
-        ShortcutHotkeyScanProgressPath = "Preparing shortcut scan...";
+        ShortcutHotkeyScanProgressPath = L(AppLanguageKeys.ToolsShortcutHotkeyScanPreparing);
         IsShortcutHotkeyScanProgressVisible = true;
         OnPropertyChanged(nameof(ShortcutHotkeyScanProgressSummary));
     }
@@ -1619,6 +1894,12 @@ public partial class MainWindowViewModel
         RefreshSearchReplacementStatusCommand.NotifyCanExecuteChanged();
         ApplySearchReplacementCommand.NotifyCanExecuteChanged();
         RestoreSearchReplacementCommand.NotifyCanExecuteChanged();
+        RefreshSearchReindexStatusCommand.NotifyCanExecuteChanged();
+        ReindexWindowsSearchCommand.NotifyCanExecuteChanged();
+        RefreshTelemetryStatusCommand.NotifyCanExecuteChanged();
+        ApplyTelemetryReductionCommand.NotifyCanExecuteChanged();
+        RestoreTelemetryDefaultsCommand.NotifyCanExecuteChanged();
+        ToggleWindowPinCommand.NotifyCanExecuteChanged();
         RefreshOneDriveStatusCommand.NotifyCanExecuteChanged();
         RemoveOneDriveCommand.NotifyCanExecuteChanged();
         RefreshEdgeStatusCommand.NotifyCanExecuteChanged();
@@ -1636,7 +1917,11 @@ public partial class MainWindowViewModel
     private string BuildEmptyDirectorySelectionSummary()
     {
         var selectedCount = EmptyDirectoryCandidates.Count(item => item.IsSelected);
-        return $"{selectedCount} selected  |  {EmptyDirectoryCandidates.Count} deletable folders found";
+        return F(
+            AppLanguageKeys.ToolsEmptyDirectorySelectionSummaryFormat,
+            selectedCount,
+            EmptyDirectoryCandidates.Count,
+            EmptyDirectoryCandidates.Count == 1 ? string.Empty : "s");
     }
 
     private string BuildEmptyDirectoryScanProgressSummary()
@@ -1646,7 +1931,11 @@ public partial class MainWindowViewModel
             return string.Empty;
         }
 
-        return $"Scanning {EmptyDirectoryScanProgressValue}/{EmptyDirectoryScanProgressMaximum} folders...  |  Current: {EmptyDirectoryScanProgressPath}";
+        return F(
+            AppLanguageKeys.ToolsEmptyDirectoryScanProgressSummaryFormat,
+            EmptyDirectoryScanProgressValue,
+            EmptyDirectoryScanProgressMaximum,
+            EmptyDirectoryScanProgressPath);
     }
 
     private string BuildShortcutHotkeyScanProgressSummary()
@@ -1656,7 +1945,11 @@ public partial class MainWindowViewModel
             return string.Empty;
         }
 
-        return $"Scanning {ShortcutHotkeyScanProgressValue}/{ShortcutHotkeyScanProgressMaximum} folders...  |  .lnk files checked: {ShortcutHotkeyScannedShortcutCount}";
+        return F(
+            AppLanguageKeys.ToolsShortcutHotkeyScanProgressSummaryFormat,
+            ShortcutHotkeyScanProgressValue,
+            ShortcutHotkeyScanProgressMaximum,
+            ShortcutHotkeyScannedShortcutCount);
     }
 
     private int GetShortcutHotkeyScanCachedMaxFolderCount() =>
@@ -1715,8 +2008,8 @@ public partial class MainWindowViewModel
     {
         var currentText = BuildMouseSensitivityLevelText(CurrentMouseSensitivityLevel);
         return SelectedMouseSensitivityLevel == CurrentMouseSensitivityLevel
-            ? $"Current pointer feel: {currentText}"
-            : $"Current pointer feel: {currentText}  |  Picked: {BuildMouseSensitivityLevelText(SelectedMouseSensitivityLevel)}";
+            ? F(AppLanguageKeys.ToolsMouseSensitivitySummaryCurrentFormat, currentText)
+            : F(AppLanguageKeys.ToolsMouseSensitivitySummaryPickedFormat, currentText, BuildMouseSensitivityLevelText(SelectedMouseSensitivityLevel));
     }
 
     private string BuildMouseSensitivitySelectionGuidance()
@@ -1725,31 +2018,31 @@ public partial class MainWindowViewModel
 
         var rangeGuidance = level switch
         {
-            <= 4 => "Very slow. Best if the pointer feels jumpy and you want maximum control.",
-            <= 8 => "Slow. Good if you want steadier cursor movement.",
-            <= 12 => "Balanced. This is the easiest starting range for most people.",
-            <= 16 => "Fast. Good if you want to move across the screen with less hand movement.",
-            _ => "Very fast. Best only if you like an extremely quick cursor.",
+            <= 4 => L(AppLanguageKeys.ToolsMouseSensitivityGuidanceVerySlow),
+            <= 8 => L(AppLanguageKeys.ToolsMouseSensitivityGuidanceSlow),
+            <= 12 => L(AppLanguageKeys.ToolsMouseSensitivityGuidanceBalanced),
+            <= 16 => L(AppLanguageKeys.ToolsMouseSensitivityGuidanceFast),
+            _ => L(AppLanguageKeys.ToolsMouseSensitivityGuidanceVeryFast),
         };
 
-        return $"Selected feel: {BuildMouseSensitivityLevelText(level)}. Tip: move 1-2 steps at a time. {rangeGuidance}";
+        return F(AppLanguageKeys.ToolsMouseSensitivitySelectionGuidanceFormat, BuildMouseSensitivityLevelText(level), rangeGuidance);
     }
 
-    private static string BuildMouseSensitivityLevelText(int level)
+    private string BuildMouseSensitivityLevelText(int level)
     {
         var normalizedLevel = Math.Clamp(level, 1, 20);
         var feelLabel = normalizedLevel switch
         {
-            <= 4 => "Very Slow",
-            <= 8 => "Slow",
-            <= 12 => "Balanced",
-            <= 16 => "Fast",
-            _ => "Very Fast",
+            <= 4 => L(AppLanguageKeys.ToolsMouseSensitivityFeelVerySlow),
+            <= 8 => L(AppLanguageKeys.ToolsMouseSensitivityFeelSlow),
+            <= 12 => L(AppLanguageKeys.ToolsMouseSensitivityFeelBalanced),
+            <= 16 => L(AppLanguageKeys.ToolsMouseSensitivityFeelFast),
+            _ => L(AppLanguageKeys.ToolsMouseSensitivityFeelVeryFast),
         };
 
         return normalizedLevel == 10
-            ? $"{feelLabel} ({normalizedLevel}/20, Windows middle)"
-            : $"{feelLabel} ({normalizedLevel}/20)";
+            ? F(AppLanguageKeys.ToolsMouseSensitivityLevelTextMiddleFormat, feelLabel, normalizedLevel)
+            : F(AppLanguageKeys.ToolsMouseSensitivityLevelTextFormat, feelLabel, normalizedLevel);
     }
 
     private string BuildDisplayRefreshSummary()
@@ -1758,53 +2051,54 @@ public partial class MainWindowViewModel
         var needsChangeCount = DisplayRefreshRecommendations.Count(item => item.NeedsChange);
         if (total == 0)
         {
-            return "No displays checked yet.";
+            return L(AppLanguageKeys.ToolsDisplayRefreshSummaryNone);
         }
 
         return needsChangeCount == 0
-            ? $"{total} display{(total == 1 ? string.Empty : "s")} found — all running at their best rate"
-            : $"{total} display{(total == 1 ? string.Empty : "s")} found — {needsChangeCount} can run faster";
+            ? F(AppLanguageKeys.ToolsDisplayRefreshSummaryAllBestFormat, total, total == 1 ? string.Empty : "s")
+            : F(AppLanguageKeys.ToolsDisplayRefreshSummaryCanRunFasterFormat, total, total == 1 ? string.Empty : "s", needsChangeCount);
     }
 
     private string BuildHardwareGraphicsSummary() =>
-        $"{HardwareGraphicsAdapters.Count} graphics adapter{(HardwareGraphicsAdapters.Count == 1 ? string.Empty : "s")}";
+        F(AppLanguageKeys.ToolsHardwareGraphicsSummaryFormat, HardwareGraphicsAdapters.Count, HardwareGraphicsAdapters.Count == 1 ? string.Empty : "s");
 
     private string BuildHardwareStorageSummary() =>
-        $"{HardwareStorageDrives.Count} storage drive{(HardwareStorageDrives.Count == 1 ? string.Empty : "s")}";
+        F(AppLanguageKeys.ToolsHardwareStorageSummaryFormat, HardwareStorageDrives.Count, HardwareStorageDrives.Count == 1 ? string.Empty : "s");
 
     private string BuildHardwarePartitionSummary() =>
         HardwareStoragePartitions.Count == 0
-            ? "No partitions detected"
-            : $"{HardwareStoragePartitions.Count} partition{(HardwareStoragePartitions.Count == 1 ? string.Empty : "s")}";
+            ? L(AppLanguageKeys.ToolsHardwarePartitionSummaryNone)
+            : F(AppLanguageKeys.ToolsHardwarePartitionSummaryFormat, HardwareStoragePartitions.Count, HardwareStoragePartitions.Count == 1 ? string.Empty : "s");
 
     private string BuildHardwareSensorSummary() =>
         HardwareSensors.Count == 0
-            ? "Sensors / Temps / Fans: Windows did not expose live telemetry"
-            : $"{HardwareSensors.Count} sensor reading{(HardwareSensors.Count == 1 ? string.Empty : "s")}";
+            ? L(AppLanguageKeys.ToolsHardwareSensorSummaryNone)
+            : F(AppLanguageKeys.ToolsHardwareSensorSummaryFormat, HardwareSensors.Count, HardwareSensors.Count == 1 ? string.Empty : "s");
 
     private string BuildHardwarePciSummary() =>
         HardwarePciDevices.Count == 0
-            ? "No PCI/PCIe devices detected"
-            : $"{HardwarePciDevices.Count} PCI/PCIe device{(HardwarePciDevices.Count == 1 ? string.Empty : "s")}";
+            ? L(AppLanguageKeys.ToolsHardwarePciSummaryNone)
+            : F(AppLanguageKeys.ToolsHardwarePciSummaryFormat, HardwarePciDevices.Count, HardwarePciDevices.Count == 1 ? string.Empty : "s");
 
     private string BuildHardwareRaidSummary() =>
         HardwareRaidDetails.Count == 0
-            ? "RAID / Storage Spaces: none detected"
-            : $"{HardwareRaidDetails.Count} RAID/storage detail{(HardwareRaidDetails.Count == 1 ? string.Empty : "s")}";
+            ? L(AppLanguageKeys.ToolsHardwareRaidSummaryNone)
+            : F(AppLanguageKeys.ToolsHardwareRaidSummaryFormat, HardwareRaidDetails.Count, HardwareRaidDetails.Count == 1 ? string.Empty : "s");
 
     private string BuildHardwareCheckClipboardText()
     {
         var builder = new StringBuilder();
-        builder.AppendLine("MultiTool Hardware Check");
-        builder.AppendLine($"Captured: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        builder.AppendLine(L(AppLanguageKeys.ToolsHardwareClipboardTitle));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardCapturedFormat, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
         builder.AppendLine();
-        builder.AppendLine("System");
-        builder.AppendLine($"- Overview: {HardwareCheckSystemSummary}");
-        builder.AppendLine($"- Operating System: {HardwareCheckOperatingSystemSummary}");
-        builder.AppendLine($"- Processor: {HardwareCheckProcessorSummary}");
-        builder.AppendLine($"- Memory: {HardwareCheckMemorySummary}");
-        builder.AppendLine($"- Motherboard: {HardwareCheckMotherboardSummary}");
-        builder.AppendLine($"- BIOS: {HardwareCheckBiosSummary}");
+        builder.AppendLine(L(AppLanguageKeys.ToolsHardwareClipboardSystemSection));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardOverviewFormat, HardwareCheckSystemSummary));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardHealthSummaryFormat, HardwareCheckHealthSummary));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardOperatingSystemFormat, HardwareCheckOperatingSystemSummary));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardProcessorFormat, HardwareCheckProcessorSummary));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardMemoryFormat, HardwareCheckMemorySummary));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardMotherboardFormat, HardwareCheckMotherboardSummary));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardBiosFormat, HardwareCheckBiosSummary));
 
         AppendGraphicsSection(builder);
         AppendStorageSection(builder);
@@ -1819,37 +2113,37 @@ public partial class MainWindowViewModel
     private void AppendGraphicsSection(StringBuilder builder)
     {
         builder.AppendLine();
-        builder.AppendLine("Graphics");
-        builder.AppendLine($"- Summary: {HardwareGraphicsSummary}");
+        builder.AppendLine(L(AppLanguageKeys.ToolsHardwareClipboardGraphicsSection));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSummaryFormat, HardwareGraphicsSummary));
 
         foreach (var adapter in HardwareGraphicsAdapters)
         {
             builder.AppendLine($"- {adapter.Name}");
-            builder.AppendLine($"  Driver: {adapter.DriverVersion}");
-            builder.AppendLine($"  Memory: {adapter.AdapterMemory}");
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardDriverFormat, adapter.DriverVersion));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardMemoryFieldFormat, adapter.AdapterMemory));
         }
     }
 
     private void AppendStorageSection(StringBuilder builder)
     {
         builder.AppendLine();
-        builder.AppendLine("Storage Drives");
-        builder.AppendLine($"- Summary: {HardwareStorageSummary}");
+        builder.AppendLine(L(AppLanguageKeys.ToolsHardwareClipboardStorageSection));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSummaryFormat, HardwareStorageSummary));
 
         foreach (var drive in HardwareStorageDrives)
         {
             builder.AppendLine($"- {drive.Model}");
-            builder.AppendLine($"  Size: {drive.Size}");
-            builder.AppendLine($"  Interface: {drive.InterfaceType}");
-            builder.AppendLine($"  Media: {drive.MediaType}");
-            builder.AppendLine($"  Health: {drive.HealthStatus}");
-            builder.AppendLine($"  SMART: {drive.SmartStatus}");
-            builder.AppendLine($"  Firmware: {drive.FirmwareVersion}");
-            builder.AppendLine($"  Serial: {drive.SerialNumber}");
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSizeFormat, drive.Size));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardInterfaceFormat, drive.InterfaceType));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardMediaFormat, drive.MediaType));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardHealthFormat, drive.HealthStatus));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSmartFormat, drive.SmartStatus));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardFirmwareFormat, drive.FirmwareVersion));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSerialFormat, drive.SerialNumber));
 
             if (!string.IsNullOrWhiteSpace(drive.Notes))
             {
-                builder.AppendLine($"  Notes: {drive.Notes}");
+                builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardNotesFormat, drive.Notes));
             }
         }
     }
@@ -1857,79 +2151,79 @@ public partial class MainWindowViewModel
     private void AppendPartitionSection(StringBuilder builder)
     {
         builder.AppendLine();
-        builder.AppendLine("Partitions");
-        builder.AppendLine($"- Summary: {HardwarePartitionSummary}");
+        builder.AppendLine(L(AppLanguageKeys.ToolsHardwareClipboardPartitionsSection));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSummaryFormat, HardwarePartitionSummary));
 
         foreach (var partition in HardwareStoragePartitions)
         {
             builder.AppendLine($"- {partition.PartitionName}");
-            builder.AppendLine($"  Disk: {partition.DiskName}");
-            builder.AppendLine($"  Size: {partition.Size}");
-            builder.AppendLine($"  Type: {partition.Type}");
-            builder.AppendLine($"  Volume: {partition.Volume}");
-            builder.AppendLine($"  File System: {partition.FileSystem}");
-            builder.AppendLine($"  Free Space: {partition.FreeSpace}");
-            builder.AppendLine($"  Status: {partition.Status}");
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardDiskFormat, partition.DiskName));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSizeFormat, partition.Size));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardTypeFormat, partition.Type));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardVolumeFormat, partition.Volume));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardFileSystemFormat, partition.FileSystem));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardFreeSpaceFormat, partition.FreeSpace));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardStatusFormat, partition.Status));
         }
     }
 
     private void AppendSensorSection(StringBuilder builder)
     {
         builder.AppendLine();
-        builder.AppendLine("Sensors");
-        builder.AppendLine($"- Summary: {HardwareSensorSummary}");
+        builder.AppendLine(L(AppLanguageKeys.ToolsHardwareClipboardSensorsSection));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSummaryFormat, HardwareSensorSummary));
 
         foreach (var sensor in HardwareSensors)
         {
             builder.AppendLine($"- {sensor.Name}");
-            builder.AppendLine($"  Category: {sensor.Category}");
-            builder.AppendLine($"  Reading: {sensor.CurrentValue}");
-            builder.AppendLine($"  Source: {sensor.Source}");
-            builder.AppendLine($"  Status: {sensor.Status}");
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardCategoryFormat, sensor.Category));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardReadingFormat, sensor.CurrentValue));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSourceFormat, sensor.Source));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardStatusFormat, sensor.Status));
         }
     }
 
     private void AppendPciSection(StringBuilder builder)
     {
         builder.AppendLine();
-        builder.AppendLine("PCI / PCIe Devices");
-        builder.AppendLine($"- Summary: {HardwarePciSummary}");
+        builder.AppendLine(L(AppLanguageKeys.ToolsHardwareClipboardPciSection));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSummaryFormat, HardwarePciSummary));
 
         foreach (var device in HardwarePciDevices)
         {
             builder.AppendLine($"- {device.Name}");
-            builder.AppendLine($"  Class: {device.DeviceClass}");
-            builder.AppendLine($"  Manufacturer: {device.Manufacturer}");
-            builder.AppendLine($"  Location: {device.Location}");
-            builder.AppendLine($"  Status: {device.Status}");
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardClassFormat, device.DeviceClass));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardManufacturerFormat, device.Manufacturer));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardLocationFormat, device.Location));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardStatusFormat, device.Status));
         }
     }
 
     private void AppendRaidSection(StringBuilder builder)
     {
         builder.AppendLine();
-        builder.AppendLine("RAID / Storage Spaces");
-        builder.AppendLine($"- Summary: {HardwareRaidSummary}");
+        builder.AppendLine(L(AppLanguageKeys.ToolsHardwareClipboardRaidSection));
+        builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSummaryFormat, HardwareRaidSummary));
 
         foreach (var detail in HardwareRaidDetails)
         {
             builder.AppendLine($"- {detail.Name}");
-            builder.AppendLine($"  Type: {detail.Type}");
-            builder.AppendLine($"  Status: {detail.Status}");
-            builder.AppendLine($"  Details: {detail.Details}");
-            builder.AppendLine($"  Source: {detail.Source}");
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardTypeFormat, detail.Type));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardStatusFormat, detail.Status));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardDetailsFormat, detail.Details));
+            builder.AppendLine(F(AppLanguageKeys.ToolsHardwareClipboardSourceFormat, detail.Source));
         }
     }
 
     private string BuildDriverHardwareSummary() =>
-        $"{DriverHardwareInventory.Count} detected component{(DriverHardwareInventory.Count == 1 ? string.Empty : "s")}";
+        F(AppLanguageKeys.ToolsDriverHardwareSummaryFormat, DriverHardwareInventory.Count, DriverHardwareInventory.Count == 1 ? string.Empty : "s");
 
     private string BuildDriverUpdateSelectionSummary()
     {
         var selectedCount = DriverUpdateCandidates.Count(item => item.IsSelected);
         var recommendedCount = DriverUpdateCandidates.Count(item => !item.IsOptional);
         var optionalCount = DriverUpdateCandidates.Count - recommendedCount;
-        return $"{selectedCount} selected  |  {recommendedCount} recommended, {optionalCount} optional";
+        return F(AppLanguageKeys.ToolsDriverUpdateSelectionSummaryFormat, selectedCount, recommendedCount, optionalCount);
     }
 
     private void AddToolLog(string message)
