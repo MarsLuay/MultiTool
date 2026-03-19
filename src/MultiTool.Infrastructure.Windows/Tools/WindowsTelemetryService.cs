@@ -45,27 +45,58 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
     ];
 
     private readonly TelemetryCommandRunner commandRunner;
+    private readonly Func<int> readAllowTelemetryPolicy;
+    private readonly Func<int, bool> setAllowTelemetryPolicy;
+    private readonly Func<bool> clearAllowTelemetryPolicy;
+    private readonly Func<string, ServiceState> getServiceState;
 
     public WindowsTelemetryService()
-        : this(RunProcessAsync)
+        : this(null, null, null, null, null)
     {
     }
 
     public WindowsTelemetryService(TelemetryCommandRunner commandRunner)
+        : this(commandRunner, null, null, null, null)
     {
-        this.commandRunner = commandRunner;
+    }
+
+    internal WindowsTelemetryService(
+        TelemetryCommandRunner? commandRunner = null,
+        Func<int>? readAllowTelemetryPolicy = null,
+        Func<int, bool>? setAllowTelemetryPolicy = null,
+        Func<bool>? clearAllowTelemetryPolicy = null,
+        Func<string, ServiceState>? getServiceState = null)
+    {
+        this.commandRunner = commandRunner ?? RunProcessAsync;
+        this.readAllowTelemetryPolicy = readAllowTelemetryPolicy ?? ReadAllowTelemetryPolicyCore;
+        this.setAllowTelemetryPolicy = setAllowTelemetryPolicy ?? SetAllowTelemetryPolicyCore;
+        this.clearAllowTelemetryPolicy = clearAllowTelemetryPolicy ?? ClearAllowTelemetryPolicyCore;
+        this.getServiceState = getServiceState ?? GetServiceStateCore;
     }
 
     public WindowsTelemetryStatus GetStatus()
     {
-        var allowTelemetry = ReadAllowTelemetryPolicy();
-        var telemetryServiceRunning = TelemetryServices.Where(IsServiceRunning).ToArray();
+        var allowTelemetry = readAllowTelemetryPolicy();
+        var telemetryServiceStates = TelemetryServices
+            .Select(serviceName => new TelemetryServiceSnapshot(serviceName, getServiceState(serviceName)))
+            .ToArray();
+        var telemetryServiceRunning = telemetryServiceStates
+            .Where(static service => service.State.IsRunning)
+            .Select(static service => service.Name)
+            .ToArray();
 
         var isReduced = allowTelemetry == 0 && telemetryServiceRunning.Length == 0;
 
         if (isReduced)
         {
             return new WindowsTelemetryStatus(true, "Windows telemetry is reduced: policy is set to minimum and telemetry services are stopped.");
+        }
+
+        if (allowTelemetry < 0 && IsTelemetryDefaultConfiguration(telemetryServiceStates))
+        {
+            return new WindowsTelemetryStatus(
+                false,
+                "Windows telemetry defaults are restored: the AllowTelemetry policy override is removed and telemetry services use their default startup modes.");
         }
 
         var parts = new List<string>();
@@ -125,7 +156,7 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
         cancellationToken.ThrowIfCancellationRequested();
 
         var changed = false;
-        changed |= SetAllowTelemetryPolicy(0);
+        changed |= setAllowTelemetryPolicy(0);
 
         foreach (var serviceName in TelemetryServices)
         {
@@ -154,7 +185,7 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
         cancellationToken.ThrowIfCancellationRequested();
 
         var changed = false;
-        changed |= ClearAllowTelemetryPolicy();
+        changed |= clearAllowTelemetryPolicy();
 
         foreach (var serviceName in TelemetryServices)
         {
@@ -285,7 +316,26 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
         return string.Join(Environment.NewLine, lines);
     }
 
-    private static int ReadAllowTelemetryPolicy()
+    private static bool IsTelemetryDefaultConfiguration(IEnumerable<TelemetryServiceSnapshot> services)
+    {
+        var knownServices = services
+            .Where(static service => service.State.Exists)
+            .ToArray();
+
+        return knownServices.Length > 0
+            && knownServices.All(service => IsServiceUsingDefaultStartMode(service.Name, service.State));
+    }
+
+    private static bool IsServiceUsingDefaultStartMode(string serviceName, ServiceState state)
+    {
+        var defaultStartMode = TelemetryServiceDefaultStartModes.TryGetValue(serviceName, out var configuredMode)
+            ? configuredMode
+            : "demand";
+
+        return state.StartMode.Equals(defaultStartMode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int ReadAllowTelemetryPolicyCore()
     {
         using var key = Registry.LocalMachine.OpenSubKey(DataCollectionPolicyPath, writable: false);
         if (key is null)
@@ -297,7 +347,7 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
         return value is null ? -1 : Convert.ToInt32(value);
     }
 
-    private static bool SetAllowTelemetryPolicy(int value)
+    private static bool SetAllowTelemetryPolicyCore(int value)
     {
         using var key = Registry.LocalMachine.CreateSubKey(DataCollectionPolicyPath, writable: true)
             ?? throw new IOException("The machine-level data collection policy key could not be opened.");
@@ -313,7 +363,7 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
         return true;
     }
 
-    private static bool ClearAllowTelemetryPolicy()
+    private static bool ClearAllowTelemetryPolicyCore()
     {
         using var key = Registry.LocalMachine.OpenSubKey(DataCollectionPolicyPath, writable: true);
         if (key is null)
@@ -333,7 +383,7 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
 
     private async Task<bool> StopAndDisableServiceAsync(string serviceName, CancellationToken cancellationToken)
     {
-        var stateBefore = GetServiceState(serviceName);
+        var stateBefore = getServiceState(serviceName);
         var changed = stateBefore.IsRunning || !stateBefore.IsDisabled;
 
         await commandRunner(
@@ -401,7 +451,7 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
 
     private async Task<bool> RestoreServiceDefaultAsync(string serviceName, CancellationToken cancellationToken)
     {
-        var stateBefore = GetServiceState(serviceName);
+        var stateBefore = getServiceState(serviceName);
         var defaultStartMode = TelemetryServiceDefaultStartModes.TryGetValue(serviceName, out var configuredMode)
             ? configuredMode
             : "demand";
@@ -475,13 +525,7 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
         return !wasEnabled;
     }
 
-    private static bool IsServiceRunning(string serviceName)
-    {
-        var state = GetServiceState(serviceName);
-        return state.IsRunning;
-    }
-
-    private static ServiceState GetServiceState(string serviceName)
+    private static ServiceState GetServiceStateCore(string serviceName)
     {
         try
         {
@@ -493,15 +537,16 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
                 var state = Convert.ToString(service["State"]) ?? string.Empty;
                 var startMode = Convert.ToString(service["StartMode"]) ?? string.Empty;
                 return new ServiceState(
+                    true,
                     state.Equals("Running", StringComparison.OrdinalIgnoreCase),
-                    startMode.Equals("Disabled", StringComparison.OrdinalIgnoreCase));
+                    startMode);
             }
         }
         catch
         {
         }
 
-        return new ServiceState(false, false);
+        return new ServiceState(false, false, string.Empty);
     }
 
     private static async Task<TelemetryCommandResult> RunProcessAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
@@ -520,5 +565,10 @@ public sealed class WindowsTelemetryService : IWindowsTelemetryService
             await standardErrorTask.ConfigureAwait(false));
     }
 
-    private sealed record ServiceState(bool IsRunning, bool IsDisabled);
+    internal readonly record struct ServiceState(bool Exists, bool IsRunning, string StartMode)
+    {
+        public bool IsDisabled => StartMode.Equals("Disabled", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed record TelemetryServiceSnapshot(string Name, ServiceState State);
 }

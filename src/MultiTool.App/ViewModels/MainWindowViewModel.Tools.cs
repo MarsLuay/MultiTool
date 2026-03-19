@@ -117,6 +117,25 @@ public partial class MainWindowViewModel
         ? L(AppLanguageKeys.ToolsUsefulSitesToggleHide)
         : L(AppLanguageKeys.ToolsUsefulSitesToggleShow);
 
+    public string PinWindowDescriptionText => L(AppLanguageKeys.ToolsPinWindowDescription);
+
+    public string PinWindowCurrentStateLabelText => L(AppLanguageKeys.ToolsPinWindowCurrentStateLabel);
+
+    public string PinWindowStateText => IsTopMost
+        ? L(AppLanguageKeys.ToolsPinWindowStatePinned)
+        : L(AppLanguageKeys.ToolsPinWindowStateUnpinned);
+
+    public string PinWindowHotkeySummary =>
+        hotkeySettings.PinWindow.VirtualKey > 0 && !string.IsNullOrWhiteSpace(hotkeySettings.PinWindow.DisplayName)
+            ? F(AppLanguageKeys.ToolsPinWindowHotkeyAssignedFormat, PinWindowHotkeyLabel)
+            : L(AppLanguageKeys.ToolsPinWindowHotkeyUnsetSummary);
+
+    public string PinWindowActionButtonText => IsTopMost
+        ? L(AppLanguageKeys.ToolsPinWindowActionUnpin)
+        : L(AppLanguageKeys.ToolsPinWindowActionPin);
+
+    public string PinWindowHotkeySettingsButtonText => L(AppLanguageKeys.ToolsPinWindowHotkeySettingsButton);
+
     [ObservableProperty]
     private string emptyDirectoryRootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -873,6 +892,43 @@ public partial class MainWindowViewModel
         ToggleWindowPinCore(L(AppLanguageKeys.ToolsPinWindowTriggerToolButton));
     }
 
+    [RelayCommand(CanExecute = nameof(CanToggleWindowPin))]
+    private async Task OpenPinWindowHotkeySettingsAsync()
+    {
+        var updatedSettings = hotkeySettingsDialogService.Edit(hotkeySettings.Clone());
+        if (updatedSettings is null)
+        {
+            PinWindowToolStatusMessage = L(AppLanguageKeys.ToolsStatusPinWindowHotkeyCanceled);
+            AddToolLog(PinWindowToolStatusMessage);
+            return;
+        }
+
+        var validation = settingsValidator.ValidateHotkeys(updatedSettings);
+        if (!validation.IsValid)
+        {
+            PinWindowToolStatusMessage = validation.Summary;
+            AddToolLog(PinWindowToolStatusMessage);
+            return;
+        }
+
+        if (AreHotkeySettingsEquivalent(hotkeySettings, updatedSettings))
+        {
+            PinWindowToolStatusMessage = L(AppLanguageKeys.ToolsStatusPinWindowHotkeyUnchanged);
+            AddToolLog(PinWindowToolStatusMessage);
+            return;
+        }
+
+        hotkeySettings = updatedSettings.Clone();
+        RefreshHotkeyLabels();
+        HotkeysChanged?.Invoke(this, EventArgs.Empty);
+
+        var saved = await SaveSettingsAsync(L(AppLanguageKeys.MainStatusSettingsAutoSaved), updateStatusOnSuccess: false, addActivityLogOnSuccess: false);
+        PinWindowToolStatusMessage = saved
+            ? F(AppLanguageKeys.ToolsStatusPinWindowHotkeyUpdatedFormat, PinWindowHotkeyLabel)
+            : F(AppLanguageKeys.ToolsStatusPinWindowHotkeyUpdatedSaveFailedFormat, PinWindowHotkeyLabel);
+        AddToolLog(PinWindowToolStatusMessage);
+    }
+
     [RelayCommand(CanExecute = nameof(CanApplyTelemetryReduction))]
     private async Task ApplyTelemetryReductionAsync()
     {
@@ -925,7 +981,6 @@ public partial class MainWindowViewModel
             var result = await windowsTelemetryService.RestoreAsync().ConfigureAwait(true);
             TelemetryToolStatusMessage = result.Message;
             AddToolLog(result.Message);
-            RefreshTelemetryStatusCore(addLogEntry: false);
         }
         catch (Exception ex)
         {
@@ -1043,6 +1098,17 @@ public partial class MainWindowViewModel
     {
         ToggleWindowPinCore(L(AppLanguageKeys.ToolsPinWindowTriggerHotkey));
     }
+
+    private static bool AreHotkeySettingsEquivalent(HotkeySettings left, HotkeySettings right) =>
+        left.AllowModifierVariants == right.AllowModifierVariants
+        && AreHotkeyBindingsEquivalent(left.Toggle, right.Toggle)
+        && AreHotkeyBindingsEquivalent(left.PinWindow, right.PinWindow);
+
+    private static bool AreHotkeyBindingsEquivalent(HotkeyBinding left, HotkeyBinding right) =>
+        left.VirtualKey == right.VirtualKey
+        && string.Equals(left.DisplayName, right.DisplayName, StringComparison.Ordinal)
+        && left.InputKind == right.InputKind
+        && left.MouseButton == right.MouseButton;
 
     [RelayCommand(CanExecute = nameof(CanApplySystemDarkMode))]
     private void ApplySystemDarkMode()
@@ -2105,6 +2171,7 @@ public partial class MainWindowViewModel
         ApplyTelemetryReductionCommand.NotifyCanExecuteChanged();
         RestoreTelemetryDefaultsCommand.NotifyCanExecuteChanged();
         ToggleWindowPinCommand.NotifyCanExecuteChanged();
+        OpenPinWindowHotkeySettingsCommand.NotifyCanExecuteChanged();
         RefreshOneDriveStatusCommand.NotifyCanExecuteChanged();
         RemoveOneDriveCommand.NotifyCanExecuteChanged();
         RefreshEdgeStatusCommand.NotifyCanExecuteChanged();
@@ -2271,10 +2338,14 @@ public partial class MainWindowViewModel
             return L(AppLanguageKeys.ToolsIpv4SocketSummaryEmpty);
         }
 
+        var appCount = CountDistinctIpv4Programs(Ipv4SocketEntries);
+
         return F(
             AppLanguageKeys.ToolsIpv4SocketSummaryFormat,
             Ipv4SocketEntries.Count,
             Ipv4SocketEntries.Count == 1 ? "y" : "ies",
+            appCount,
+            appCount == 1 ? string.Empty : "s",
             lastIpv4SocketTcpConnectionCount,
             lastIpv4SocketTcpListenerCount,
             lastIpv4SocketUdpListenerCount,
@@ -2305,14 +2376,22 @@ public partial class MainWindowViewModel
         }
     }
 
-    private string BuildIpv4SocketStatusMessage(Ipv4SocketSnapshotResult result) =>
-        result.Entries.Count == 0
-            ? F(AppLanguageKeys.ToolsStatusIpv4SocketEmptyFormat, result.CapturedAt.ToLocalTime().ToString("HH:mm:ss"))
-            : F(
-                AppLanguageKeys.ToolsStatusIpv4SocketCapturedFormat,
-                result.Entries.Count,
-                result.Entries.Count == 1 ? "y" : "ies",
-                result.CapturedAt.ToLocalTime().ToString("HH:mm:ss"));
+    private string BuildIpv4SocketStatusMessage(Ipv4SocketSnapshotResult result)
+    {
+        if (result.Entries.Count == 0)
+        {
+            return F(AppLanguageKeys.ToolsStatusIpv4SocketEmptyFormat, result.CapturedAt.ToLocalTime().ToString("HH:mm:ss"));
+        }
+
+        var appCount = CountDistinctIpv4Programs(result.Entries);
+        return F(
+            AppLanguageKeys.ToolsStatusIpv4SocketCapturedFormat,
+            result.Entries.Count,
+            result.Entries.Count == 1 ? "y" : "ies",
+            appCount,
+            appCount == 1 ? string.Empty : "s",
+            result.CapturedAt.ToLocalTime().ToString("HH:mm:ss"));
+    }
 
     private string BuildTelemetryIpv4SourcesMessage(Ipv4SocketSnapshotResult beforeSnapshot, Ipv4SocketSnapshotResult afterSnapshot)
     {
@@ -2346,6 +2425,18 @@ public partial class MainWindowViewModel
         }
 
         return sources.Count;
+    }
+
+    private static int CountDistinctIpv4Programs(IEnumerable<Ipv4SocketEntry> entries)
+    {
+        var programs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in entries)
+        {
+            programs.Add(entry.ProgramDisplayName);
+        }
+
+        return programs.Count;
     }
 
     private static string? TryExtractIpv4RemoteSource(string remoteEndpoint)
@@ -2560,7 +2651,8 @@ public partial class MainWindowViewModel
 
         foreach (var entry in Ipv4SocketEntries)
         {
-            builder.AppendLine($"{entry.Protocol}  {entry.State}");
+            builder.AppendLine(entry.ProgramSummary);
+            builder.AppendLine($"{entry.EntryKindLabel}  |  {entry.Protocol}  {entry.State}");
             builder.AppendLine($"Local:  {entry.LocalEndpoint}");
             builder.AppendLine($"Remote: {entry.RemoteEndpoint}");
             builder.AppendLine();

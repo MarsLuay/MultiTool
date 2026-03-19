@@ -80,6 +80,10 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly object screenshotHotkeySequenceSync = new();
     private CancellationTokenSource? pendingScreenshotHotkeySequenceCancellationTokenSource;
     private int pendingScreenshotHotkeyPressCount;
+    private CancellationTokenSource? activeScreenshotAreaSelectionCancellationTokenSource;
+    private ScreenshotMode? activeScreenshotAreaSelectionMode;
+    private bool promoteActiveAreaSelectionToVideo;
+    private bool isMainWindowActive;
 
     private static readonly TimeSpan ScreenshotHotkeySequenceWindow = TimeSpan.FromMilliseconds(350);
 
@@ -527,5 +531,10 @@ public partial class MainWindowViewModel : ObservableObject
 
     private bool IsMainMacroInfinitePlaybackActive =>
         mainMacroPlaybackCancellationTokenSource is not null && mainMacroPlaybackTask is not null;
+
+    public void SetMainWindowActive(bool isActive)
+    {
+        isMainWindowActive = isActive;
+    }
 
 }

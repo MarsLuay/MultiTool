@@ -1,18 +1,17 @@
 # Tools Folder
 
-This folder contains the repo-level helper scripts for building, repairing, launching, starting with Windows, and removing MultiTool.
+This folder contains the remaining repo-level helper scripts for rebuilding, dependency setup, and removing a local MultiTool checkout.
 
-Most people should start with the root-level `run-to-start.bat`. That wrapper handles the common "set up what is missing, rebuild, then launch" flow for you. The scripts in this folder are for the lower-level steps when you want to run one piece directly.
+Most people should start with the root-level `run-to-start.bat`. That wrapper still handles the common "set up what is missing, rebuild, then launch" flow for local source usage. The scripts in this folder are the lower-level steps behind that flow.
 
 ## What Each Script Is For
 
 ### `install-runtime-dependencies.bat`
 
-Checks for and installs the shared machine dependencies that matter to local builds and a few runtime features:
+Checks for and installs the shared machine dependencies that still matter to local builds and a few runtime features:
 
 - `winget`
 - `ffmpeg`
-- AutoHotkey v2
 - .NET 8 SDK
 
 Use this when:
@@ -25,7 +24,7 @@ Important notes:
 
 - `MultiTool.exe` itself is published self-contained, so this script is not required just to open the app
 - app-specific installer prerequisites such as Git, Python, 7-Zip, or VC++ are still handled inside MultiTool when those installs actually run
-- AutoHotkey is now mostly kept for legacy startup-launcher compatibility, not as the main startup path
+- Windows startup is now managed directly by the app setting instead of external launcher scripts
 
 ### `rebuild-app.bat`
 
@@ -46,34 +45,6 @@ Use this when:
 - you want the publish step without running the full setup wrapper
 - you are debugging startup or packaging behavior around the root `MultiTool.exe`
 
-### `install-startup-launcher.bat`
-
-Turns on Windows startup for the current user by creating the same per-user `Run` registry entry that the in-app `Settings > Run at startup` toggle uses.
-
-What it also cleans up:
-
-- old Startup-folder shortcut installs from earlier versions
-- legacy launcher names such as `Launch MultiTool.lnk`
-- older compatibility names such as `Launch AutoClicker.lnk`
-
-Use this when:
-
-- you want to enable startup from the command line
-- you need to repair the startup registration without opening the app
-
-Preferred path:
-
-- for everyday use, change this inside MultiTool with `Settings > Run at startup`
-
-### `remove-startup-launcher.bat`
-
-Turns off that same per-user `Run` registration and removes any leftover legacy Startup-folder shortcuts.
-
-Use this when:
-
-- you want to disable startup from the command line
-- you are cleaning up an older install that still has shortcut-based startup artifacts
-
 ### `uninstall-multitool.bat`
 
 Interactive removal helper for deleting the whole local MultiTool checkout/build folder.
@@ -83,26 +54,13 @@ What it does:
 - asks for confirmation before continuing
 - closes running MultiTool processes
 - disables `Run at startup`
-- calls the startup-cleanup helper first
+- removes leftover legacy Startup-folder shortcuts if they still exist
 - schedules deletion of the repository folder after the current terminal gets out of the way
 
 Use this when:
 
 - you want to remove this local copy completely
 - you are cleaning up an old checkout and do not need its built executable or scripts anymore
-
-## `startup` Subfolder
-
-### `startup\LaunchMultiTool.ahk`
-
-Legacy AutoHotkey launcher that starts:
-
-`MultiTool.exe --startup-launch`
-
-This file is still kept for compatibility with older shortcut-based startup paths. Newer installs should not depend on it. Prefer:
-
-1. `Settings > Run at startup` inside MultiTool.
-2. `tools\install-startup-launcher.bat` if you need the same action from the command line.
 
 ## Recommended Ways To Use This Folder
 
@@ -118,10 +76,10 @@ This file is still kept for compatibility with older shortcut-based startup path
 1. Run `tools\rebuild-app.bat`.
 2. Launch `MultiTool.exe` from the repository root.
 
-### Repair startup registration
+### Manage startup
 
-1. Open MultiTool and use `Settings > Run at startup` if the app is available.
-2. Use `tools\install-startup-launcher.bat` or `tools\remove-startup-launcher.bat` only when you specifically want the command-line version of that same toggle.
+1. Open MultiTool.
+2. Use `Settings > Run at startup`.
 
 ### Remove the local checkout
 

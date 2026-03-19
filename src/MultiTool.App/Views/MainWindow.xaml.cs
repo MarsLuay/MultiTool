@@ -71,6 +71,7 @@ public partial class MainWindow : Window
         DataContext = viewModel;
 
         Loaded += MainWindow_OnLoaded;
+        Activated += MainWindow_OnActivated;
         StateChanged += MainWindow_OnStateChanged;
         Deactivated += MainWindow_OnDeactivated;
         Closing += MainWindow_OnClosing;
@@ -96,6 +97,7 @@ public partial class MainWindow : Window
     {
         trayIconService.Initialize();
         await viewModel.InitializeAsync();
+        viewModel.SetMainWindowActive(IsActive);
         RegisterHotkeys();
         trayIconService.SetRunningState(viewModel.IsRunning);
 
@@ -106,6 +108,11 @@ public partial class MainWindow : Window
         }
 
         ApplySillyModeState();
+    }
+
+    private void MainWindow_OnActivated(object? sender, EventArgs e)
+    {
+        viewModel.SetMainWindowActive(true);
     }
 
     private void RegisterHotkeys()
@@ -197,6 +204,8 @@ public partial class MainWindow : Window
 
     private async void MainWindow_OnDeactivated(object? sender, EventArgs e)
     {
+        viewModel.SetMainWindowActive(false);
+
         if (isClosingAfterAutoSave || !IsLoaded)
         {
             return;

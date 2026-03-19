@@ -458,6 +458,7 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         shortcuts.AddRange(ReadVsCodeFamilyShortcuts());
         shortcuts.AddRange(ReadObsidianShortcuts());
         shortcuts.AddRange(ReadJetBrainsShortcuts());
+        shortcuts.AddRange(ReadFlowLauncherShortcuts(ResolveFlowLauncherSettingsFiles()));
         shortcuts.AddRange(ReadWindowsTerminalShortcuts(ResolveWindowsTerminalSettingsFiles()));
         shortcuts.AddRange(ReadAutoHotkeyScriptShortcuts(ResolveAutoHotkeyScriptFiles()));
 
@@ -754,6 +755,127 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         return shortcuts;
     }
 
+    internal static IReadOnlyList<ShortcutHotkeyInfo> ReadFlowLauncherShortcuts(IEnumerable<string> settingsFilePaths)
+    {
+        var shortcuts = new List<ShortcutHotkeyInfo>();
+        var seenFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var filePath in settingsFilePaths
+                     .Where(static path => !string.IsNullOrWhiteSpace(path))
+                     .Select(static path => Path.GetFullPath(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!seenFiles.Add(filePath) || !File.Exists(filePath))
+            {
+                continue;
+            }
+
+            using var document = TryReadJsonDocument(filePath);
+            if (document is null || document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var root = document.RootElement;
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "Hotkey", "Open Flow Launcher", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "PreviewHotkey", "Preview selected result", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "AutoCompleteHotkey", "Autocomplete selected result", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "AutoCompleteHotkey2", "Autocomplete selected result (alternate)", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "SelectNextItemHotkey", "Select next result", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "SelectNextItemHotkey2", "Select next result (alternate)", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "SelectPrevItemHotkey", "Select previous result", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "SelectPrevItemHotkey2", "Select previous result (alternate)", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "SettingWindowHotkey", "Open settings", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "OpenHistoryHotkey", "Open history", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "OpenContextMenuHotkey", "Open result context menu", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "SelectNextPageHotkey", "Select next page", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "SelectPrevPageHotkey", "Select previous page", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "CycleHistoryUpHotkey", "Cycle history up", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "CycleHistoryDownHotkey", "Cycle history down", filePath);
+            AddFlowLauncherShortcutIfPresent(shortcuts, root, "DialogJumpHotkey", "Dialog jump", filePath);
+
+            var showOpenResultHotkey = !root.TryGetProperty("ShowOpenResultHotkey", out var showOpenResultHotkeyElement)
+                || showOpenResultHotkeyElement.ValueKind != JsonValueKind.False;
+            if (showOpenResultHotkey
+                && root.TryGetProperty("OpenResultModifiers", out var openResultModifiersElement)
+                && openResultModifiersElement.ValueKind == JsonValueKind.String)
+            {
+                var openResultModifiers = openResultModifiersElement.GetString();
+                if (!string.IsNullOrWhiteSpace(openResultModifiers))
+                {
+                    for (var index = 1; index <= 10; index++)
+                    {
+                        var digit = index == 10 ? "0" : index.ToString();
+                        var hotkey = NormalizeFlowLauncherHotkey($"{openResultModifiers} + {digit}");
+                        if (string.IsNullOrWhiteSpace(hotkey))
+                        {
+                            continue;
+                        }
+
+                        shortcuts.Add(new ShortcutHotkeyInfo(
+                            hotkey,
+                            $"Open result {index}",
+                            filePath,
+                            Path.GetDirectoryName(filePath) ?? string.Empty,
+                            string.Empty,
+                            TargetExists: false,
+                            "Detected app settings",
+                            "Flow Launcher",
+                            "Detected from Flow Launcher Settings.json (OpenResultModifiers)."));
+                    }
+                }
+            }
+
+            if (!root.TryGetProperty("CustomPluginHotkeys", out var customPluginHotkeysElement)
+                || customPluginHotkeysElement.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var customHotkeyElement in customPluginHotkeysElement.EnumerateArray())
+            {
+                if (customHotkeyElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var rawHotkey = customHotkeyElement.TryGetProperty("Hotkey", out var customHotkeyValue)
+                    && customHotkeyValue.ValueKind == JsonValueKind.String
+                    ? customHotkeyValue.GetString()
+                    : null;
+                var hotkey = NormalizeFlowLauncherHotkey(rawHotkey);
+                if (string.IsNullOrWhiteSpace(hotkey))
+                {
+                    continue;
+                }
+
+                var actionKeyword = customHotkeyElement.TryGetProperty("ActionKeyword", out var actionKeywordElement)
+                    && actionKeywordElement.ValueKind == JsonValueKind.String
+                    ? actionKeywordElement.GetString()?.Trim()
+                    : null;
+                var shortcutName = string.IsNullOrWhiteSpace(actionKeyword)
+                    ? "Custom query hotkey"
+                    : $"Query \"{Truncate(actionKeyword, 48)}\"";
+                var details = string.IsNullOrWhiteSpace(actionKeyword)
+                    ? "Detected from Flow Launcher Settings.json (CustomPluginHotkeys)."
+                    : $"Detected from Flow Launcher Settings.json (CustomPluginHotkeys). Action keyword: {Truncate(actionKeyword, 64)}";
+
+                shortcuts.Add(new ShortcutHotkeyInfo(
+                    hotkey,
+                    shortcutName,
+                    filePath,
+                    Path.GetDirectoryName(filePath) ?? string.Empty,
+                    string.Empty,
+                    TargetExists: false,
+                    "Detected app settings",
+                    "Flow Launcher",
+                    details));
+            }
+        }
+
+        return shortcuts;
+    }
+
     internal static IReadOnlyList<ShortcutHotkeyInfo> ReadAutoHotkeyScriptShortcuts(IEnumerable<string> scriptFilePaths)
     {
         var shortcuts = new List<ShortcutHotkeyInfo>();
@@ -935,6 +1057,34 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         return candidates;
     }
 
+    private static IEnumerable<string> ResolveFlowLauncherSettingsFiles()
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rootPath in new[]
+                 {
+                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlowLauncher"),
+                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FlowLauncher"),
+                 }.Where(static path => !string.IsNullOrWhiteSpace(path) && Directory.Exists(path)))
+        {
+            try
+            {
+                foreach (var filePath in Directory.EnumerateFiles(rootPath, "Settings.json", SearchOption.AllDirectories))
+                {
+                    if (filePath.EndsWith($"{Path.DirectorySeparatorChar}Settings{Path.DirectorySeparatorChar}Settings.json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        candidates.Add(filePath);
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        return candidates;
+    }
+
     private static IEnumerable<string> ResolveAutoHotkeyScriptFiles()
     {
         var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -992,6 +1142,12 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         if (!string.IsNullOrWhiteSpace(documentsPath))
         {
             yield return Path.Combine(documentsPath, "AutoHotkey");
+        }
+
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        if (!string.IsNullOrWhiteSpace(appData))
+        {
+            yield return Path.Combine(appData, "MultiTool", "SearchReplacement");
         }
     }
 
@@ -1155,6 +1311,74 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
             JsonValueKind.False => "false",
             JsonValueKind.Number => value.GetRawText(),
             _ => value.GetRawText(),
+        };
+
+    private static void AddFlowLauncherShortcutIfPresent(
+        ICollection<ShortcutHotkeyInfo> shortcuts,
+        JsonElement root,
+        string propertyName,
+        string shortcutName,
+        string filePath)
+    {
+        if (!root.TryGetProperty(propertyName, out var propertyElement) || propertyElement.ValueKind != JsonValueKind.String)
+        {
+            return;
+        }
+
+        var hotkey = NormalizeFlowLauncherHotkey(propertyElement.GetString());
+        if (string.IsNullOrWhiteSpace(hotkey))
+        {
+            return;
+        }
+
+        shortcuts.Add(new ShortcutHotkeyInfo(
+            hotkey,
+            shortcutName,
+            filePath,
+            Path.GetDirectoryName(filePath) ?? string.Empty,
+            string.Empty,
+            TargetExists: false,
+            "Detected app settings",
+            "Flow Launcher",
+            $"Detected from Flow Launcher Settings.json ({propertyName})."));
+    }
+
+    private static string NormalizeFlowLauncherHotkey(string? hotkey)
+    {
+        if (string.IsNullOrWhiteSpace(hotkey))
+        {
+            return string.Empty;
+        }
+
+        var chordParts = hotkey
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(
+                static chord =>
+                    string.Join(
+                        " + ",
+                        Regex.Split(chord.Trim(), @"\s*\+\s*")
+                            .Where(static token => !string.IsNullOrWhiteSpace(token))
+                            .Select(NormalizeFlowLauncherHotkeyToken)
+                            .Where(static token => !string.IsNullOrWhiteSpace(token))))
+            .Where(static chord => !string.IsNullOrWhiteSpace(chord));
+
+        return string.Join(", ", chordParts);
+    }
+
+    private static string NormalizeFlowLauncherHotkeyToken(string token) =>
+        token.Trim().ToUpperInvariant() switch
+        {
+            "D0" => "0",
+            "D1" => "1",
+            "D2" => "2",
+            "D3" => "3",
+            "D4" => "4",
+            "D5" => "5",
+            "D6" => "6",
+            "D7" => "7",
+            "D8" => "8",
+            "D9" => "9",
+            _ => NormalizeModifierOrKeyToken(token),
         };
 
     private static string StripAutoHotkeyComment(string line)

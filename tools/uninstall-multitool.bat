@@ -2,8 +2,12 @@
 setlocal EnableExtensions
 
 for %%I in ("%~dp0..") do set "ROOT_DIR=%%~fI"
-set "SHORTCUT_REMOVER=%ROOT_DIR%\tools\remove-startup-launcher.bat"
 set "CLEANUP_SCRIPT=%TEMP%\multitool-uninstall-%RANDOM%%RANDOM%.cmd"
+set "RUN_KEY=HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
+set "RUN_VALUE_NAME=MultiTool"
+set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "SHORTCUT_PATH=%STARTUP_DIR%\Launch MultiTool.lnk"
+set "LEGACY_SHORTCUT_PATH=%STARTUP_DIR%\Launch AutoClicker.lnk"
 
 echo MultiTool uninstall helper
 echo.
@@ -37,9 +41,9 @@ echo Closing MultiTool if it is running...
 taskkill /IM MultiTool.exe /F /T >nul 2>&1
 taskkill /IM MultiTool.exe /F /T >nul 2>&1
 
-if exist "%SHORTCUT_REMOVER%" (
-    call "%SHORTCUT_REMOVER%" >nul 2>&1
-)
+reg delete "%RUN_KEY%" /v "%RUN_VALUE_NAME%" /f >nul 2>&1
+if exist "%SHORTCUT_PATH%" del /q "%SHORTCUT_PATH%" >nul 2>&1
+if exist "%LEGACY_SHORTCUT_PATH%" del /q "%LEGACY_SHORTCUT_PATH%" >nul 2>&1
 
 > "%CLEANUP_SCRIPT%" echo @echo off
 >>"%CLEANUP_SCRIPT%" echo setlocal EnableExtensions

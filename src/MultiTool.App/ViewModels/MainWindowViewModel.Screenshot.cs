@@ -144,6 +144,12 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        if (TryHandleActiveScreenshotAreaSelectionHotkey())
+        {
+            ResetScreenshotHotkeySequence();
+            return;
+        }
+
         await QueueScreenshotHotkeySequenceAsync();
     }
 
@@ -170,13 +176,13 @@ public partial class MainWindowViewModel : ObservableObject
 
         lock (screenshotHotkeySequenceSync)
         {
-            pendingScreenshotHotkeyPressCount = Math.Min(pendingScreenshotHotkeyPressCount + 1, 3);
+            pendingScreenshotHotkeyPressCount = Math.Min(pendingScreenshotHotkeyPressCount + 1, 4);
 
             pendingScreenshotHotkeySequenceCancellationTokenSource?.Cancel();
             pendingScreenshotHotkeySequenceCancellationTokenSource?.Dispose();
             pendingScreenshotHotkeySequenceCancellationTokenSource = new CancellationTokenSource();
             sequenceCancellationTokenSource = pendingScreenshotHotkeySequenceCancellationTokenSource;
-            shouldExecuteImmediately = pendingScreenshotHotkeyPressCount >= 3;
+            shouldExecuteImmediately = pendingScreenshotHotkeyPressCount >= 4;
         }
 
         if (shouldExecuteImmediately)
@@ -224,8 +230,11 @@ public partial class MainWindowViewModel : ObservableObject
             case 2:
                 await PerformScreenshotAsync(ScreenshotMode.Area);
                 return;
+            case 3:
+                await StartVideoCaptureWithPickerAsync();
+                return;
             default:
-                await StartVideoCaptureWithAreaSelectionAsync();
+                await StartVideoCaptureForCurrentScreenAsync();
                 return;
         }
     }
@@ -250,18 +259,59 @@ public partial class MainWindowViewModel : ObservableObject
         sequenceCancellationTokenSource.Dispose();
     }
 
-    private async Task StartVideoCaptureWithAreaSelectionAsync()
+    private bool TryHandleActiveScreenshotAreaSelectionHotkey()
     {
-        var area = await SelectScreenshotAreaAsync();
-        if (area is null)
+        if (activeScreenshotAreaSelectionCancellationTokenSource is null || activeScreenshotAreaSelectionMode is null)
+        {
+            return false;
+        }
+
+        if (activeScreenshotAreaSelectionMode == ScreenshotMode.Area)
+        {
+            promoteActiveAreaSelectionToVideo = true;
+            AppLog.Info("Screenshot hotkey pressed while area selection is active. Promoting selection to video capture.");
+        }
+        else
+        {
+            AppLog.Info("Screenshot hotkey pressed while video area selection is active. Canceling the current selection.");
+        }
+
+        activeScreenshotAreaSelectionCancellationTokenSource.Cancel();
+        return true;
+    }
+
+    private async Task StartVideoCaptureWithPickerAsync()
+    {
+        var selection = await SelectVideoCaptureAsync();
+        if (selection is null)
         {
             return;
         }
 
-        await StartVideoCaptureForAreaAsync(area.Value);
+        switch (selection.Kind)
+        {
+            case VideoCaptureSelectionKind.Area when selection.Area is not null:
+                await StartVideoCaptureAsync(selection.Area.Value, AppLanguageKeys.MainScreenshotStatusAreaRecordingStarted);
+                return;
+            case VideoCaptureSelectionKind.CurrentScreen:
+                await StartVideoCaptureAsync(
+                    selection.Area ?? GetCurrentScreenRectangle(),
+                    AppLanguageKeys.MainScreenshotStatusCurrentScreenRecordingStarted);
+                return;
+            case VideoCaptureSelectionKind.AllScreens:
+                await StartVideoCaptureAsync(null, AppLanguageKeys.MainScreenshotStatusAllScreensRecordingStarted);
+                return;
+            default:
+                ScreenshotStatusMessage = L(AppLanguageKeys.MainScreenshotStatusVideoCanceled);
+                AddScreenshotLog(ScreenshotStatusMessage);
+                return;
+        }
     }
 
-    private async Task StartVideoCaptureForAreaAsync(ScreenRectangle area)
+    private async Task StartVideoCaptureForCurrentScreenAsync()
+        => await StartVideoCaptureAsync(GetCurrentScreenRectangle(), AppLanguageKeys.MainScreenshotStatusCurrentScreenRecordingStarted);
+
+    private async Task StartVideoCaptureAsync(ScreenRectangle? area, string startedMessageKey)
     {
         var settings = BuildScreenshotSettings();
         var validation = settingsValidator.ValidateScreenshot(settings);
@@ -275,7 +325,7 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             await screenshotCaptureService.StartVideoCaptureAsync(settings.SaveFolderPath, settings.FilePrefix, area);
-            ScreenshotStatusMessage = L(AppLanguageKeys.MainScreenshotStatusAreaRecordingStarted);
+            ScreenshotStatusMessage = L(startedMessageKey);
             AddScreenshotLog(ScreenshotStatusMessage);
         }
         catch (Exception ex)
@@ -285,22 +335,109 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private async Task<ScreenRectangle?> SelectScreenshotAreaAsync()
+    private async Task<ScreenRectangle?> SelectScreenshotAreaAsync(ScreenshotMode requestedMode)
     {
-        AppLog.Info("Area capture requested from MainWindowViewModel.");
-        var area = screenshotAreaSelectionService.SelectArea();
+        using var selectionCancellationTokenSource = new CancellationTokenSource();
+        activeScreenshotAreaSelectionCancellationTokenSource = selectionCancellationTokenSource;
+        activeScreenshotAreaSelectionMode = requestedMode;
+
+        ScreenRectangle? area = null;
+        var shouldPromoteToVideo = false;
+
+        try
+        {
+            AppLog.Info($"Area selection requested from MainWindowViewModel. Mode={requestedMode}.");
+            area = await screenshotAreaSelectionService.SelectAreaAsync(selectionCancellationTokenSource.Token);
+            if (area is null)
+            {
+                shouldPromoteToVideo = requestedMode == ScreenshotMode.Area && promoteActiveAreaSelectionToVideo;
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(activeScreenshotAreaSelectionCancellationTokenSource, selectionCancellationTokenSource))
+            {
+                activeScreenshotAreaSelectionCancellationTokenSource = null;
+                activeScreenshotAreaSelectionMode = null;
+                promoteActiveAreaSelectionToVideo = false;
+            }
+        }
+
         if (area is null)
         {
-            AppLog.Info("Area capture canceled before capture service call.");
-            ScreenshotStatusMessage = L(AppLanguageKeys.MainScreenshotStatusAreaCanceled);
+            if (shouldPromoteToVideo)
+            {
+                AppLog.Info("Area selection canceled so the screenshot hotkey flow can continue with the video capture picker.");
+                await StartVideoCaptureWithPickerAsync();
+                return null;
+            }
+
+            AppLog.Info($"Area selection canceled before capture service call. Mode={requestedMode}.");
+            ScreenshotStatusMessage = L(
+                requestedMode == ScreenshotMode.Video
+                    ? AppLanguageKeys.MainScreenshotStatusVideoCanceled
+                    : AppLanguageKeys.MainScreenshotStatusAreaCanceled);
             AddScreenshotLog(ScreenshotStatusMessage);
             return null;
         }
 
         // Give the area-selection overlay a moment to fully disappear before capturing.
         await Task.Delay(120);
-        AppLog.Info($"Area capture using area=({area.Value.X},{area.Value.Y},{area.Value.Width}x{area.Value.Height})");
+        AppLog.Info($"Area selection using area=({area.Value.X},{area.Value.Y},{area.Value.Width}x{area.Value.Height}) Mode={requestedMode}");
         return area;
+    }
+
+    private async Task<VideoCaptureSelection?> SelectVideoCaptureAsync()
+    {
+        using var selectionCancellationTokenSource = new CancellationTokenSource();
+        activeScreenshotAreaSelectionCancellationTokenSource = selectionCancellationTokenSource;
+        activeScreenshotAreaSelectionMode = ScreenshotMode.Video;
+
+        VideoCaptureSelection? selection = null;
+
+        try
+        {
+            AppLog.Info("Video capture selection requested from MainWindowViewModel.");
+            selection = await screenshotAreaSelectionService.SelectVideoCaptureAsync(selectionCancellationTokenSource.Token);
+        }
+        finally
+        {
+            if (ReferenceEquals(activeScreenshotAreaSelectionCancellationTokenSource, selectionCancellationTokenSource))
+            {
+                activeScreenshotAreaSelectionCancellationTokenSource = null;
+                activeScreenshotAreaSelectionMode = null;
+                promoteActiveAreaSelectionToVideo = false;
+            }
+        }
+
+        if (selection is null)
+        {
+            AppLog.Info("Video capture selection canceled before capture service call.");
+            ScreenshotStatusMessage = L(AppLanguageKeys.MainScreenshotStatusVideoCanceled);
+            AddScreenshotLog(ScreenshotStatusMessage);
+            return null;
+        }
+
+        // Give the selection overlay a moment to fully disappear before recording starts.
+        await Task.Delay(120);
+
+        if (selection.Area is { } area)
+        {
+            AppLog.Info($"Video capture selection using area=({area.X},{area.Y},{area.Width}x{area.Height}) Kind={selection.Kind}");
+        }
+        else
+        {
+            AppLog.Info($"Video capture selection using mode={selection.Kind} across all screens.");
+        }
+
+        return selection;
+    }
+
+    private static ScreenRectangle GetCurrentScreenRectangle()
+    {
+        var currentScreen = global::System.Windows.Forms.Screen.FromPoint(global::System.Windows.Forms.Cursor.Position);
+        var bounds = currentScreen.Bounds;
+        return new ScreenRectangle(bounds.X, bounds.Y, bounds.Width, bounds.Height);
     }
 
     private async Task PerformScreenshotAsync(ScreenshotMode mode)
@@ -329,7 +466,7 @@ public partial class MainWindowViewModel : ObservableObject
                     }
                 case ScreenshotMode.Area:
                     {
-                        var area = await SelectScreenshotAreaAsync();
+                        var area = await SelectScreenshotAreaAsync(ScreenshotMode.Area);
                         if (area is null)
                         {
                             return;

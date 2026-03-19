@@ -1,8 +1,10 @@
 using FluentAssertions;
+using MultiTool.App.Localization;
 using MultiTool.App.Models;
 using MultiTool.App.Services;
 using MultiTool.App.ViewModels;
 using MultiTool.Core.Defaults;
+using MultiTool.Core.Enums;
 using MultiTool.Core.Models;
 using MultiTool.Core.Results;
 using MultiTool.Core.Services;
@@ -86,6 +88,270 @@ public sealed class MainWindowViewModelSettingsFlowTests
             });
     }
 
+    [Fact]
+    public async Task ChangingPinStateAfterInitialization_ShouldRefreshPinWindowToolPresentation()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var settings = DefaultSettingsFactory.Create();
+                settings.Hotkeys.PinWindow = new HotkeyBinding(0x78, "F9");
+
+                var context = new MainWindowViewModelTestContext(settings);
+
+                await context.ViewModel.InitializeAsync();
+
+                context.ViewModel.IsTopMost = true;
+
+                context.ViewModel.PinWindowStateText.Should().Be("pinned on top");
+                context.ViewModel.PinWindowActionButtonText.Should().Be("Unpin Window");
+                context.ViewModel.PinWindowToolStatusMessage.Should().Contain("pinned");
+                context.ViewModel.PinWindowToolStatusMessage.Should().Contain("F9");
+            });
+    }
+
+    [Fact]
+    public async Task OpenPinWindowHotkeySettingsAsync_ShouldUpdateHotkeyAndSave()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var settings = DefaultSettingsFactory.Create();
+
+                var context = new MainWindowViewModelTestContext(settings);
+
+                await context.ViewModel.InitializeAsync();
+
+                var updatedHotkeys = settings.Hotkeys.Clone();
+                updatedHotkeys.PinWindow = new HotkeyBinding(0x79, "F10");
+                context.HotkeySettingsDialogService.NextResult = updatedHotkeys;
+
+                await context.ViewModel.OpenPinWindowHotkeySettingsCommand.ExecuteAsync(null);
+                await context.SettingsStore.WaitForSaveCountAsync(expectedCount: 1);
+
+                context.HotkeySettingsDialogService.EditCalls.Should().Be(1);
+                context.ViewModel.PinWindowHotkeyLabel.Should().Be("F10");
+                context.ViewModel.PinWindowHotkeySummary.Should().Contain("F10");
+                context.ViewModel.PinWindowToolStatusMessage.Should().Contain("F10");
+                context.SettingsStore.LastSavedSettings.Should().NotBeNull();
+                context.SettingsStore.LastSavedSettings!.Hotkeys.PinWindow.VirtualKey.Should().Be(0x79);
+                context.SettingsStore.LastSavedSettings!.Hotkeys.PinWindow.DisplayName.Should().Be("F10");
+            });
+    }
+
+    [Fact]
+    public async Task ScreenshotHotkey_WhenPressedAgainDuringAreaSelection_ShouldPromoteToVideoCapture()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                await context.ViewModel.InitializeAsync();
+                var promotedVideoArea = new ScreenRectangle(10, 20, 300, 200);
+
+                context.ScreenshotAreaSelectionService.EnqueueBehavior(
+                    async cancellationToken =>
+                    {
+                        try
+                        {
+                            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                        }
+
+                        return null;
+                    });
+                context.ScreenshotAreaSelectionService.EnqueueVideoSelectionResult(
+                    new VideoCaptureSelection(VideoCaptureSelectionKind.CurrentScreen, promotedVideoArea));
+
+                var firstPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+                await Task.Delay(50);
+                var secondPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+
+                await context.ScreenshotAreaSelectionService.WaitForCallCountAsync(expectedCount: 1);
+
+                var thirdPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+
+                await Task.WhenAll(firstPressTask, secondPressTask, thirdPressTask);
+                await context.ScreenshotCaptureService.WaitForVideoStartCountAsync(expectedCount: 1);
+
+                context.ScreenshotAreaSelectionService.CallCount.Should().Be(1);
+                context.ScreenshotAreaSelectionService.VideoSelectionCallCount.Should().Be(1);
+                context.ScreenshotCaptureService.StartVideoCaptureCallCount.Should().Be(1);
+                context.ScreenshotCaptureService.CaptureAreaCallCount.Should().Be(0);
+                context.ScreenshotCaptureService.LastStartVideoCaptureArea.Should().Be(promotedVideoArea);
+                context.ViewModel.ScreenshotStatusMessage.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotStatusCurrentScreenRecordingStarted));
+            });
+    }
+
+    [Fact]
+    public async Task ScreenshotHotkey_WhenPressedThreeTimes_ShouldOpenVideoPickerAndStartChosenCapture()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                await context.ViewModel.InitializeAsync();
+
+                context.ScreenshotAreaSelectionService.EnqueueVideoSelectionResult(
+                    new VideoCaptureSelection(VideoCaptureSelectionKind.AllScreens, null));
+
+                var firstPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+                await Task.Delay(50);
+                var secondPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+                await Task.Delay(50);
+                var thirdPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+
+                await Task.WhenAll(firstPressTask, secondPressTask, thirdPressTask);
+                await context.ScreenshotCaptureService.WaitForVideoStartCountAsync(expectedCount: 1);
+
+                context.ScreenshotAreaSelectionService.CallCount.Should().Be(0);
+                context.ScreenshotAreaSelectionService.VideoSelectionCallCount.Should().Be(1);
+                context.ScreenshotCaptureService.StartVideoCaptureCallCount.Should().Be(1);
+                context.ScreenshotCaptureService.LastStartVideoCaptureArea.Should().BeNull();
+                context.ViewModel.ScreenshotStatusMessage.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotStatusAllScreensRecordingStarted));
+            });
+    }
+
+    [Fact]
+    public async Task ScreenshotHotkey_WhenPressedFourTimes_ShouldStartCurrentScreenRecordingWithoutPicker()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                await context.ViewModel.InitializeAsync();
+
+                var firstPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+                await Task.Delay(50);
+                var secondPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+                await Task.Delay(50);
+                var thirdPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+                await Task.Delay(50);
+                var fourthPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
+
+                await Task.WhenAll(firstPressTask, secondPressTask, thirdPressTask, fourthPressTask);
+                await context.ScreenshotCaptureService.WaitForVideoStartCountAsync(expectedCount: 1);
+
+                context.ScreenshotAreaSelectionService.CallCount.Should().Be(0);
+                context.ScreenshotAreaSelectionService.VideoSelectionCallCount.Should().Be(0);
+                context.ScreenshotCaptureService.StartVideoCaptureCallCount.Should().Be(1);
+                context.ScreenshotCaptureService.LastStartVideoCaptureArea.Should().NotBeNull();
+                context.ScreenshotCaptureService.LastStartVideoCaptureArea!.Value.Width.Should().BeGreaterThan(0);
+                context.ScreenshotCaptureService.LastStartVideoCaptureArea!.Value.Height.Should().BeGreaterThan(0);
+                context.ViewModel.ScreenshotStatusMessage.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotStatusCurrentScreenRecordingStarted));
+            });
+    }
+
+    [Fact]
+    public async Task ToggleHotkey_WhenMainWindowIsActive_ShouldNotStartAutoClicker()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+
+                await context.ViewModel.InitializeAsync();
+                context.ViewModel.SetMainWindowActive(true);
+
+                await context.ViewModel.HandleHotkeyAsync(HotkeyAction.Toggle);
+
+                context.AutoClickerController.StartAsyncCallCount.Should().Be(0);
+                context.AutoClickerController.IsRunning.Should().BeFalse();
+                context.ViewModel.IsRunning.Should().BeFalse();
+                context.ViewModel.StatusMessage.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainStatusClickerHotkeyIgnoredWhileFocused));
+            });
+    }
+
+    [Fact]
+    public async Task ToggleHotkey_WhenMainWindowIsActiveAndAutoClickerIsAlreadyRunning_ShouldStillStopAutoClicker()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+
+                await context.ViewModel.InitializeAsync();
+                context.ViewModel.SetMainWindowActive(false);
+                await context.ViewModel.HandleHotkeyAsync(HotkeyAction.Toggle);
+
+                context.ViewModel.SetMainWindowActive(true);
+                await context.ViewModel.HandleHotkeyAsync(HotkeyAction.Toggle);
+
+                context.AutoClickerController.StartAsyncCallCount.Should().Be(1);
+                context.AutoClickerController.StopAsyncCallCount.Should().Be(1);
+                context.AutoClickerController.IsRunning.Should().BeFalse();
+                context.ViewModel.IsRunning.Should().BeFalse();
+                context.ViewModel.StatusMessage.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainStatusAutomationStopped));
+            });
+    }
+
+    [Fact]
+    public async Task CaptureIpv4SocketSnapshotAsync_ShouldShowProgramsAndFriendlyClipboardText()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                context.Ipv4SocketSnapshotService.NextResult = new Ipv4SocketSnapshotResult(
+                    new DateTimeOffset(2026, 3, 19, 18, 30, 0, TimeSpan.Zero),
+                    [
+                        new Ipv4SocketEntry("tcp4", "ESTAB", "10.0.0.25:52344", "93.184.216.34:443", "chrome.exe", 7420),
+                        new Ipv4SocketEntry("tcp4", "LISTEN", "0.0.0.0:3000", "*:*", "node.exe", 9216),
+                        new Ipv4SocketEntry("udp4", "UNCONN", "127.0.0.1:5353", "*:*", string.Empty, 1104),
+                    ],
+                    1,
+                    1,
+                    1);
+
+                await context.ViewModel.InitializeAsync();
+                await context.ViewModel.CaptureIpv4SocketSnapshotCommand.ExecuteAsync(null);
+
+                context.ViewModel.Ipv4SocketSummary.Should().Contain("across 3 apps");
+                context.ViewModel.Ipv4SocketStatusMessage.Should().Contain("Found 3 IPv4 entries across 3 apps");
+                context.ViewModel.Ipv4SocketEntries.Select(static entry => entry.ProgramSummary).Should().Contain(
+                    "chrome.exe (PID 7420)",
+                    "node.exe (PID 9216)",
+                    "Unknown app (PID 1104)");
+
+                context.ViewModel.CopyIpv4SocketSnapshotCommand.Execute(null);
+
+                context.ClipboardTextService.LastText.Should().NotBeNull();
+                context.ClipboardTextService.LastText.Should().Contain("IPv4 App Activity");
+                context.ClipboardTextService.LastText.Should().Contain("chrome.exe (PID 7420)");
+                context.ClipboardTextService.LastText.Should().Contain("TCP connection  |  tcp4  ESTAB");
+                context.ClipboardTextService.LastText.Should().Contain("Unknown app (PID 1104)");
+            });
+    }
+
+    [Fact]
+    public async Task RestoreTelemetryDefaultsAsync_ShouldKeepRestoreSuccessMessage()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                context.WindowsTelemetryService.Status = new WindowsTelemetryStatus(
+                    false,
+                    "Telemetry hardening not fully applied. AllowTelemetry policy is not set to 0.");
+                context.WindowsTelemetryService.RestoreResult = new WindowsTelemetryResult(
+                    true,
+                    true,
+                    "Restored telemetry defaults by removing the policy override, re-enabling telemetry tasks, and restoring telemetry service startup defaults.");
+
+                await context.ViewModel.InitializeAsync();
+                await context.ViewModel.RestoreTelemetryDefaultsCommand.ExecuteAsync(null);
+
+                context.ViewModel.TelemetryToolStatusMessage.Should().Be(context.WindowsTelemetryService.RestoreResult.Message);
+            });
+    }
+
     private sealed class MainWindowViewModelTestContext
     {
         public MainWindowViewModelTestContext(AppSettings loadedSettings)
@@ -93,25 +359,32 @@ public sealed class MainWindowViewModelSettingsFlowTests
             SettingsStore = new FakeAppSettingsStore(loadedSettings);
             ThemeService = new FakeThemeService();
             RunAtStartupService = new FakeRunAtStartupService();
+            AutoClickerController = new FakeAutoClickerController();
+            ScreenshotCaptureService = new FakeScreenshotCaptureService();
+            ScreenshotAreaSelectionService = new FakeScreenshotAreaSelectionService();
+            HotkeySettingsDialogService = new FakeHotkeySettingsDialogService();
+            ClipboardTextService = new FakeClipboardTextService();
+            Ipv4SocketSnapshotService = new FakeIpv4SocketSnapshotService();
+            WindowsTelemetryService = new FakeWindowsTelemetryService();
 
             ViewModel = new MainWindowViewModel(
                 SettingsStore,
                 new SettingsValidator(),
-                new FakeAutoClickerController(),
+                AutoClickerController,
                 new FakeMacroFileStore(),
                 new FakeMacroService(),
                 new FakeFolderPickerService(),
-                new FakeScreenshotCaptureService(),
-                new FakeScreenshotAreaSelectionService(),
+                ScreenshotCaptureService,
+                ScreenshotAreaSelectionService,
                 new FakeMacroEditorDialogService(),
                 new FakeMacroNamePromptService(),
                 new FakeMacroFileDialogService(),
-                new FakeHotkeySettingsDialogService(),
+                HotkeySettingsDialogService,
                 new FakeMacroHotkeyAssignmentsDialogService(),
                 new FakeCoordinateCaptureDialogService(),
                 new FakeAboutWindowService(),
                 ThemeService,
-                new FakeClipboardTextService(),
+                ClipboardTextService,
                 RunAtStartupService,
                 new FakeMacroLibraryService(),
                 new FakeInstallerService(),
@@ -121,7 +394,7 @@ public sealed class MainWindowViewModelSettingsFlowTests
                 new FakeEmptyDirectoryService(),
                 new FakeShortcutHotkeyInventoryService(),
                 new FakeShortcutHotkeyDisableService(),
-                new FakeIpv4SocketSnapshotService(),
+                Ipv4SocketSnapshotService,
                 new FakeMouseSensitivityService(),
                 new FakeDisplayRefreshRateService(),
                 new FakeHardwareInventoryService(),
@@ -129,7 +402,7 @@ public sealed class MainWindowViewModelSettingsFlowTests
                 new FakeWindows11EeaMediaService(),
                 new FakeWindowsSearchReplacementService(),
                 new FakeWindowsSearchReindexService(),
-                new FakeWindowsTelemetryService(),
+                WindowsTelemetryService,
                 new FakeOneDriveRemovalService(),
                 new FakeEdgeRemovalService(),
                 new FakeFnCtrlSwapService(),
@@ -144,6 +417,20 @@ public sealed class MainWindowViewModelSettingsFlowTests
         public FakeThemeService ThemeService { get; }
 
         public FakeRunAtStartupService RunAtStartupService { get; }
+
+        public FakeAutoClickerController AutoClickerController { get; }
+
+        public FakeScreenshotCaptureService ScreenshotCaptureService { get; }
+
+        public FakeScreenshotAreaSelectionService ScreenshotAreaSelectionService { get; }
+
+        public FakeHotkeySettingsDialogService HotkeySettingsDialogService { get; }
+
+        public FakeClipboardTextService ClipboardTextService { get; }
+
+        public FakeIpv4SocketSnapshotService Ipv4SocketSnapshotService { get; }
+
+        public FakeWindowsTelemetryService WindowsTelemetryService { get; }
     }
 
     private sealed class FakeAppSettingsStore : IAppSettingsStore
@@ -223,10 +510,15 @@ public sealed class MainWindowViewModelSettingsFlowTests
     {
         public bool IsRunning { get; private set; }
 
+        public int StartAsyncCallCount { get; private set; }
+
+        public int StopAsyncCallCount { get; private set; }
+
         public event EventHandler<RunningStateChangedEventArgs>? RunningStateChanged;
 
         public Task StartAsync(ClickSettings settings, CancellationToken cancellationToken = default)
         {
+            StartAsyncCallCount++;
             IsRunning = true;
             RunningStateChanged?.Invoke(this, new RunningStateChangedEventArgs(true));
             return Task.CompletedTask;
@@ -234,6 +526,7 @@ public sealed class MainWindowViewModelSettingsFlowTests
 
         public Task StopAsync(CancellationToken cancellationToken = default)
         {
+            StopAsyncCallCount++;
             IsRunning = false;
             RunningStateChanged?.Invoke(this, new RunningStateChangedEventArgs(false));
             return Task.CompletedTask;
@@ -307,14 +600,30 @@ public sealed class MainWindowViewModelSettingsFlowTests
 
         public string? LastSavedVideoPath { get; private set; }
 
-        public Task<string> CaptureDesktopAsync(string outputDirectory, string fileNamePrefix, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Path.Combine(outputDirectory, $"{fileNamePrefix}-full.png"));
+        public ScreenRectangle? LastStartVideoCaptureArea { get; private set; }
 
-        public Task<string> CaptureAreaAsync(ScreenRectangle area, string outputDirectory, string fileNamePrefix, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Path.Combine(outputDirectory, $"{fileNamePrefix}-area.png"));
+        public int CaptureDesktopCallCount { get; private set; }
+
+        public int CaptureAreaCallCount { get; private set; }
+
+        public int StartVideoCaptureCallCount { get; private set; }
+
+        public Task<string> CaptureDesktopAsync(string outputDirectory, string fileNamePrefix, CancellationToken cancellationToken = default)
+        {
+            CaptureDesktopCallCount++;
+            return Task.FromResult(Path.Combine(outputDirectory, $"{fileNamePrefix}-full.png"));
+        }
+
+        public Task<string> CaptureAreaAsync(ScreenRectangle area, string outputDirectory, string fileNamePrefix, CancellationToken cancellationToken = default)
+        {
+            CaptureAreaCallCount++;
+            return Task.FromResult(Path.Combine(outputDirectory, $"{fileNamePrefix}-area.png"));
+        }
 
         public Task StartVideoCaptureAsync(string outputDirectory, string fileNamePrefix, ScreenRectangle? area = null, CancellationToken cancellationToken = default)
         {
+            StartVideoCaptureCallCount++;
+            LastStartVideoCaptureArea = area;
             IsVideoCaptureRunning = true;
             VideoCaptureStateChanged?.Invoke(this, new VideoCaptureStateChangedEventArgs(true, area));
             return Task.CompletedTask;
@@ -327,11 +636,79 @@ public sealed class MainWindowViewModelSettingsFlowTests
             VideoCaptureStateChanged?.Invoke(this, new VideoCaptureStateChangedEventArgs(false, null));
             return Task.FromResult<string?>(LastSavedVideoPath);
         }
+
+        public async Task WaitForVideoStartCountAsync(int expectedCount, TimeSpan? timeout = null)
+        {
+            var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(3);
+            var startedAt = DateTime.UtcNow;
+
+            while (StartVideoCaptureCallCount < expectedCount && DateTime.UtcNow - startedAt < effectiveTimeout)
+            {
+                await Task.Delay(25);
+            }
+
+            StartVideoCaptureCallCount.Should().BeGreaterOrEqualTo(expectedCount);
+        }
     }
 
     private sealed class FakeScreenshotAreaSelectionService : IScreenshotAreaSelectionService
     {
-        public ScreenRectangle? SelectArea() => null;
+        private readonly Queue<Func<CancellationToken, Task<ScreenRectangle?>>> areaSelectionBehaviors = new();
+        private readonly Queue<Func<CancellationToken, Task<VideoCaptureSelection?>>> videoSelectionBehaviors = new();
+
+        public int CallCount { get; private set; }
+
+        public int VideoSelectionCallCount { get; private set; }
+
+        public void EnqueueBehavior(Func<CancellationToken, Task<ScreenRectangle?>> behavior) => areaSelectionBehaviors.Enqueue(behavior);
+
+        public void EnqueueResult(ScreenRectangle? result) => areaSelectionBehaviors.Enqueue(_ => Task.FromResult(result));
+
+        public void EnqueueVideoSelectionBehavior(Func<CancellationToken, Task<VideoCaptureSelection?>> behavior) => videoSelectionBehaviors.Enqueue(behavior);
+
+        public void EnqueueVideoSelectionResult(VideoCaptureSelection? result) => videoSelectionBehaviors.Enqueue(_ => Task.FromResult(result));
+
+        public Task<ScreenRectangle?> SelectAreaAsync(CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return areaSelectionBehaviors.Count > 0
+                ? areaSelectionBehaviors.Dequeue()(cancellationToken)
+                : Task.FromResult<ScreenRectangle?>(null);
+        }
+
+        public Task<VideoCaptureSelection?> SelectVideoCaptureAsync(CancellationToken cancellationToken = default)
+        {
+            VideoSelectionCallCount++;
+            return videoSelectionBehaviors.Count > 0
+                ? videoSelectionBehaviors.Dequeue()(cancellationToken)
+                : Task.FromResult<VideoCaptureSelection?>(null);
+        }
+
+        public async Task WaitForCallCountAsync(int expectedCount, TimeSpan? timeout = null)
+        {
+            var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(3);
+            var startedAt = DateTime.UtcNow;
+
+            while (CallCount < expectedCount && DateTime.UtcNow - startedAt < effectiveTimeout)
+            {
+                await Task.Delay(25);
+            }
+
+            CallCount.Should().BeGreaterOrEqualTo(expectedCount);
+        }
+
+        public async Task WaitForVideoSelectionCallCountAsync(int expectedCount, TimeSpan? timeout = null)
+        {
+            var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(3);
+            var startedAt = DateTime.UtcNow;
+
+            while (VideoSelectionCallCount < expectedCount && DateTime.UtcNow - startedAt < effectiveTimeout)
+            {
+                await Task.Delay(25);
+            }
+
+            VideoSelectionCallCount.Should().BeGreaterOrEqualTo(expectedCount);
+        }
     }
 
     private sealed class FakeMacroEditorDialogService : IMacroEditorDialogService
@@ -351,7 +728,18 @@ public sealed class MainWindowViewModelSettingsFlowTests
 
     private sealed class FakeHotkeySettingsDialogService : IHotkeySettingsDialogService
     {
-        public HotkeySettings? Edit(HotkeySettings currentSettings) => currentSettings.Clone();
+        public HotkeySettings? NextResult { get; set; }
+
+        public int EditCalls { get; private set; }
+
+        public HotkeySettings? LastInput { get; private set; }
+
+        public HotkeySettings? Edit(HotkeySettings currentSettings)
+        {
+            EditCalls++;
+            LastInput = currentSettings.Clone();
+            return NextResult?.Clone() ?? currentSettings.Clone();
+        }
     }
 
     private sealed class FakeMacroHotkeyAssignmentsDialogService : IMacroHotkeyAssignmentsDialogService
@@ -376,8 +764,11 @@ public sealed class MainWindowViewModelSettingsFlowTests
 
     private sealed class FakeClipboardTextService : IClipboardTextService
     {
+        public string? LastText { get; private set; }
+
         public void SetText(string text)
         {
+            LastText = text;
         }
     }
 
@@ -466,8 +857,11 @@ public sealed class MainWindowViewModelSettingsFlowTests
 
     private sealed class FakeIpv4SocketSnapshotService : IIpv4SocketSnapshotService
     {
+        public Ipv4SocketSnapshotResult NextResult { get; set; } =
+            new(DateTimeOffset.UnixEpoch, [], 0, 0, 0);
+
         public Task<Ipv4SocketSnapshotResult> CaptureAsync(CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            Task.FromResult(NextResult);
     }
 
     private sealed class FakeMouseSensitivityService : IMouseSensitivityService
@@ -536,13 +930,19 @@ public sealed class MainWindowViewModelSettingsFlowTests
 
     private sealed class FakeWindowsTelemetryService : IWindowsTelemetryService
     {
-        public WindowsTelemetryStatus GetStatus() => new(false, "Telemetry status ready.");
+        public WindowsTelemetryStatus Status { get; set; } = new(false, "Telemetry status ready.");
+
+        public WindowsTelemetryResult ApplyResult { get; set; } = new(true, true, "Applied.");
+
+        public WindowsTelemetryResult RestoreResult { get; set; } = new(true, true, "Restored.");
+
+        public WindowsTelemetryStatus GetStatus() => Status;
 
         public Task<WindowsTelemetryResult> ApplyAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new WindowsTelemetryResult(true, true, "Applied."));
+            Task.FromResult(ApplyResult);
 
         public Task<WindowsTelemetryResult> RestoreAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new WindowsTelemetryResult(true, true, "Restored."));
+            Task.FromResult(RestoreResult);
     }
 
     private sealed class FakeOneDriveRemovalService : IOneDriveRemovalService

@@ -11,26 +11,40 @@ public sealed class WindowsIpv4SocketSnapshotServiceTests
     public async Task CaptureAsync_ShouldReturnOnlyIpv4SocketsAndCorrectCounts()
     {
         var service = new WindowsIpv4SocketSnapshotService(
-            getTcpConnections: () =>
+            getTcpRows: () =>
             [
-                new FakeTcpConnectionInformation(
+                new WindowsIpv4SocketSnapshotService.OwnedTcpSocketRow(
                     new IPEndPoint(IPAddress.Parse("10.0.0.25"), 52344),
                     new IPEndPoint(IPAddress.Parse("93.184.216.34"), 443),
-                    TcpState.Established),
-                new FakeTcpConnectionInformation(
+                    TcpState.Established,
+                    1200),
+                new WindowsIpv4SocketSnapshotService.OwnedTcpSocketRow(
+                    new IPEndPoint(IPAddress.Any, 80),
+                    new IPEndPoint(IPAddress.Any, 0),
+                    TcpState.Listen,
+                    4),
+                new WindowsIpv4SocketSnapshotService.OwnedTcpSocketRow(
                     new IPEndPoint(IPAddress.IPv6Loopback, 5000),
                     new IPEndPoint(IPAddress.IPv6Loopback, 443),
-                    TcpState.Established),
+                    TcpState.Established,
+                    5000),
             ],
-            getTcpListeners: () =>
+            getUdpRows: () =>
             [
-                new IPEndPoint(IPAddress.Any, 80),
-                new IPEndPoint(IPAddress.IPv6Any, 8080),
+                new WindowsIpv4SocketSnapshotService.OwnedUdpSocketRow(
+                    new IPEndPoint(IPAddress.Loopback, 53),
+                    53),
+                new WindowsIpv4SocketSnapshotService.OwnedUdpSocketRow(
+                    new IPEndPoint(IPAddress.IPv6Any, 8080),
+                    8080),
             ],
-            getUdpListeners: () =>
-            [
-                new IPEndPoint(IPAddress.Loopback, 53),
-            ]);
+            getProcessName: processId => processId switch
+            {
+                1200 => "chrome.exe",
+                4 => "system",
+                53 => "dns.exe",
+                _ => string.Empty,
+            });
 
         var result = await service.CaptureAsync();
 
@@ -44,6 +58,8 @@ public sealed class WindowsIpv4SocketSnapshotServiceTests
             State = "ESTAB",
             LocalEndpoint = "10.0.0.25:52344",
             RemoteEndpoint = "93.184.216.34:443",
+            ProgramName = "chrome.exe",
+            ProcessId = 1200,
         });
         result.Entries.Should().ContainEquivalentOf(new
         {
@@ -51,6 +67,8 @@ public sealed class WindowsIpv4SocketSnapshotServiceTests
             State = "LISTEN",
             LocalEndpoint = "0.0.0.0:80",
             RemoteEndpoint = "*:*",
+            ProgramName = "system",
+            ProcessId = 4,
         });
         result.Entries.Should().ContainEquivalentOf(new
         {
@@ -58,22 +76,8 @@ public sealed class WindowsIpv4SocketSnapshotServiceTests
             State = "UNCONN",
             LocalEndpoint = "127.0.0.1:53",
             RemoteEndpoint = "*:*",
+            ProgramName = "dns.exe",
+            ProcessId = 53,
         });
-    }
-
-    private sealed class FakeTcpConnectionInformation : TcpConnectionInformation
-    {
-        public FakeTcpConnectionInformation(IPEndPoint localEndPoint, IPEndPoint remoteEndPoint, TcpState state)
-        {
-            LocalEndPoint = localEndPoint;
-            RemoteEndPoint = remoteEndPoint;
-            State = state;
-        }
-
-        public override IPEndPoint LocalEndPoint { get; }
-
-        public override IPEndPoint RemoteEndPoint { get; }
-
-        public override TcpState State { get; }
     }
 }

@@ -232,6 +232,61 @@ public sealed class WindowsShortcutHotkeyInventoryServiceTests : IDisposable
     }
 
     [Fact]
+    public void ReadFlowLauncherShortcuts_ShouldParseConfiguredAndCustomHotkeys()
+    {
+        var settingsPath = CreateFile(Path.Combine(workingDirectory, "FlowLauncher", "Settings", "Settings.json"));
+        File.WriteAllText(
+            settingsPath,
+            """
+            {
+              "Hotkey": "Alt + Space",
+              "PreviewHotkey": "F1",
+              "AutoCompleteHotkey": "Ctrl + Tab",
+              "SettingWindowHotkey": "Ctrl+I",
+              "OpenHistoryHotkey": "Ctrl+H",
+              "OpenResultModifiers": "Alt",
+              "ShowOpenResultHotkey": true,
+              "DialogJumpHotkey": "Alt + G",
+              "CustomPluginHotkeys": [
+                {
+                  "Hotkey": "Alt + C",
+                  "ActionKeyword": "calc"
+                },
+                {
+                  "Hotkey": "Ctrl+Shift+P",
+                  "ActionKeyword": "plugins"
+                }
+              ]
+            }
+            """);
+
+        var shortcuts = WindowsShortcutHotkeyInventoryService.ReadFlowLauncherShortcuts([settingsPath]);
+
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Alt + Space"
+            && shortcut.ShortcutName == "Open Flow Launcher");
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Ctrl + I"
+            && shortcut.ShortcutName == "Open settings");
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Alt + 1"
+            && shortcut.ShortcutName == "Open result 1");
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Alt + 0"
+            && shortcut.ShortcutName == "Open result 10");
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Alt + C"
+            && shortcut.ShortcutName == "Query \"calc\""
+            && shortcut.Details.Contains("Action keyword: calc", StringComparison.Ordinal));
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Ctrl + Shift + P"
+            && shortcut.ShortcutName == "Query \"plugins\"");
+        shortcuts.Should().OnlyContain(shortcut =>
+            shortcut.AppliesTo == "Flow Launcher"
+            && shortcut.SourceLabel == "Detected app settings");
+    }
+
+    [Fact]
     public void ReadAutoHotkeyScriptShortcuts_ShouldParseContextsAndSkipHotstrings()
     {
         var scriptPath = CreateFile(Path.Combine(workingDirectory, "scripts", "bindings.ahk"));

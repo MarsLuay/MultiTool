@@ -7,7 +7,7 @@
         Background="#22000000"
         ShowInTaskbar="False"
         Topmost="True"
-        Cursor="Cross">
+        Cursor="Arrow">
   <Canvas x:Name="RootCanvas">
     <Border x:Name="SelectionBorder"
             Visibility="Collapsed"
@@ -22,6 +22,24 @@
       <StackPanel>
         <TextBlock x:Name="AreaInstructionTextBlock" Foreground="White" FontSize="16" FontWeight="SemiBold" Text="" />
         <TextBlock x:Name="AreaInstructionHintTextBlock" Margin="0,4,0,0" Foreground="#FFD4D8DD" Text="" />
+        <StackPanel x:Name="VideoOptionsPanel"
+                    Margin="0,12,0,0"
+                    Visibility="Collapsed">
+          <Button x:Name="VideoChooseAreaButton"
+                  Margin="0,0,0,8"
+                  Padding="12,8"
+                  Click="VideoChooseAreaButton_OnClick"
+                  Content="" />
+          <Button x:Name="VideoCurrentScreenButton"
+                  Margin="0,0,0,8"
+                  Padding="12,8"
+                  Click="VideoCurrentScreenButton_OnClick"
+                  Content="" />
+          <Button x:Name="VideoAllScreensButton"
+                  Padding="12,8"
+                  Click="VideoAllScreensButton_OnClick"
+                  Content="" />
+        </StackPanel>
       </StackPanel>
     </Border>
   </Canvas>

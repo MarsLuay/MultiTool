@@ -21,10 +21,16 @@ namespace MultiTool.App.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
-    private async Task ToggleAsync()
+    private async Task ToggleAsync(bool triggeredByHotkey = false)
     {
         if (!autoClickerController.IsRunning)
         {
+            if (triggeredByHotkey && isMainWindowActive)
+            {
+                StatusMessage = L(AppLanguageKeys.MainStatusClickerHotkeyIgnoredWhileFocused);
+                return;
+            }
+
             var validation = settingsValidator.ValidateClickSettings(BuildClickSettings());
             if (!validation.IsValid)
             {

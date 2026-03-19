@@ -69,7 +69,7 @@ public partial class MainWindowViewModel : ObservableObject
         switch (action)
         {
             case HotkeyAction.Toggle:
-                await ToggleAsync();
+                await ToggleAsync(triggeredByHotkey: true);
                 return;
             case HotkeyAction.ForceStop:
                 await ForceStopAsync();
@@ -157,6 +157,12 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(DarkModeLabelText));
         OnPropertyChanged(nameof(CtrlWheelResizeLabelText));
         OnPropertyChanged(nameof(AlwaysOnTopLabelText));
+        OnPropertyChanged(nameof(PinWindowDescriptionText));
+        OnPropertyChanged(nameof(PinWindowCurrentStateLabelText));
+        OnPropertyChanged(nameof(PinWindowStateText));
+        OnPropertyChanged(nameof(PinWindowHotkeySummary));
+        OnPropertyChanged(nameof(PinWindowActionButtonText));
+        OnPropertyChanged(nameof(PinWindowHotkeySettingsButtonText));
         OnPropertyChanged(nameof(CatTranslatorLabelText));
         OnPropertyChanged(nameof(RunAtStartupLabelText));
         OnPropertyChanged(nameof(AutoHideOnStartupLabelText));
@@ -170,6 +176,7 @@ public partial class MainWindowViewModel : ObservableObject
             ? L(AppLanguageKeys.MainSettingsStatusDarkModeOn)
             : L(AppLanguageKeys.MainSettingsStatusDarkModeOff);
         RefreshHotkeyLabels();
+        RefreshPinWindowStatusCore(addLogEntry: false);
     }
 
     private ClickSettings BuildClickSettings() =>
@@ -322,6 +329,8 @@ public partial class MainWindowViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ClickerHotkeyDisplay));
         OnPropertyChanged(nameof(PinWindowHotkeyLabel));
+        OnPropertyChanged(nameof(PinWindowHotkeySummary));
+        RefreshPinWindowStatusCore(addLogEntry: false);
     }
 
     private string GetPinWindowHotkeyDisplay() =>
@@ -422,6 +431,9 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnIsTopMostChanged(bool value)
     {
         OnPropertyChanged(nameof(IsWindowPinned));
+        OnPropertyChanged(nameof(PinWindowStateText));
+        OnPropertyChanged(nameof(PinWindowActionButtonText));
+        RefreshPinWindowStatusCore(addLogEntry: false);
         ScheduleSettingsAutoSave();
     }
 
@@ -614,6 +626,12 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(DarkModeLabelText));
         OnPropertyChanged(nameof(CtrlWheelResizeLabelText));
         OnPropertyChanged(nameof(AlwaysOnTopLabelText));
+        OnPropertyChanged(nameof(PinWindowDescriptionText));
+        OnPropertyChanged(nameof(PinWindowCurrentStateLabelText));
+        OnPropertyChanged(nameof(PinWindowStateText));
+        OnPropertyChanged(nameof(PinWindowHotkeySummary));
+        OnPropertyChanged(nameof(PinWindowActionButtonText));
+        OnPropertyChanged(nameof(PinWindowHotkeySettingsButtonText));
         OnPropertyChanged(nameof(CatTranslatorLabelText));
         OnPropertyChanged(nameof(RunAtStartupLabelText));
         OnPropertyChanged(nameof(AutoHideOnStartupLabelText));
@@ -635,6 +653,8 @@ public partial class MainWindowViewModel : ObservableObject
                 ? L(AppLanguageKeys.MainActivityCatTranslatorEnabled)
                 : L(AppLanguageKeys.MainActivityCatTranslatorDisabled));
         }
+
+        RefreshPinWindowStatusCore(addLogEntry: false);
     }
 
     partial void OnIsRunningAsAdministratorChanged(bool value)

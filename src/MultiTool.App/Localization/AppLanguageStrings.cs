@@ -216,6 +216,7 @@ public static class AppLanguageKeys
     public const string MainActivityLogReady = "MainActivityLogReady";
     public const string MainActivitySettingsLoaded = "MainActivitySettingsLoaded";
     public const string MainStatusClicking = "MainStatusClicking";
+    public const string MainStatusClickerHotkeyIgnoredWhileFocused = "MainStatusClickerHotkeyIgnoredWhileFocused";
     public const string MainStatusAutomationStopped = "MainStatusAutomationStopped";
     public const string MainStatusSettingsSaved = "MainStatusSettingsSaved";
     public const string MainStatusCapturedCoordinatesFormat = "MainStatusCapturedCoordinatesFormat";
@@ -289,8 +290,11 @@ public static class AppLanguageKeys
     public const string MainScreenshotStatusSavedAreaAndArmedVideoFormat = "MainScreenshotStatusSavedAreaAndArmedVideoFormat";
     public const string MainScreenshotLogSavedFullScreenFormat = "MainScreenshotLogSavedFullScreenFormat";
     public const string MainScreenshotStatusAreaCanceled = "MainScreenshotStatusAreaCanceled";
+    public const string MainScreenshotStatusVideoCanceled = "MainScreenshotStatusVideoCanceled";
     public const string MainScreenshotLogSavedAreaFormat = "MainScreenshotLogSavedAreaFormat";
     public const string MainScreenshotStatusAreaRecordingStarted = "MainScreenshotStatusAreaRecordingStarted";
+    public const string MainScreenshotStatusCurrentScreenRecordingStarted = "MainScreenshotStatusCurrentScreenRecordingStarted";
+    public const string MainScreenshotStatusAllScreensRecordingStarted = "MainScreenshotStatusAllScreensRecordingStarted";
     public const string MainScreenshotStatusFailedFormat = "MainScreenshotStatusFailedFormat";
     public const string MainStatusUnableSaveSettingsFormat = "MainStatusUnableSaveSettingsFormat";
     public const string TrayStartupHiddenStatus = "TrayStartupHiddenStatus";
@@ -308,6 +312,11 @@ public static class AppLanguageKeys
 
     public const string AreaSelectionInstruction = "AreaSelectionInstruction";
     public const string AreaSelectionEscHint = "AreaSelectionEscHint";
+    public const string VideoSelectionInstruction = "VideoSelectionInstruction";
+    public const string VideoSelectionHint = "VideoSelectionHint";
+    public const string VideoSelectionChooseAreaButton = "VideoSelectionChooseAreaButton";
+    public const string VideoSelectionCurrentScreenButton = "VideoSelectionCurrentScreenButton";
+    public const string VideoSelectionAllScreensButton = "VideoSelectionAllScreensButton";
 
     public const string HotkeySettingsTitle = "HotkeySettingsTitle";
     public const string HotkeySettingsCaptureTooltip = "HotkeySettingsCaptureTooltip";
@@ -651,11 +660,22 @@ public static class AppLanguageKeys
     public const string ToolsStatusSearchReindexFailedFormat = "ToolsStatusSearchReindexFailedFormat";
     public const string ToolsErrorCheckSearchReindexFormat = "ToolsErrorCheckSearchReindexFormat";
     public const string ToolsErrorCheckTelemetryFormat = "ToolsErrorCheckTelemetryFormat";
+    public const string ToolsPinWindowDescription = "ToolsPinWindowDescription";
+    public const string ToolsPinWindowCurrentStateLabel = "ToolsPinWindowCurrentStateLabel";
+    public const string ToolsPinWindowHotkeyUnsetSummary = "ToolsPinWindowHotkeyUnsetSummary";
+    public const string ToolsPinWindowHotkeyAssignedFormat = "ToolsPinWindowHotkeyAssignedFormat";
+    public const string ToolsPinWindowActionPin = "ToolsPinWindowActionPin";
+    public const string ToolsPinWindowActionUnpin = "ToolsPinWindowActionUnpin";
+    public const string ToolsPinWindowHotkeySettingsButton = "ToolsPinWindowHotkeySettingsButton";
     public const string ToolsStatusPinWindowPinnedFormat = "ToolsStatusPinWindowPinnedFormat";
     public const string ToolsStatusPinWindowUnpinnedFormat = "ToolsStatusPinWindowUnpinnedFormat";
     public const string ToolsPinWindowStatePinned = "ToolsPinWindowStatePinned";
     public const string ToolsPinWindowStateUnpinned = "ToolsPinWindowStateUnpinned";
     public const string ToolsStatusPinWindowToggledFormat = "ToolsStatusPinWindowToggledFormat";
+    public const string ToolsStatusPinWindowHotkeyUpdatedFormat = "ToolsStatusPinWindowHotkeyUpdatedFormat";
+    public const string ToolsStatusPinWindowHotkeyUpdatedSaveFailedFormat = "ToolsStatusPinWindowHotkeyUpdatedSaveFailedFormat";
+    public const string ToolsStatusPinWindowHotkeyUnchanged = "ToolsStatusPinWindowHotkeyUnchanged";
+    public const string ToolsStatusPinWindowHotkeyCanceled = "ToolsStatusPinWindowHotkeyCanceled";
     public const string ToolsPinWindowTriggerHotkey = "ToolsPinWindowTriggerHotkey";
     public const string ToolsPinWindowTriggerToolButton = "ToolsPinWindowTriggerToolButton";
     public const string ToolsStatusSettingsDarkModeOn = "ToolsStatusSettingsDarkModeOn";
@@ -942,7 +962,7 @@ public static class AppLanguageStrings
         [AppLanguageKeys.AppearanceHeader] = ("Appearance", "Appearance"),
         [AppLanguageKeys.DarkModeLabel] = ("Dark mode", "Tabby Mode"),
         [AppLanguageKeys.CtrlWheelResizeLabel] = ("Ctrl + mouse wheel zoom", "Ctrl + mouse wheel zoom"),
-        [AppLanguageKeys.AlwaysOnTopLabel] = ("Always on top", "Always on top"),
+        [AppLanguageKeys.AlwaysOnTopLabel] = ("Keep MultiTool on top", "Keep MultiTool on top"),
         [AppLanguageKeys.CatTranslatorLabel] = ("Cat Translator", "Cat Translator :3"),
         [AppLanguageKeys.RunAtStartupLabel] = ("Run at startup", "Run at startup"),
         [AppLanguageKeys.AutoHideOnStartupLabel] = ("Auto-hide to tray on startup", "Auto-hide to tray on startup"),
@@ -1009,8 +1029,8 @@ public static class AppLanguageStrings
         [AppLanguageKeys.MainFolderLabel] = ("Folder", "Folder"),
         [AppLanguageKeys.MainPrefixLabel] = ("Prefix", "Prefix"),
         [AppLanguageKeys.MainScreenshotHelperText] = (
-            "Press the screenshot hotkey once for a full-screen PNG, twice quickly for an area capture, or three times quickly to start recording a selected area. While recording, press that same hotkey once to stop and save the video.",
-            "Press the screenshot pawkey once for a full-screen PNG, twice quickly for an area capture, or three times quickly to start recording a selected area. While recording, press that same pawkey once to stop and save the Video."),
+            "Press the screenshot hotkey once for a full-screen PNG, twice quickly for an area capture, three times quickly to choose how to start a video recording, or four times quickly to record the current screen right away. While recording, press that same hotkey once to stop and save the video.",
+            "Press the screenshot pawkey once for a full-screen PNG, twice quickly for an area capture, three times quickly to choose how to start a video recording, or four times quickly to record the current screen right away. While recording, press that same pawkey once to stop and save the Video."),
         [AppLanguageKeys.MainScreenshotStatusReady] = ("Ready to capture the desktop.", "Ready to capture the desktop."),
         [AppLanguageKeys.MainLatestScreenshotNone] = ("No screenshot captured yet.", "No screenshot captured yet."),
         [AppLanguageKeys.MainLatestVideoNone] = ("No video recorded yet.", "No video recorded yet."),
@@ -1050,6 +1070,7 @@ public static class AppLanguageStrings
         [AppLanguageKeys.MainActivityLogReady] = ("Activity log ready.", "Activity log ready."),
         [AppLanguageKeys.MainActivitySettingsLoaded] = ("Settings loaded.", "Settings loaded."),
         [AppLanguageKeys.MainStatusClicking] = ("Clicking...", "Clicking..."),
+        [AppLanguageKeys.MainStatusClickerHotkeyIgnoredWhileFocused] = ("Clicker start hotkey ignored while MultiTool is focused. Switch to another app, then press it again.", "Clicker start hotkey ignored while MultiTool is focused. Switch to another app, then press it again."),
         [AppLanguageKeys.MainStatusAutomationStopped] = ("Automation stopped.", "Automation stopped."),
         [AppLanguageKeys.MainStatusSettingsSaved] = ("Settings saved.", "Settings saved."),
         [AppLanguageKeys.MainStatusCapturedCoordinatesFormat] = ("Captured coordinates: {0}, {1}.", "Captured coordinates: {0}, {1}."),
@@ -1123,8 +1144,11 @@ public static class AppLanguageStrings
         [AppLanguageKeys.MainScreenshotStatusSavedAreaAndArmedVideoFormat] = ("Saved {0} and copied it to the clipboard. Press Shift + the screenshot hotkey again within 3 seconds to record this same area.", "Saved {0} and copied it to the clipboard. Press Shift + the Screenshot pawkey again within 3 seconds to record this same area."),
         [AppLanguageKeys.MainScreenshotLogSavedFullScreenFormat] = ("Saved full-screen capture to {0} and copied it to the clipboard.", "Saved full-screen capture to {0} and copied it to the clipboard."),
         [AppLanguageKeys.MainScreenshotStatusAreaCanceled] = ("Area capture canceled.", "Area capture canceled."),
+        [AppLanguageKeys.MainScreenshotStatusVideoCanceled] = ("Video recording selection canceled.", "Video recording selection canceled."),
         [AppLanguageKeys.MainScreenshotLogSavedAreaFormat] = ("Saved area capture to {0} and copied it to the clipboard.", "Saved area capture to {0} and copied it to the clipboard."),
         [AppLanguageKeys.MainScreenshotStatusAreaRecordingStarted] = ("Started recording the selected area. Press the screenshot hotkey again to stop and save.", "Started recording the selected area. Press the Screenshot pawkey again to stop and save."),
+        [AppLanguageKeys.MainScreenshotStatusCurrentScreenRecordingStarted] = ("Started recording the current screen. Press the screenshot hotkey again to stop and save.", "Started recording the current screen. Press the Screenshot pawkey again to stop and save."),
+        [AppLanguageKeys.MainScreenshotStatusAllScreensRecordingStarted] = ("Started recording all screens. Press the screenshot hotkey again to stop and save.", "Started recording all screens. Press the Screenshot pawkey again to stop and save."),
         [AppLanguageKeys.MainScreenshotStatusFailedFormat] = ("Screenshot failed: {0}", "Screenshot failed: {0}"),
         [AppLanguageKeys.MainStatusUnableSaveSettingsFormat] = ("Unable to save settings: {0}", "Unable to save settings: {0}"),
         [AppLanguageKeys.TrayStartupHiddenStatus] = (
@@ -1158,6 +1182,21 @@ public static class AppLanguageStrings
         [AppLanguageKeys.AreaSelectionEscHint] = (
             "Release to capture. Press Esc to cancel.",
             "Release to capture. Press Esc to cancel."),
+        [AppLanguageKeys.VideoSelectionInstruction] = (
+            "Choose how to start video recording",
+            "Choose how to start video recording"),
+        [AppLanguageKeys.VideoSelectionHint] = (
+            "Pick an option below. Press Esc to cancel.",
+            "Pick an option below. Press Esc to cancel."),
+        [AppLanguageKeys.VideoSelectionChooseAreaButton] = (
+            "Choose Area",
+            "Choose Area"),
+        [AppLanguageKeys.VideoSelectionCurrentScreenButton] = (
+            "Full Screen",
+            "Full Screen"),
+        [AppLanguageKeys.VideoSelectionAllScreensButton] = (
+            "All Screens",
+            "All Screens"),
 
         [AppLanguageKeys.HotkeySettingsTitle] = ("Clicker Hotkey Settings", "Clicker Hotkey Settings"),
         [AppLanguageKeys.HotkeySettingsCaptureTooltip] = (
@@ -1311,8 +1350,8 @@ public static class AppLanguageStrings
             "Skipped {0} folder or shortcut read{1} during the scan.",
             "Skipped {0} folder or shortcut read{1} during the scan."),
         [AppLanguageKeys.ShortcutExplorerReferenceNote] = (
-            "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner also pulls real bindings from supported app keymap files and AutoHotkey scripts when available, but Windows still has no universal API that exposes every private keybind from every program.",
-            "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner also pulls real bindings from supported app keymap files and AutoHotkey scripts when available, but Windows still has no universal API that exposes every private keybind from every program."),
+            "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner also pulls real bindings from supported app keymap and settings files plus AutoHotkey scripts when available, but Windows still has no universal API that exposes every private keybind from every program.",
+            "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner also pulls real bindings from supported app keymap and settings files plus AutoHotkey scripts when available, but Windows still has no universal API that exposes every private keybind from every program."),
         [AppLanguageKeys.ShortcutExplorerConflictWarningFormat] = (
             "Warning: {0} shortcut{1} share {2} hotkey{3}. Some overlaps are harmless reference combos, but detected shortcut files, app keymaps, and script bindings can still conflict in real use.",
             "Warning: {0} shortcut{1} share {2} hotkey{3}. Some overlaps are harmless reference combos, but detected shortcut files, app keymaps, and script bindings can still conflict in real use."),
@@ -1627,10 +1666,10 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsUsefulSitesToggleHide] = ("Hide Useful Sites", "Hide Useful Sites"),
         [AppLanguageKeys.ToolsUsefulSitesToggleShow] = ("Useful Sites", "Useful Sites"),
         [AppLanguageKeys.ToolsStatusEmptyDirectoryInitial] = ("Choose a folder tree to scan for empty directories.", "Choose a folder tree to scan for empty directories."),
-        [AppLanguageKeys.ToolsStatusShortcutHotkeyInitial] = ("Scan Windows shortcut hotkeys, supported app keymap files, and AutoHotkey scripts on this PC, then include built-in Windows and common shortcuts in one viewer.", "Scan Windows shortcut hotkeys, supported app keymap files, and AutoHotkey scripts on this PC, then include built-in Windows and common shortcuts in one viewer."),
+        [AppLanguageKeys.ToolsStatusShortcutHotkeyInitial] = ("Scan Windows shortcut hotkeys, supported app keymap and settings files, and AutoHotkey scripts on this PC, then include built-in Windows and common shortcuts in one viewer.", "Scan Windows shortcut hotkeys, supported app keymap and settings files, and AutoHotkey scripts on this PC, then include built-in Windows and common shortcuts in one viewer."),
         [AppLanguageKeys.ToolsStatusMouseSensitivityInitial] = ("Pick a slower or faster mouse speed. 10/20 is the normal middle setting in Windows, so it is a good place to start if you are unsure.", "Pick a slower or faster mouse speed. 10/20 is the normal middle setting in Windows, so it is a good place to start if you are unsure."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshInitial] = ("Click Check Displays to see if your monitors can run at a faster refresh rate.", "Click Check Displays to see if your monitors can run at a faster refresh rate."),
-        [AppLanguageKeys.ToolsStatusIpv4SocketInitial] = ("Run a Windows version of ss -4 to capture the current IPv4 TCP connections and TCP/UDP listeners.", "Run a Windows version of ss -4 to capture the current IPv4 TCP connections and TCP/UDP listeners."),
+        [AppLanguageKeys.ToolsStatusIpv4SocketInitial] = ("Refresh this list to see which apps are using IPv4 right now, including active connections and listening ports.", "Refresh this list to see which apps are using IPv4 right now, including active connections and listening ports."),
         [AppLanguageKeys.ToolsStatusHardwareSystemInitial] = ("No hardware scan yet.", "No hardware scan yet."),
         [AppLanguageKeys.ToolsStatusHardwareHealthInitial] = ("Health summary will appear after scanning.", "Health summary will appear after scanning."),
         [AppLanguageKeys.ToolsStatusHardwareOperatingSystemInitial] = ("Windows details will appear after scanning.", "Windows details will appear after scanning."),
@@ -1644,7 +1683,7 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsStatusSearchReplacementInitial] = ("Replace the built-in Windows Search with Flow Launcher for a faster search experience. Use Restore to switch back to Windows Search at any time.", "Replace the built-in Windows Search with Flow Launcher for a faster search experience. Use Restore to switch back to Windows Search at any time."),
         [AppLanguageKeys.ToolsStatusSearchReindexInitial] = ("Force Windows Search to rebuild its index if results are stale or missing.", "Force Windows Search to rebuild its index if results are stale or missing."),
         [AppLanguageKeys.ToolsStatusTelemetryInitial] = ("Reduce Windows telemetry by setting minimum data collection policy and disabling common telemetry services/tasks.", "Reduce Windows telemetry by setting minimum data collection policy and disabling common telemetry services/tasks."),
-        [AppLanguageKeys.ToolsStatusPinWindowInitial] = ("Toggle a pinned-on-top mode for the MultiTool window.", "Toggle a pinned-on-top mode for the MultiTool window."),
+        [AppLanguageKeys.ToolsStatusPinWindowInitial] = ("Keep MultiTool above other windows when you need it, then use the hotkey or the button here to switch it back.", "Keep MultiTool above other windows when you need it, then use the hotkey or the button here to switch it back."),
         [AppLanguageKeys.ToolsStatusOneDriveInitial] = ("Check whether OneDrive is present, apply the system disable policy, and remove it with Windows' built-in uninstaller when available.", "Check whether OneDrive is present, apply the system disable policy, and remove it with Windows' built-in uninstaller when available."),
         [AppLanguageKeys.ToolsStatusEdgeInitial] = ("Detect whether Microsoft Edge is installed and remove it using the developer-override method. An administrator prompt will appear during removal.", "Detect whether Microsoft Edge is installed and remove it using the developer-override method. An administrator prompt will appear during removal."),
         [AppLanguageKeys.ToolsStatusFnCtrlSwapInitial] = ("Detect Lenovo BIOS Fn/Ctrl key swap support and switch the key positions when available.", "Detect Lenovo BIOS Fn/Ctrl key swap support and switch the key positions when available."),
@@ -1658,7 +1697,7 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsFolderPickerSelectEmptyDirectoryRoot] = ("Select the folder tree to scan for empty directories", "Select the folder tree to scan for empty directories"),
         [AppLanguageKeys.ToolsStatusFolderSelectionCanceled] = ("Folder selection canceled.", "Folder selection canceled."),
         [AppLanguageKeys.ToolsStatusEmptyDirectoryRootSetFormat] = ("Empty directory scan root set to {0}.", "Empty directory scan root set to {0}."),
-        [AppLanguageKeys.ToolsStatusShortcutScanRunning] = ("Scanning fixed drives for assigned Windows shortcut keys, loading supported app keymaps and AutoHotkey scripts, and adding built-in shortcut references...", "Scanning fixed drives for assigned Windows shortcut keys, loading supported app keymaps and AutoHotkey scripts, and adding built-in shortcut references..."),
+        [AppLanguageKeys.ToolsStatusShortcutScanRunning] = ("Scanning fixed drives for assigned Windows shortcut keys, loading supported app keymaps/settings and AutoHotkey scripts, and adding built-in shortcut references...", "Scanning fixed drives for assigned Windows shortcut keys, loading supported app keymaps/settings and AutoHotkey scripts, and adding built-in shortcut references..."),
         [AppLanguageKeys.ToolsStatusShortcutScanWarningsSuffixFormat] = (" Skipped {0} folder or shortcut read{1}.", " Skipped {0} folder or shortcut read{1}."),
         [AppLanguageKeys.ToolsStatusShortcutScanNoShortcutsFormat] = ("Scanned {0} Windows shortcut file{1} and checked supported app shortcut sources. No shortcut keys were found.{2}", "Scanned {0} Windows shortcut file{1} and checked supported app shortcut sources. No shortcut keys were found.{2}"),
         [AppLanguageKeys.ToolsStatusShortcutScanOpenedViewerFormat] = ("Opened the shortcut viewer with {0} detected shortcut{1} and {2} built-in/common shortcut reference entr{3}.{4}", "Opened the shortcut viewer with {0} detected shortcut{1} and {2} built-in/common shortcut reference entr{3}.{4}"),
@@ -1691,13 +1730,24 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsStatusSearchReindexFailedFormat] = ("Windows Search re-index failed: {0}", "Windows Search re-index failed: {0}"),
         [AppLanguageKeys.ToolsErrorCheckSearchReindexFormat] = ("Unable to check Windows Search re-index status: {0}", "Unable to check Windows Search re-index status: {0}"),
         [AppLanguageKeys.ToolsErrorCheckTelemetryFormat] = ("Unable to check telemetry reduction status: {0}", "Unable to check telemetry reduction status: {0}"),
-        [AppLanguageKeys.ToolsStatusPinWindowPinnedFormat] = ("Window is pinned on top. Hotkey: {0}.", "Window is pinned on top. Hotkey: {0}."),
-        [AppLanguageKeys.ToolsStatusPinWindowUnpinnedFormat] = ("Window is not pinned. Hotkey: {0}.", "Window is not pinned. Hotkey: {0}."),
+        [AppLanguageKeys.ToolsPinWindowDescription] = ("Pin MultiTool so it stays above other windows. The state here stays in sync with the title bar, the Settings checkboxes, and the hotkey.", "Pin MultiTool so it stays above other windows. The state here stays in sync with the title bar, the Settings checkboxes, and the hotkey."),
+        [AppLanguageKeys.ToolsPinWindowCurrentStateLabel] = ("Current state", "Current state"),
+        [AppLanguageKeys.ToolsPinWindowHotkeyUnsetSummary] = ("No pin hotkey is assigned yet.", "No pin hotkey is assigned yet."),
+        [AppLanguageKeys.ToolsPinWindowHotkeyAssignedFormat] = ("Hotkey: {0}", "Hotkey: {0}"),
+        [AppLanguageKeys.ToolsPinWindowActionPin] = ("Pin Window", "Pin Window"),
+        [AppLanguageKeys.ToolsPinWindowActionUnpin] = ("Unpin Window", "Unpin Window"),
+        [AppLanguageKeys.ToolsPinWindowHotkeySettingsButton] = ("Hotkey Settings", "Hotkey Settings"),
+        [AppLanguageKeys.ToolsStatusPinWindowPinnedFormat] = ("MultiTool is pinned above other windows. Hotkey: {0}.", "MultiTool is pinned above other windows. Hotkey: {0}."),
+        [AppLanguageKeys.ToolsStatusPinWindowUnpinnedFormat] = ("MultiTool is not pinned above other windows. Hotkey: {0}.", "MultiTool is not pinned above other windows. Hotkey: {0}."),
         [AppLanguageKeys.ToolsPinWindowStatePinned] = ("pinned on top", "pinned on top"),
         [AppLanguageKeys.ToolsPinWindowStateUnpinned] = ("unpinned", "unpinned"),
-        [AppLanguageKeys.ToolsStatusPinWindowToggledFormat] = ("Window {0} via {1}. Hotkey: {2}.", "Window {0} via {1}. Hotkey: {2}."),
+        [AppLanguageKeys.ToolsStatusPinWindowToggledFormat] = ("MultiTool is now {0} via {1}. Hotkey: {2}.", "MultiTool is now {0} via {1}. Hotkey: {2}."),
+        [AppLanguageKeys.ToolsStatusPinWindowHotkeyUpdatedFormat] = ("Pin window hotkeys updated. Current pin hotkey: {0}.", "Pin window hotkeys updated. Current pin hotkey: {0}."),
+        [AppLanguageKeys.ToolsStatusPinWindowHotkeyUpdatedSaveFailedFormat] = ("Pin window hotkeys updated, but saving failed. Current pin hotkey: {0}.", "Pin window hotkeys updated, but saving failed. Current pin hotkey: {0}."),
+        [AppLanguageKeys.ToolsStatusPinWindowHotkeyUnchanged] = ("Pin window hotkeys were left unchanged.", "Pin window hotkeys were left unchanged."),
+        [AppLanguageKeys.ToolsStatusPinWindowHotkeyCanceled] = ("Pin window hotkey changes were canceled.", "Pin window hotkey changes were canceled."),
         [AppLanguageKeys.ToolsPinWindowTriggerHotkey] = ("hotkey", "hotkey"),
-        [AppLanguageKeys.ToolsPinWindowTriggerToolButton] = ("tool button", "tool button"),
+        [AppLanguageKeys.ToolsPinWindowTriggerToolButton] = ("pin window tool", "pin window tool"),
         [AppLanguageKeys.ToolsStatusSettingsDarkModeOn] = ("Dark mode is on.", "Dark mode is on."),
         [AppLanguageKeys.ToolsStatusOpenedColorSettings] = ("Opened Windows color settings for anything that still needs a manual dark mode change.", "Opened Windows color settings for anything that still needs a manual dark mode change."),
         [AppLanguageKeys.ToolsStatusOpenColorSettingsFailedFormat] = ("Unable to open Windows color settings: {0}", "Unable to open Windows color settings: {0}"),
@@ -1711,15 +1761,15 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsStatusDisplayRefreshAlreadyBest] = ("All displays were already at their top refresh rate for the current resolution.", "All displays were already at their top refresh rate for the current resolution."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshAppliedSummaryFormat] = ("{0} display{1} updated, {2} failed.", "{0} display{1} updated, {2} failed."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshUpdateFailedFormat] = ("Display refresh update failed: {0}", "Display refresh update failed: {0}"),
-        [AppLanguageKeys.ToolsStatusIpv4SocketRefreshing] = ("Capturing the current IPv4 TCP and UDP socket snapshot...", "Capturing the current IPv4 TCP and UDP socket snapshot..."),
-        [AppLanguageKeys.ToolsStatusIpv4SocketCapturedFormat] = ("Captured {0} IPv4 socket entr{1} at {2}.", "Captured {0} IPv4 socket entr{1} at {2}."),
-        [AppLanguageKeys.ToolsStatusIpv4SocketEmptyFormat] = ("Captured an empty IPv4 socket snapshot at {0}.", "Captured an empty IPv4 socket snapshot at {0}."),
-        [AppLanguageKeys.ToolsStatusIpv4SocketFailedFormat] = ("IPv4 socket snapshot failed: {0}", "IPv4 socket snapshot failed: {0}"),
-        [AppLanguageKeys.ToolsStatusIpv4SocketCopiedClipboard] = ("Copied the IPv4 socket snapshot to the clipboard.", "Copied the IPv4 socket snapshot to the clipboard."),
-        [AppLanguageKeys.ToolsStatusIpv4SocketCopyFailedFormat] = ("Unable to copy the IPv4 socket snapshot: {0}", "Unable to copy the IPv4 socket snapshot: {0}"),
-        [AppLanguageKeys.ToolsIpv4SocketSummaryEmpty] = ("No IPv4 socket snapshot captured yet.", "No IPv4 socket snapshot captured yet."),
-        [AppLanguageKeys.ToolsIpv4SocketSummaryFormat] = ("{0} IPv4 socket entr{1}  |  TCP connections: {2}  |  TCP listeners: {3}  |  UDP listeners: {4}  |  Captured: {5}", "{0} IPv4 socket entr{1}  |  TCP connections: {2}  |  TCP listeners: {3}  |  UDP listeners: {4}  |  Captured: {5}"),
-        [AppLanguageKeys.ToolsIpv4SocketClipboardTitle] = ("IPv4 Socket Snapshot", "IPv4 Socket Snapshot"),
+        [AppLanguageKeys.ToolsStatusIpv4SocketRefreshing] = ("Checking which apps are using IPv4 right now...", "Checking which apps are using IPv4 right now..."),
+        [AppLanguageKeys.ToolsStatusIpv4SocketCapturedFormat] = ("Found {0} IPv4 entr{1} across {2} app{3} at {4}.", "Found {0} IPv4 entr{1} across {2} app{3} at {4}."),
+        [AppLanguageKeys.ToolsStatusIpv4SocketEmptyFormat] = ("No IPv4 app activity was found at {0}.", "No IPv4 app activity was found at {0}."),
+        [AppLanguageKeys.ToolsStatusIpv4SocketFailedFormat] = ("IPv4 app activity check failed: {0}", "IPv4 app activity check failed: {0}"),
+        [AppLanguageKeys.ToolsStatusIpv4SocketCopiedClipboard] = ("Copied the IPv4 app activity list to the clipboard.", "Copied the IPv4 app activity list to the clipboard."),
+        [AppLanguageKeys.ToolsStatusIpv4SocketCopyFailedFormat] = ("Unable to copy the IPv4 app activity list: {0}", "Unable to copy the IPv4 app activity list: {0}"),
+        [AppLanguageKeys.ToolsIpv4SocketSummaryEmpty] = ("No IPv4 app activity captured yet.", "No IPv4 app activity captured yet."),
+        [AppLanguageKeys.ToolsIpv4SocketSummaryFormat] = ("{0} IPv4 entr{1} across {2} app{3}  |  TCP connections: {4}  |  TCP listeners: {5}  |  UDP listeners: {6}  |  Captured: {7}", "{0} IPv4 entr{1} across {2} app{3}  |  TCP connections: {4}  |  TCP listeners: {5}  |  UDP listeners: {6}  |  Captured: {7}"),
+        [AppLanguageKeys.ToolsIpv4SocketClipboardTitle] = ("IPv4 App Activity", "IPv4 App Activity"),
         [AppLanguageKeys.ToolsIpv4SocketClipboardCapturedFormat] = ("Captured: {0}", "Captured: {0}"),
         [AppLanguageKeys.ToolsStatusHardwareCopiedClipboard] = ("Copied hardware check details to the clipboard.", "Copied hardware check details to the clipboard."),
         [AppLanguageKeys.ToolsStatusHardwareCopyFailedFormat] = ("Unable to copy the hardware check details: {0}", "Unable to copy the hardware check details: {0}"),

@@ -2575,23 +2575,50 @@
             <GroupBox Header="Pin Window" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Pin MultiTool so it stays above other windows."
+                           Text="{Binding PinWindowDescriptionText}"
                            TextWrapping="Wrap" />
 
-                <TextBlock Margin="0,8,0,0"
-                           Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Assigned hotkey:"
-                           TextWrapping="Wrap" />
-                <TextBlock Margin="0,2,0,0"
-                           FontWeight="SemiBold"
-                           Text="{Binding PinWindowHotkeyLabel}" />
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsWindowPinned}" Value="True">
+                          <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding PinWindowCurrentStateLabelText}" />
+                    <TextBlock Margin="0,4,0,0"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Text="{Binding PinWindowStateText}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding PinWindowHotkeySummary}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
 
                 <WrapPanel Margin="0,12,0,0"
                            HorizontalAlignment="Right">
                   <Button Margin="4"
                           Padding="12,6"
                           Command="{Binding ToggleWindowPinCommand}"
-                          Content="Toggle Pin" />
+                          Content="{Binding PinWindowActionButtonText}" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding OpenPinWindowHotkeySettingsCommand}"
+                          Content="{Binding PinWindowHotkeySettingsButtonText}" />
                 </WrapPanel>
 
                 <TextBlock Margin="0,10,0,0"
@@ -2791,11 +2818,11 @@
                       Style="{StaticResource InstallerInlineExpanderStyle}">
               <StackPanel>
 
-            <GroupBox Header="IPv4 Socket Snapshot" Margin="0,0,0,12">
-              <StackPanel Margin="12">
-                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Windows version of ss -4. Capture the current IPv4 TCP connections plus TCP and UDP listeners that are active right now."
-                           TextWrapping="Wrap" />
+              <GroupBox Header="IPv4 App Activity" Margin="0,0,0,12">
+                <StackPanel Margin="12">
+                  <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                             Text="See which Windows apps are using IPv4 right now, including live connections and ports that are waiting for traffic."
+                             TextWrapping="Wrap" />
 
                 <TextBlock Margin="0,8,0,0"
                            FontWeight="SemiBold"
@@ -2804,20 +2831,20 @@
 
                 <WrapPanel Margin="0,12,0,0"
                            HorizontalAlignment="Right">
-                  <Button Margin="4"
-                          Padding="12,6"
-                          Command="{Binding CaptureIpv4SocketSnapshotCommand}"
-                          Content="Refresh Snapshot" />
-                  <Button Margin="4"
-                          Padding="12,6"
-                          Command="{Binding CopyIpv4SocketSnapshotCommand}"
-                          Content="Copy Snapshot" />
-                </WrapPanel>
+                    <Button Margin="4"
+                            Padding="12,6"
+                           Command="{Binding CaptureIpv4SocketSnapshotCommand}"
+                           Content="Refresh Activity" />
+                    <Button Margin="4"
+                            Padding="12,6"
+                           Command="{Binding CopyIpv4SocketSnapshotCommand}"
+                           Content="Copy Activity" />
+                  </WrapPanel>
 
-                <TextBlock Margin="0,12,0,0"
-                           Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Run Refresh Snapshot to capture the current IPv4 sockets."
-                           TextWrapping="Wrap">
+                  <TextBlock Margin="0,12,0,0"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                            Text="Click Refresh Activity to load the current IPv4 app activity."
+                             TextWrapping="Wrap">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
                       <Setter Property="Visibility" Value="Visible" />
@@ -2859,7 +2886,15 @@
                                   BorderThickness="1"
                                   CornerRadius="6">
                             <StackPanel>
-                              <TextBlock FontWeight="SemiBold">
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding ProgramSummary}"
+                                         TextWrapping="Wrap" />
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="{Binding EntryKindLabel}" />
+                                <Run Text="  |  " />
                                 <Run Text="{Binding Protocol}" />
                                 <Run Text="  " />
                                 <Run Text="{Binding State}" />

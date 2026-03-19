@@ -27,5 +27,4 @@ MultiTool is a Windows app that combines several everyday utility features in on
 ## Run at startup
 
 - Open MultiTool, go to Settings, and turn on `Run at startup`.
-- That in-app setting is the main startup control and cleans up old Startup-folder shortcuts from earlier versions.
-- `tools\install-startup-launcher.bat` and `tools\remove-startup-launcher.bat` are optional command-line helpers that now toggle the same Windows startup registration used by the app setting.
+- That in-app setting is the supported startup control and still cleans up old Startup-folder shortcuts from earlier versions.
