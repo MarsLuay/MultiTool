@@ -46,13 +46,12 @@ public partial class MainWindowViewModel : ObservableObject
         StatusMessage = L(AppLanguageKeys.MainStatusReady);
         AddActivityLog(L(AppLanguageKeys.MainActivitySettingsLoaded));
         initialized = true;
+        OnSelectedMainTabIndexChanged(SelectedMainTabIndex);
 
         if (shouldPersistMigratedRunAtStartupSetting)
         {
             await SaveSettingsAsync(L(AppLanguageKeys.MainStatusSettingsAutoSaved), updateStatusOnSuccess: false, addActivityLogOnSuccess: false);
         }
-
-        StartInstallerInitialization();
     }
 
     public HotkeySettings CurrentHotkeys => hotkeySettings.Clone();

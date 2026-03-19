@@ -163,40 +163,66 @@
                 CanUserAddRows="False"
                 CanUserDeleteRows="False"
                 CanUserResizeRows="False"
-                EnableRowVirtualization="False"
+                EnableColumnVirtualization="True"
+                EnableRowVirtualization="True"
                 HeadersVisibility="Column"
-                IsReadOnly="True"
+                IsReadOnly="False"
                 ItemsSource="{Binding ShortcutsView}"
-                SelectionMode="Extended"
-                SelectionChanged="ShortcutGrid_OnSelectionChanged">
+                ScrollViewer.CanContentScroll="True"
+                SelectionMode="Extended">
         <DataGrid.Columns>
           <DataGridTextColumn Header="{Binding DataContext.ColumnHotkeyText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding Hotkey}"
                               ElementStyle="{StaticResource WrappingCellTextStyle}"
+                              IsReadOnly="True"
                               Width="140" />
+          <DataGridCheckBoxColumn Header="{Binding DataContext.ColumnEnabledText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  Binding="{Binding IsShortcutEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="92">
+            <DataGridCheckBoxColumn.ElementStyle>
+              <Style TargetType="CheckBox">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="IsEnabled" Value="{Binding CanEditShortcutEnabledState}" />
+              </Style>
+            </DataGridCheckBoxColumn.ElementStyle>
+            <DataGridCheckBoxColumn.EditingElementStyle>
+              <Style TargetType="CheckBox">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="IsEnabled" Value="{Binding CanEditShortcutEnabledState}" />
+              </Style>
+            </DataGridCheckBoxColumn.EditingElementStyle>
+          </DataGridCheckBoxColumn>
           <DataGridTextColumn Header="{Binding DataContext.ColumnShortcutText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding ShortcutName}"
                               ElementStyle="{StaticResource WrappingCellTextStyle}"
+                              IsReadOnly="True"
                               Width="170" />
           <DataGridTextColumn Header="{Binding DataContext.ColumnSourceText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding SourceLabel}"
                               ElementStyle="{StaticResource WrappingCellTextStyle}"
+                              IsReadOnly="True"
                               Width="170" />
           <DataGridTextColumn Header="{Binding DataContext.ColumnAppliesToText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding AppliesTo}"
                               ElementStyle="{StaticResource WrappingCellTextStyle}"
+                              IsReadOnly="True"
                               Width="190" />
           <DataGridTextColumn Header="{Binding DataContext.ColumnConflictText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding ConflictSummary}"
                               ElementStyle="{StaticResource WrappingCellTextStyle}"
+                              IsReadOnly="True"
                               Width="220" />
           <DataGridTextColumn Header="{Binding DataContext.ColumnDetailsText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding Details}"
                               ElementStyle="{StaticResource WrappingCellTextStyle}"
+                              IsReadOnly="True"
                               Width="2*" />
           <DataGridTextColumn Header="{Binding DataContext.ColumnFileText, RelativeSource={RelativeSource AncestorType=Window}}"
                               Binding="{Binding ShortcutPath}"
                               ElementStyle="{StaticResource WrappingCellTextStyle}"
+                              IsReadOnly="True"
                               Width="2*" />
         </DataGrid.Columns>
       </DataGrid>
@@ -238,8 +264,8 @@
                   Content="{Binding RescanButtonText}" />
           <Button Width="112"
                   Margin="0,0,8,0"
-                  Command="{Binding DisableSelectedShortcutsCommand}"
-                  Content="{Binding DisableButtonText}" />
+                  Command="{Binding ApplyShortcutChangesCommand}"
+                  Content="{Binding ApplyChangesButtonText}" />
           <Button Width="88"
                   HorizontalAlignment="Right"
                   Content="{Binding CloseButtonText}"

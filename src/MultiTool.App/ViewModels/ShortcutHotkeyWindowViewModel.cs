@@ -13,8 +13,7 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
 {
     private readonly Func<Task<ShortcutHotkeyScanResult>> rescanAsync;
     private readonly Func<IReadOnlyList<ShortcutHotkeyInfo>, Task<ShortcutHotkeyDisableOperationResult>> disableAsync;
-    private readonly ObservableCollection<ShortcutHotkeyInfo> allShortcuts = [];
-    private IReadOnlyList<ShortcutHotkeyInfo> selectedShortcuts = [];
+    private readonly ObservableCollection<ShortcutHotkeyItemViewModel> allShortcuts = [];
     private int conflictGroupCount;
     private int conflictingShortcutCount;
     private int detectedShortcutCount;
@@ -49,6 +48,8 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
 
     public string ColumnHotkeyText => L(AppLanguageKeys.ShortcutExplorerColumnHotkey);
 
+    public string ColumnEnabledText => L(AppLanguageKeys.ShortcutExplorerColumnEnabled);
+
     public string ColumnShortcutText => L(AppLanguageKeys.ShortcutExplorerColumnShortcut);
 
     public string ColumnSourceText => L(AppLanguageKeys.ShortcutExplorerColumnSource);
@@ -63,7 +64,7 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
 
     public string RescanButtonText => L(AppLanguageKeys.ShortcutExplorerRescan);
 
-    public string DisableButtonText => L(AppLanguageKeys.ShortcutExplorerDisableSelected);
+    public string ApplyChangesButtonText => L(AppLanguageKeys.ShortcutExplorerDisableSelected);
 
     public string CloseButtonText => L(AppLanguageKeys.ShortcutExplorerClose);
 
@@ -116,7 +117,7 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
     partial void OnIsBusyChanged(bool value)
     {
         RescanCommand.NotifyCanExecuteChanged();
-        DisableSelectedShortcutsCommand.NotifyCanExecuteChanged();
+        ApplyShortcutChangesCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanRescan() => !IsBusy;
@@ -148,18 +149,13 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
         }
     }
 
-    public void UpdateSelection(IReadOnlyList<ShortcutHotkeyInfo> shortcuts)
-    {
-        selectedShortcuts = shortcuts ?? [];
-        DisableSelectedShortcutsCommand.NotifyCanExecuteChanged();
-    }
+    private bool CanApplyShortcutChanges() => !IsBusy && GetShortcutsMarkedForDisable().Count > 0;
 
-    private bool CanDisableSelectedShortcuts() => !IsBusy && selectedShortcuts.Count > 0;
-
-    [RelayCommand(CanExecute = nameof(CanDisableSelectedShortcuts))]
-    private async Task DisableSelectedShortcutsAsync()
+    [RelayCommand(CanExecute = nameof(CanApplyShortcutChanges))]
+    private async Task ApplyShortcutChangesAsync()
     {
-        if (selectedShortcuts.Count == 0)
+        var shortcutsToDisable = GetShortcutsMarkedForDisable();
+        if (shortcutsToDisable.Count == 0)
         {
             StatusText = L(AppLanguageKeys.ShortcutExplorerStatusDisableNoSelection);
             return;
@@ -170,7 +166,7 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
 
         try
         {
-            var operationResult = await disableAsync(selectedShortcuts).ConfigureAwait(true);
+            var operationResult = await disableAsync(shortcutsToDisable).ConfigureAwait(true);
             ApplyResult(operationResult.ScanResult);
             StatusText = BuildDisableStatusText(operationResult.DisableResult);
         }
@@ -192,13 +188,18 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
         detectedShortcutCount = result.Shortcuts.Count(static shortcut => !shortcut.IsReferenceShortcut);
         referenceShortcutCount = result.Shortcuts.Count(static shortcut => shortcut.IsReferenceShortcut);
 
+        foreach (var shortcut in allShortcuts)
+        {
+            shortcut.PropertyChanged -= Shortcut_OnPropertyChanged;
+        }
+
         allShortcuts.Clear();
         foreach (var shortcut in result.Shortcuts)
         {
-            allShortcuts.Add(shortcut);
+            var item = new ShortcutHotkeyItemViewModel(shortcut);
+            item.PropertyChanged += Shortcut_OnPropertyChanged;
+            allShortcuts.Add(item);
         }
-
-        selectedShortcuts = [];
 
         SummaryText = BuildSummaryText();
         WarningText = result.Warnings.Count == 0
@@ -211,12 +212,12 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
 
         ShortcutsView.Refresh();
         OnPropertyChanged(nameof(FilterSummary));
-        DisableSelectedShortcutsCommand.NotifyCanExecuteChanged();
+        ApplyShortcutChangesCommand.NotifyCanExecuteChanged();
     }
 
     private bool FilterShortcut(object item)
     {
-        if (item is not ShortcutHotkeyInfo shortcut)
+        if (item is not ShortcutHotkeyItemViewModel shortcut)
         {
             return false;
         }
@@ -337,4 +338,18 @@ public partial class ShortcutHotkeyWindowViewModel : ObservableObject
     private static string PluralSuffix(int count) => count == 1 ? string.Empty : "s";
 
     private static string EntrySuffix(int count) => count == 1 ? "y" : "ies";
+
+    private void Shortcut_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ShortcutHotkeyItemViewModel.IsShortcutEnabled))
+        {
+            ApplyShortcutChangesCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private IReadOnlyList<ShortcutHotkeyInfo> GetShortcutsMarkedForDisable() =>
+        allShortcuts
+            .Where(static shortcut => shortcut.CanEditShortcutEnabledState && !shortcut.IsShortcutEnabled)
+            .Select(static shortcut => shortcut.Shortcut)
+            .ToArray();
 }

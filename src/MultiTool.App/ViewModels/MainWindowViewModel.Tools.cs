@@ -260,6 +260,13 @@ public partial class MainWindowViewModel
 
     private void InitializeToolsState()
     {
+        if (isToolsStateInitialized)
+        {
+            return;
+        }
+
+        isToolsStateInitialized = true;
+
         if (MouseSensitivityLevels.Count == 0)
         {
             foreach (var level in mouseSensitivityService.GetSupportedLevels().OrderBy(static level => level))
@@ -581,6 +588,7 @@ public partial class MainWindowViewModel
     {
         if (lastShortcutHotkeyScanResult is not null)
         {
+            RefreshShortcutHotkeyResultExpiration();
             ShortcutHotkeyStatusMessage = BuildShortcutHotkeyViewerStatusMessage(
                 lastShortcutHotkeyScanResult,
                 AppLanguageKeys.ToolsStatusShortcutOpenedCachedViewerFormat);
@@ -604,6 +612,7 @@ public partial class MainWindowViewModel
             var result = await shortcutHotkeyInventoryService.ScanAsync(progress).ConfigureAwait(true);
             PersistShortcutHotkeyScanMaxFolderCount(ShortcutHotkeyScanProgressMaximum);
             lastShortcutHotkeyScanResult = result;
+            RefreshShortcutHotkeyResultExpiration();
 
             ShortcutHotkeyStatusMessage = CountDetectedShortcutEntries(result) == 0 && CountReferenceShortcutEntries(result) == 0
                 ? F(AppLanguageKeys.ToolsStatusShortcutScanNoShortcutsFormat, result.ScannedShortcutCount, PluralSuffix(result.ScannedShortcutCount), BuildShortcutHotkeyWarningSuffix(result))
@@ -634,6 +643,7 @@ public partial class MainWindowViewModel
         {
             var result = await shortcutHotkeyInventoryService.ScanAsync().ConfigureAwait(true);
             lastShortcutHotkeyScanResult = result;
+            RefreshShortcutHotkeyResultExpiration();
             ShortcutHotkeyStatusMessage = BuildShortcutHotkeyViewerStatusMessage(result, AppLanguageKeys.ToolsStatusShortcutScanOpenedViewerFormat);
             AddToolLog(ShortcutHotkeyStatusMessage);
             LogShortcutHotkeyWarnings(result);
@@ -658,6 +668,7 @@ public partial class MainWindowViewModel
             {
                 scanResult = await shortcutHotkeyInventoryService.ScanAsync().ConfigureAwait(true);
                 lastShortcutHotkeyScanResult = scanResult;
+                RefreshShortcutHotkeyResultExpiration();
             }
             else
             {
@@ -1761,7 +1772,7 @@ public partial class MainWindowViewModel
             IsToolBusy = true;
         }
 
-        var cachedHardwareInventory = lastHardwareInventoryReport?.DriverHardwareInventory;
+        var cachedHardwareInventory = lastDriverHardwareInventory;
         var isUsingCachedHardwareCheck = cachedHardwareInventory is not null;
         DriverUpdateStatusMessage = isUsingCachedHardwareCheck
             ? L(AppLanguageKeys.ToolsStatusDriverScanStartingUsingCachedHardware)
@@ -1776,6 +1787,7 @@ public partial class MainWindowViewModel
             var scanResult = await driverUpdateService.ScanAsync(cachedHardwareInventory).ConfigureAwait(true);
             ReplaceDriverHardwareInventory(scanResult.Hardware);
             ReplaceDriverUpdateCandidates(scanResult.Updates);
+            RefreshDriverUpdateExpiration();
 
             var recommendedCount = scanResult.Updates.Count(update => !update.IsOptional);
             var optionalCount = scanResult.Updates.Count - recommendedCount;
@@ -1841,8 +1853,12 @@ public partial class MainWindowViewModel
         try
         {
             var report = await hardwareInventoryService.GetReportAsync().ConfigureAwait(true);
-            lastHardwareInventoryReport = report;
+            lastDriverHardwareInventory =
+            [
+                .. report.DriverHardwareInventory,
+            ];
             ApplyHardwareInventoryReport(report);
+            RefreshHardwareInventoryExpiration();
 
             var warningSuffix = report.Warnings.Count == 0
                 ? string.Empty
@@ -2036,6 +2052,7 @@ public partial class MainWindowViewModel
 
         OnPropertyChanged(nameof(HasDisplayRefreshRecommendations));
         OnPropertyChanged(nameof(DisplayRefreshSummary));
+        RefreshDisplayRefreshRecommendationExpiration();
         RefreshToolCommandStates();
     }
 
@@ -2087,7 +2104,185 @@ public partial class MainWindowViewModel
 
         OnPropertyChanged(nameof(HasSelectedEmptyDirectories));
         OnPropertyChanged(nameof(EmptyDirectorySelectionSummary));
+        RefreshEmptyDirectoryResultExpiration();
         RefreshToolCommandStates();
+    }
+
+    private void RefreshShortcutHotkeyResultExpiration()
+    {
+        if (lastShortcutHotkeyScanResult is null)
+        {
+            CancelToolScanResultExpiration(ToolScanResultCacheSlot.ShortcutHotkeys);
+            return;
+        }
+
+        ScheduleToolScanResultExpiration(ToolScanResultCacheSlot.ShortcutHotkeys, ExpireShortcutHotkeyScanResult);
+    }
+
+    private void RefreshEmptyDirectoryResultExpiration()
+    {
+        if (EmptyDirectoryCandidates.Count == 0)
+        {
+            CancelToolScanResultExpiration(ToolScanResultCacheSlot.EmptyDirectories);
+            return;
+        }
+
+        ScheduleToolScanResultExpiration(ToolScanResultCacheSlot.EmptyDirectories, ExpireEmptyDirectoryScanResults);
+    }
+
+    private void RefreshDisplayRefreshRecommendationExpiration()
+    {
+        if (DisplayRefreshRecommendations.Count == 0)
+        {
+            CancelToolScanResultExpiration(ToolScanResultCacheSlot.DisplayRefreshRecommendations);
+            return;
+        }
+
+        ScheduleToolScanResultExpiration(ToolScanResultCacheSlot.DisplayRefreshRecommendations, ExpireDisplayRefreshScanResults);
+    }
+
+    private void RefreshIpv4SocketSnapshotExpiration()
+    {
+        if (Ipv4SocketEntries.Count == 0)
+        {
+            CancelToolScanResultExpiration(ToolScanResultCacheSlot.Ipv4SocketSnapshot);
+            return;
+        }
+
+        ScheduleToolScanResultExpiration(ToolScanResultCacheSlot.Ipv4SocketSnapshot, ExpireIpv4SocketSnapshotResults);
+    }
+
+    private void RefreshHardwareInventoryExpiration()
+    {
+        if (HardwareGraphicsAdapters.Count == 0
+            && HardwareStorageDrives.Count == 0
+            && HardwareStoragePartitions.Count == 0
+            && HardwareSensors.Count == 0
+            && HardwarePciDevices.Count == 0
+            && HardwareRaidDetails.Count == 0
+            && lastDriverHardwareInventory is null)
+        {
+            CancelToolScanResultExpiration(ToolScanResultCacheSlot.HardwareInventory);
+            return;
+        }
+
+        ScheduleToolScanResultExpiration(ToolScanResultCacheSlot.HardwareInventory, ExpireHardwareInventoryResults);
+    }
+
+    private void RefreshDriverUpdateExpiration()
+    {
+        if (DriverHardwareInventory.Count == 0 && DriverUpdateCandidates.Count == 0)
+        {
+            CancelToolScanResultExpiration(ToolScanResultCacheSlot.DriverUpdates);
+            return;
+        }
+
+        ScheduleToolScanResultExpiration(ToolScanResultCacheSlot.DriverUpdates, ExpireDriverUpdateResults);
+    }
+
+    private void ExpireShortcutHotkeyScanResult()
+    {
+        if (lastShortcutHotkeyScanResult is null)
+        {
+            return;
+        }
+
+        lastShortcutHotkeyScanResult = null;
+        ShortcutHotkeyStatusMessage = L(AppLanguageKeys.ToolsStatusShortcutScanExpired);
+        AddToolLog(ShortcutHotkeyStatusMessage);
+    }
+
+    private void ExpireEmptyDirectoryScanResults()
+    {
+        if (EmptyDirectoryCandidates.Count == 0)
+        {
+            return;
+        }
+
+        ReplaceEmptyDirectoryCandidates(EmptyDirectoryRootPath, []);
+        EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectoryExpired);
+        AddToolLog(EmptyDirectoryStatusMessage);
+    }
+
+    private void ExpireDisplayRefreshScanResults()
+    {
+        if (DisplayRefreshRecommendations.Count == 0)
+        {
+            return;
+        }
+
+        ReplaceDisplayRefreshRecommendations([]);
+        DisplayRefreshStatusMessage = L(AppLanguageKeys.ToolsStatusDisplayRefreshExpired);
+        AddToolLog(DisplayRefreshStatusMessage);
+    }
+
+    private void ExpireIpv4SocketSnapshotResults()
+    {
+        if (Ipv4SocketEntries.Count == 0)
+        {
+            return;
+        }
+
+        Ipv4SocketEntries.Clear();
+        lastIpv4SocketSnapshotCapturedAt = default;
+        lastIpv4SocketTcpConnectionCount = 0;
+        lastIpv4SocketTcpListenerCount = 0;
+        lastIpv4SocketUdpListenerCount = 0;
+        OnPropertyChanged(nameof(HasIpv4SocketEntries));
+        OnPropertyChanged(nameof(Ipv4SocketSummary));
+        RefreshIpv4SocketSnapshotExpiration();
+        RefreshToolCommandStates();
+
+        Ipv4SocketStatusMessage = L(AppLanguageKeys.ToolsStatusIpv4SocketExpired);
+        AddToolLog(Ipv4SocketStatusMessage);
+    }
+
+    private void ExpireHardwareInventoryResults()
+    {
+        if (HardwareGraphicsAdapters.Count == 0
+            && HardwareStorageDrives.Count == 0
+            && HardwareStoragePartitions.Count == 0
+            && HardwareSensors.Count == 0
+            && HardwarePciDevices.Count == 0
+            && HardwareRaidDetails.Count == 0
+            && lastDriverHardwareInventory is null)
+        {
+            return;
+        }
+
+        lastDriverHardwareInventory = null;
+        HardwareCheckSystemSummary = L(AppLanguageKeys.ToolsStatusHardwareSystemInitial);
+        HardwareCheckHealthSummary = L(AppLanguageKeys.ToolsStatusHardwareHealthInitial);
+        HardwareCheckOperatingSystemSummary = L(AppLanguageKeys.ToolsStatusHardwareOperatingSystemInitial);
+        HardwareCheckProcessorSummary = L(AppLanguageKeys.ToolsStatusHardwareProcessorInitial);
+        HardwareCheckMemorySummary = L(AppLanguageKeys.ToolsStatusHardwareMemoryInitial);
+        HardwareCheckMotherboardSummary = L(AppLanguageKeys.ToolsStatusHardwareMotherboardInitial);
+        HardwareCheckBiosSummary = L(AppLanguageKeys.ToolsStatusHardwareBiosInitial);
+        ReplaceHardwareGraphicsAdapters([]);
+        ReplaceHardwareStorageDrives([]);
+        ReplaceHardwareStoragePartitions([]);
+        ReplaceHardwareSensors([]);
+        ReplaceHardwarePciDevices([]);
+        ReplaceHardwareRaidDetails([]);
+        RefreshHardwareInventoryExpiration();
+
+        HardwareCheckStatusMessage = L(AppLanguageKeys.ToolsStatusHardwareScanExpired);
+        AddToolLog(HardwareCheckStatusMessage);
+    }
+
+    private void ExpireDriverUpdateResults()
+    {
+        if (DriverHardwareInventory.Count == 0 && DriverUpdateCandidates.Count == 0)
+        {
+            return;
+        }
+
+        ReplaceDriverHardwareInventory([]);
+        ReplaceDriverUpdateCandidates([]);
+        RefreshDriverUpdateExpiration();
+
+        DriverUpdateStatusMessage = L(AppLanguageKeys.ToolsStatusDriverScanExpired);
+        AddToolLog(DriverUpdateStatusMessage);
     }
 
     private void StartEmptyDirectoryScanProgress(string rootPath)
@@ -2143,6 +2338,92 @@ public partial class MainWindowViewModel
         ShortcutHotkeyScannedShortcutCount = 0;
         ShortcutHotkeyScanProgressPath = string.Empty;
         OnPropertyChanged(nameof(ShortcutHotkeyScanProgressSummary));
+    }
+
+    private void ScheduleToolScanResultExpiration(ToolScanResultCacheSlot slot, Action expirationAction)
+    {
+        CancelToolScanResultExpiration(slot);
+
+        if (toolScanResultRetentionWindow <= TimeSpan.Zero)
+        {
+            expirationAction();
+            return;
+        }
+
+        var cancellationTokenSource = new CancellationTokenSource();
+        toolScanResultExpirationTokenSources[slot] = cancellationTokenSource;
+        _ = RunToolScanResultExpirationAsync(slot, cancellationTokenSource, expirationAction);
+    }
+
+    private void CancelToolScanResultExpiration(ToolScanResultCacheSlot slot)
+    {
+        if (!toolScanResultExpirationTokenSources.Remove(slot, out var cancellationTokenSource))
+        {
+            return;
+        }
+
+        cancellationTokenSource.Cancel();
+        cancellationTokenSource.Dispose();
+    }
+
+    private async Task RunToolScanResultExpirationAsync(
+        ToolScanResultCacheSlot slot,
+        CancellationTokenSource cancellationTokenSource,
+        Action expirationAction)
+    {
+        try
+        {
+            await Task.Delay(toolScanResultRetentionWindow, cancellationTokenSource.Token).ConfigureAwait(false);
+            cancellationTokenSource.Token.ThrowIfCancellationRequested();
+
+            await RunOnSynchronizationContextAsync(
+                () =>
+                {
+                    if (!toolScanResultExpirationTokenSources.TryGetValue(slot, out var activeTokenSource)
+                        || !ReferenceEquals(activeTokenSource, cancellationTokenSource))
+                    {
+                        return;
+                    }
+
+                    toolScanResultExpirationTokenSources.Remove(slot);
+                    expirationAction();
+                    cancellationTokenSource.Dispose();
+                }).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Tool scan result expiration failed for {slot}: {ex}");
+        }
+    }
+
+    private Task RunOnSynchronizationContextAsync(Action action)
+    {
+        if (synchronizationContext is null)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        var completionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        synchronizationContext.Post(
+            _ =>
+            {
+                try
+                {
+                    action();
+                    completionSource.SetResult();
+                }
+                catch (Exception ex)
+                {
+                    completionSource.SetException(ex);
+                }
+            },
+            null);
+
+        return completionSource.Task;
     }
 
     private void RefreshToolCommandStates()
@@ -2636,6 +2917,7 @@ public partial class MainWindowViewModel
         lastIpv4SocketUdpListenerCount = result.UdpListenerCount;
         OnPropertyChanged(nameof(HasIpv4SocketEntries));
         OnPropertyChanged(nameof(Ipv4SocketSummary));
+        RefreshIpv4SocketSnapshotExpiration();
         RefreshToolCommandStates();
     }
 

@@ -236,6 +236,32 @@
         </Trigger>
       </Style.Triggers>
     </Style>
+    <Style x:Key="VirtualizedCardListStyle" TargetType="ListBox">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+      <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+      <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+    </Style>
+    <Style x:Key="VirtualizedCardListItemStyle" TargetType="ListBoxItem">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Window.Resources>
 
   <Border BorderBrush="{DynamicResource BorderBrush}"
@@ -371,7 +397,7 @@
 
       <Grid Grid.Row="2"
             Margin="16,12,16,16">
-        <TabControl>
+        <TabControl SelectedIndex="{Binding SelectedMainTabIndex, Mode=TwoWay}">
           <TabControl.LayoutTransform>
             <ScaleTransform x:Name="MainContentScaleTransform"
                             ScaleX="1"
@@ -794,7 +820,7 @@
                          Foreground="{DynamicResource MutedTextBrush}"
                          TextWrapping="Wrap">
                 <Run Text="Latest video: " />
-                <Run Text="{Binding LatestVideoCaption}" />
+                <Run Text="{Binding LatestVideoCaption, Mode=OneWay}" />
               </TextBlock>
 
               <TextBlock Grid.Row="3"
@@ -1135,7 +1161,10 @@
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="{Binding InstallerTabHeaderText}">
+      <TabItem Header="{Binding InstallerTabHeaderText}"
+               Content="{Binding}">
+        <TabItem.ContentTemplate>
+          <DataTemplate>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="0,12,0,0">
             <GroupBox Header="Package Picker" Margin="0,0,0,12">
@@ -1271,11 +1300,12 @@
                               Content="Clear Finished" />
                     </DockPanel>
 
-                    <ScrollViewer Margin="0,10,0,0"
-                                  MaxHeight="180"
-                                  VerticalScrollBarVisibility="Auto">
-                      <ItemsControl ItemsSource="{Binding InstallerOperations}">
-                        <ItemsControl.ItemTemplate>
+                    <ListBox Margin="0,10,0,0"
+                             MaxHeight="180"
+                             ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                             ItemsSource="{Binding InstallerOperations}"
+                             Style="{StaticResource VirtualizedCardListStyle}">
+                      <ListBox.ItemTemplate>
                           <DataTemplate>
                             <Border Margin="0,0,0,8"
                                     Padding="8"
@@ -1327,9 +1357,8 @@
                               </StackPanel>
                             </Border>
                           </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </ScrollViewer>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
                   </StackPanel>
                 </Border>
 
@@ -1339,209 +1368,239 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                  <ScrollViewer MaxHeight="340"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding InstallerPackagesView}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <WrapPanel />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
+                  <ListBox MaxHeight="340"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding InstallerPackagesView}"
+                           Style="{StaticResource VirtualizedCardListStyle}"
+                           VirtualizingPanel.IsVirtualizing="True"
+                           VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                           VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.GroupStyle>
+                      <GroupStyle>
+                        <GroupStyle.Panel>
+                          <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                          </ItemsPanelTemplate>
+                        </GroupStyle.Panel>
+                        <GroupStyle.HeaderTemplate>
+                          <DataTemplate>
+                            <Border Margin="0,0,0,10"
+                                    Padding="10,8"
+                                    Background="{DynamicResource SurfaceAltBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                              <Grid>
+                                <Grid.ColumnDefinitions>
+                                  <ColumnDefinition Width="*" />
+                                  <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                          <Border Width="214"
-                                  Margin="0,0,10,10"
-                                  Padding="10"
-                                  Background="{DynamicResource ControlBackgroundBrush}"
-                                  BorderBrush="{DynamicResource BorderBrush}"
-                                  BorderThickness="1"
-                                  CornerRadius="6">
-                            <Border.Style>
-                              <Style TargetType="Border">
-                                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-                                <Setter Property="BorderThickness" Value="1" />
-                                <Style.Triggers>
-                                  <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                    <Setter Property="BorderThickness" Value="2" />
-                                  </DataTrigger>
-                                </Style.Triggers>
-                              </Style>
-                            </Border.Style>
-
-                            <StackPanel>
-                              <CheckBox IsChecked="{Binding IsSelected}">
                                 <TextBlock FontWeight="SemiBold"
-                                           Text="{Binding DisplayName}" />
-                              </CheckBox>
+                                           Text="{Binding Name}" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="8,0,0,0"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           Text="{Binding ItemCount, StringFormat={}{0} packages}" />
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                      </GroupStyle>
+                    </ListBox.GroupStyle>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Border Margin="0,0,0,10"
+                                Padding="10"
+                                Background="{DynamicResource ControlBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                          <Border.Style>
+                            <Style TargetType="Border">
+                              <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                              <Setter Property="BorderThickness" Value="1" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                  <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                  <Setter Property="BorderThickness" Value="2" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Border.Style>
 
-                              <TextBlock Margin="0,6,0,0"
-                                         Foreground="{DynamicResource MutedTextBrush}"
-                                         Text="{Binding Category}" />
+                          <StackPanel>
+                            <CheckBox IsChecked="{Binding IsSelected}">
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding DisplayName}" />
+                            </CheckBox>
 
-                              <TextBlock Margin="0,6,0,0"
-                                         Text="{Binding Description}"
-                                         TextWrapping="Wrap" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Text="{Binding Description}"
+                                       TextWrapping="Wrap" />
 
-                              <Expander Margin="0,8,0,0"
-                                        Header="Firefox Add-ons">
-                                <Expander.Style>
-                                  <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                      <DataTrigger Binding="{Binding HasOptions}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                      </DataTrigger>
-                                    </Style.Triggers>
-                                  </Style>
-                                </Expander.Style>
+                            <Expander Margin="0,8,0,0"
+                                      Header="Firefox Add-ons">
+                              <Expander.Style>
+                                <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasOptions}" Value="True">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </Expander.Style>
 
-                                <StackPanel Margin="0,8,0,0">
-                                  <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                                             Text="These use Firefox's supported policies system. MultiTool will apply them automatically, try to restart Firefox if it is already open, and may show a Windows admin prompt when Firefox policies need elevated write access."
-                                             TextWrapping="Wrap" />
+                              <StackPanel Margin="0,8,0,0">
+                                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                                           Text="These use Firefox's supported policies system. MultiTool will apply them automatically, try to restart Firefox if it is already open, and may show a Windows admin prompt when Firefox policies need elevated write access."
+                                           TextWrapping="Wrap" />
 
-                                  <ItemsControl Margin="0,6,0,0"
-                                                ItemsSource="{Binding Options}">
-                                    <ItemsControl.ItemTemplate>
-                                      <DataTemplate>
-                                        <StackPanel Margin="0,6,0,0">
-                                          <CheckBox IsChecked="{Binding IsSelected}">
-                                            <TextBlock FontWeight="SemiBold"
-                                                       Text="{Binding DisplayName}" />
-                                          </CheckBox>
+                                <ItemsControl Margin="0,6,0,0"
+                                              ItemsSource="{Binding Options}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                      <StackPanel Margin="0,6,0,0">
+                                        <CheckBox IsChecked="{Binding IsSelected}">
+                                          <TextBlock FontWeight="SemiBold"
+                                                     Text="{Binding DisplayName}" />
+                                        </CheckBox>
 
-                                          <TextBlock Margin="20,4,0,0"
-                                                     Foreground="{DynamicResource MutedTextBrush}"
-                                                     Text="{Binding Description}"
-                                                     TextWrapping="Wrap" />
-                                        </StackPanel>
-                                      </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                  </ItemsControl>
+                                        <TextBlock Margin="20,4,0,0"
+                                                   Foreground="{DynamicResource MutedTextBrush}"
+                                                   Text="{Binding Description}"
+                                                   TextWrapping="Wrap" />
+                                      </StackPanel>
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </StackPanel>
+                            </Expander>
+
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="{Binding PackageHintText}"
+                                       TextWrapping="Wrap" />
+
+                            <TextBlock Margin="0,6,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       FontSize="11"
+                                       Text="{Binding CapabilitySummaryText}"
+                                       TextWrapping="Wrap" />
+
+                            <Expander Margin="0,8,0,0"
+                                      Header="Quick Actions">
+                              <Expander.Style>
+                                <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding HasAdvancedActions}" Value="True">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </Expander.Style>
+
+                              <StackPanel Margin="0,8,0,0">
+                                <TextBlock Margin="0,0,0,8"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           FontSize="11"
+                                           Text="Use the quickest path below for this app."
+                                           TextWrapping="Wrap" />
+
+                                <StackPanel>
+                                  <Button Command="{Binding DataContext.QueuePrimaryInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          CommandParameter="{Binding}"
+                                          Content="{Binding PrimaryActionText}">
+                                    <Button.Style>
+                                      <Style TargetType="Button" BasedOn="{StaticResource InstallerActionPrimaryButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </Button.Style>
+                                  </Button>
+                                  <Button Command="{Binding DataContext.QueueInteractiveInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          CommandParameter="{Binding}"
+                                          Content="{Binding InteractiveActionText}">
+                                    <Button.Style>
+                                      <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding CanQueueInteractiveAction}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </Button.Style>
+                                  </Button>
+                                  <Button Command="{Binding DataContext.QueueReinstallInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          CommandParameter="{Binding}"
+                                          Content="Reinstall">
+                                    <Button.Style>
+                                      <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding CanQueueReinstallAction}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </Button.Style>
+                                  </Button>
+                                  <Button Command="{Binding DataContext.OpenInstallerPackagePageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          CommandParameter="{Binding}"
+                                          Content="{Binding PageActionText}">
+                                    <Button.Style>
+                                      <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                        <Setter Property="Margin" Value="0" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding CanOpenRelevantPage}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </Button.Style>
+                                  </Button>
                                 </StackPanel>
-                              </Expander>
+                              </StackPanel>
+                            </Expander>
 
-                              <TextBlock Margin="0,8,0,0"
-                                         Foreground="{DynamicResource MutedTextBrush}"
-                                         Text="{Binding PackageHintText}"
-                                         TextWrapping="Wrap" />
-
-                              <TextBlock Margin="0,6,0,0"
-                                         Foreground="{DynamicResource MutedTextBrush}"
-                                         FontSize="11"
-                                         Text="{Binding CapabilitySummaryText}"
-                                         TextWrapping="Wrap" />
-
-                              <Expander Margin="0,8,0,0"
-                                        Header="Quick Actions">
-                                <Expander.Style>
-                                  <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                      <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                      </DataTrigger>
-                                      <DataTrigger Binding="{Binding HasAdvancedActions}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                      </DataTrigger>
-                                    </Style.Triggers>
-                                  </Style>
-                                </Expander.Style>
-
-                                <StackPanel Margin="0,8,0,0">
-                                  <TextBlock Margin="0,0,0,8"
-                                             Foreground="{DynamicResource MutedTextBrush}"
-                                             FontSize="11"
-                                             Text="Use the quickest path below for this app."
-                                             TextWrapping="Wrap" />
-
-                                  <StackPanel>
-                                    <Button Command="{Binding DataContext.QueuePrimaryInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}"
-                                            Content="{Binding PrimaryActionText}">
-                                      <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionPrimaryButtonStyle}">
-                                          <Setter Property="Visibility" Value="Collapsed" />
-                                          <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
-                                              <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                          </Style.Triggers>
-                                        </Style>
-                                      </Button.Style>
-                                    </Button>
-                                    <Button Command="{Binding DataContext.QueueInteractiveInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}"
-                                            Content="{Binding InteractiveActionText}">
-                                      <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
-                                          <Setter Property="Visibility" Value="Collapsed" />
-                                          <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CanQueueInteractiveAction}" Value="True">
-                                              <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                          </Style.Triggers>
-                                        </Style>
-                                      </Button.Style>
-                                    </Button>
-                                    <Button Command="{Binding DataContext.QueueReinstallInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}"
-                                            Content="Reinstall">
-                                      <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
-                                          <Setter Property="Visibility" Value="Collapsed" />
-                                          <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CanQueueReinstallAction}" Value="True">
-                                              <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                          </Style.Triggers>
-                                        </Style>
-                                      </Button.Style>
-                                    </Button>
-                                    <Button Command="{Binding DataContext.OpenInstallerPackagePageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}"
-                                            Content="{Binding PageActionText}">
-                                      <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
-                                          <Setter Property="Margin" Value="0" />
-                                          <Setter Property="Visibility" Value="Collapsed" />
-                                          <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CanOpenRelevantPage}" Value="True">
-                                              <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                          </Style.Triggers>
-                                        </Style>
-                                      </Button.Style>
-                                    </Button>
-                                  </StackPanel>
-                                </StackPanel>
-                              </Expander>
-
-                              <TextBlock Margin="0,8,0,0"
-                                         FontWeight="SemiBold"
-                                         Text="{Binding StatusText}">
-                                <TextBlock.Style>
-                                  <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
-                                    <Style.Triggers>
-                                      <DataTrigger Binding="{Binding IsInstalled}" Value="True">
-                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-                                      </DataTrigger>
-                                      <DataTrigger Binding="{Binding HasUpdateAvailable}" Value="True">
-                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-                                      </DataTrigger>
-                                    </Style.Triggers>
-                                  </Style>
-                                </TextBlock.Style>
-                              </TextBlock>
-                            </StackPanel>
-                          </Border>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                            <TextBlock Margin="0,8,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding StatusText}">
+                              <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                  <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsInstalled}" Value="True">
+                                      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding HasUpdateAvailable}" Value="True">
+                                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </TextBlock.Style>
+                            </TextBlock>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,10,0,0"
@@ -1582,10 +1641,11 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                  <ScrollViewer MaxHeight="220"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding CleanupPackages}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="220"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding CleanupPackages}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -1625,9 +1685,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,10,0,0"
@@ -1638,9 +1697,14 @@
 
           </StackPanel>
         </ScrollViewer>
+          </DataTemplate>
+        </TabItem.ContentTemplate>
       </TabItem>
 
-      <TabItem Header="{Binding ToolsTabHeaderText}">
+      <TabItem Header="{Binding ToolsTabHeaderText}"
+               Content="{Binding}">
+        <TabItem.ContentTemplate>
+          <DataTemplate>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="0,12,0,0">
             <GroupBox Header="{Binding NicheToolsHeaderText}" Margin="0,0,0,12">
@@ -1660,7 +1724,7 @@
             <GroupBox Header="{Binding ShortcutKeyExplorerHeaderText}" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Deep-scan fixed drives for Windows .lnk shortcut files with assigned hotkeys, detect supported app keymap files, then combine those with built-in Windows and common shortcuts like Ctrl + C, Alt + Tab, and Win + R in one viewer."
+                           Text="Deep-scan fixed drives for Windows .lnk shortcut files with assigned hotkeys, heuristically discover compatible app keymap files, then combine those with built-in Windows and common shortcuts like Ctrl + C, Alt + Tab, and Win + R in one viewer."
                            TextWrapping="Wrap" />
 
                 <WrapPanel Margin="0,12,0,0"
@@ -1697,7 +1761,7 @@
                                TextTrimming="CharacterEllipsis"
                                ToolTip="{Binding ShortcutHotkeyScanProgressPath}">
                       <Run Text="Current folder: " />
-                      <Run Text="{Binding ShortcutHotkeyScanProgressPath}" />
+                      <Run Text="{Binding ShortcutHotkeyScanProgressPath, Mode=OneWay}" />
                     </TextBlock>
                     <ProgressBar Margin="0,8,0,0"
                                  Height="14"
@@ -1741,10 +1805,11 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                  <ScrollViewer MaxHeight="220"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding DisplayRefreshRecommendations}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="220"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding DisplayRefreshRecommendations}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -1784,9 +1849,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,10,0,0"
@@ -1967,10 +2031,11 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                  <ScrollViewer MaxHeight="160"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding HardwareGraphicsAdapters}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="160"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding HardwareGraphicsAdapters}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -1993,9 +2058,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,12,0,0"
@@ -2019,10 +2083,11 @@
                     </Style>
                   </Border.Style>
 
-                  <ScrollViewer MaxHeight="180"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding HardwareSensors}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="180"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding HardwareSensors}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -2053,9 +2118,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,12,0,0"
@@ -2079,10 +2143,11 @@
                     </Style>
                   </Border.Style>
 
-                  <ScrollViewer MaxHeight="220"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding HardwarePciDevices}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="220"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding HardwarePciDevices}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -2118,9 +2183,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,12,0,0"
@@ -2133,10 +2197,11 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                  <ScrollViewer MaxHeight="180"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding HardwareStorageDrives}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="180"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding HardwareStorageDrives}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -2198,9 +2263,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,12,0,0"
@@ -2224,10 +2288,11 @@
                     </Style>
                   </Border.Style>
 
-                  <ScrollViewer MaxHeight="220"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding HardwareStoragePartitions}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="220"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding HardwareStoragePartitions}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -2273,9 +2338,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,12,0,0"
@@ -2299,10 +2363,11 @@
                     </Style>
                   </Border.Style>
 
-                  <ScrollViewer MaxHeight="180"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding HardwareRaidDetails}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="180"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding HardwareRaidDetails}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -2337,9 +2402,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,10,0,0"
@@ -2400,10 +2464,11 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                  <ScrollViewer MaxHeight="180"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding DriverHardwareInventory}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="180"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding DriverHardwareInventory}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -2442,9 +2507,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,12,0,0"
@@ -2457,10 +2521,11 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                  <ScrollViewer MaxHeight="260"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding DriverUpdateCandidates}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="260"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding DriverUpdateCandidates}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -2528,9 +2593,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,10,0,0"
@@ -2874,10 +2938,11 @@
                     </Style>
                   </Border.Style>
 
-                  <ScrollViewer MaxHeight="320"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding Ipv4SocketEntries}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="320"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding Ipv4SocketEntries}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -2893,11 +2958,11 @@
                               <TextBlock Margin="0,4,0,0"
                                          Foreground="{DynamicResource MutedTextBrush}"
                                          TextWrapping="Wrap">
-                                <Run Text="{Binding EntryKindLabel}" />
+                                <Run Text="{Binding EntryKindLabel, Mode=OneWay}" />
                                 <Run Text="  |  " />
-                                <Run Text="{Binding Protocol}" />
+                                <Run Text="{Binding Protocol, Mode=OneWay}" />
                                 <Run Text="  " />
-                                <Run Text="{Binding State}" />
+                                <Run Text="{Binding State, Mode=OneWay}" />
                               </TextBlock>
 
                               <TextBlock Margin="0,6,0,0"
@@ -2905,7 +2970,7 @@
                                          FontSize="11"
                                          TextWrapping="Wrap">
                                 <Run Text="Local:  " />
-                                <Run Text="{Binding LocalEndpoint}" />
+                                <Run Text="{Binding LocalEndpoint, Mode=OneWay}" />
                               </TextBlock>
 
                               <TextBlock Margin="0,4,0,0"
@@ -2914,14 +2979,13 @@
                                          Foreground="{DynamicResource MutedTextBrush}"
                                          TextWrapping="Wrap">
                                 <Run Text="Remote: " />
-                                <Run Text="{Binding RemoteEndpoint}" />
+                                <Run Text="{Binding RemoteEndpoint, Mode=OneWay}" />
                               </TextBlock>
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,10,0,0"
@@ -3099,10 +3163,11 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                  <ScrollViewer MaxHeight="320"
-                                VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding EmptyDirectoryCandidates}">
-                      <ItemsControl.ItemTemplate>
+                  <ListBox MaxHeight="320"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding EmptyDirectoryCandidates}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                           <Border Margin="0,0,0,10"
                                   Padding="10"
@@ -3130,9 +3195,8 @@
                             </StackPanel>
                           </Border>
                         </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </Border>
 
                 <TextBlock Margin="0,10,0,0"
@@ -3145,9 +3209,15 @@
             </Expander>
           </StackPanel>
         </ScrollViewer>
+          </DataTemplate>
+        </TabItem.ContentTemplate>
       </TabItem>
 
-      <TabItem x:Name="SettingsTabItem" Header="{Binding SettingsTabHeaderText}">
+      <TabItem x:Name="SettingsTabItem"
+               Header="{Binding SettingsTabHeaderText}"
+               Content="{Binding}">
+        <TabItem.ContentTemplate>
+          <DataTemplate>
           <ScrollViewer Margin="0,12,0,0"
                         VerticalScrollBarVisibility="Auto">
             <StackPanel>
@@ -3217,7 +3287,9 @@
               </GroupBox>
             </StackPanel>
           </ScrollViewer>
-        </TabItem>
+          </DataTemplate>
+        </TabItem.ContentTemplate>
+      </TabItem>
         </TabControl>
 
       <Canvas x:Name="SillyConfettiCanvas"

@@ -21,6 +21,16 @@ namespace MultiTool.App.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
+    private enum ToolScanResultCacheSlot
+    {
+        ShortcutHotkeys,
+        EmptyDirectories,
+        DisplayRefreshRecommendations,
+        Ipv4SocketSnapshot,
+        HardwareInventory,
+        DriverUpdates,
+    }
+
     private readonly IAppSettingsStore settingsStore;
     private readonly SettingsValidator settingsValidator;
     private readonly IAutoClickerController autoClickerController;
@@ -63,17 +73,27 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly AppLaunchOptions appLaunchOptions;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private readonly SynchronizationContext? synchronizationContext;
+    private const int ScreenshotTabIndex = 1;
+    private readonly Dictionary<ToolScanResultCacheSlot, CancellationTokenSource> toolScanResultExpirationTokenSources = [];
+    private const int InstallerTabIndex = 3;
+    private const int ToolsTabIndex = 4;
 
     private HotkeySettings hotkeySettings = new();
     private CancellationTokenSource? mainMacroPlaybackCancellationTokenSource;
     private Task? mainMacroPlaybackTask;
     private CancellationTokenSource? pendingAutoSaveCancellationTokenSource;
     private bool initialized;
+    private bool isInstallerStateInitialized;
+    private bool isInstallerInitializationStarted;
+    private bool isToolsStateInitialized;
     private bool suppressThemeChange;
     private bool suppressRunAtStartupChangeHandling;
+    private string? latestScreenshotFilePath;
+    private string? latestVideoFilePath;
     private DateTime latestScreenshotUpdatedAtUtc;
     private DateTime latestVideoUpdatedAtUtc;
-    private HardwareInventoryReport? lastHardwareInventoryReport;
+    private InstallerSettings deferredInstallerSettings = new();
+    private IReadOnlyList<DriverHardwareInfo>? lastDriverHardwareInventory;
     private ShortcutHotkeyScanResult? lastShortcutHotkeyScanResult;
     private int shortcutHotkeyScanMaxFolderCountCache;
     private Dictionary<string, int> emptyDirectoryScanMaxFolderCountCache = new(StringComparer.OrdinalIgnoreCase);
@@ -84,8 +104,10 @@ public partial class MainWindowViewModel : ObservableObject
     private ScreenshotMode? activeScreenshotAreaSelectionMode;
     private bool promoteActiveAreaSelectionToVideo;
     private bool isMainWindowActive;
+    private readonly TimeSpan toolScanResultRetentionWindow;
 
     private static readonly TimeSpan ScreenshotHotkeySequenceWindow = TimeSpan.FromMilliseconds(350);
+    private static readonly TimeSpan DefaultToolScanResultRetentionWindow = TimeSpan.FromMinutes(10);
 
     public MainWindowViewModel(
         IAppSettingsStore settingsStore,
@@ -127,7 +149,8 @@ public partial class MainWindowViewModel : ObservableObject
         IEdgeRemovalService edgeRemovalService,
         IFnCtrlSwapService fnCtrlSwapService,
         IShortcutHotkeyDialogService shortcutHotkeyDialogService,
-        AppLaunchOptions appLaunchOptions)
+        AppLaunchOptions appLaunchOptions,
+        TimeSpan? toolScanResultRetentionWindow = null)
     {
         this.settingsStore = settingsStore;
         this.settingsValidator = settingsValidator;
@@ -169,6 +192,7 @@ public partial class MainWindowViewModel : ObservableObject
         this.fnCtrlSwapService = fnCtrlSwapService;
         this.shortcutHotkeyDialogService = shortcutHotkeyDialogService;
         this.appLaunchOptions = appLaunchOptions;
+        this.toolScanResultRetentionWindow = toolScanResultRetentionWindow ?? DefaultToolScanResultRetentionWindow;
         synchronizationContext = SynchronizationContext.Current;
         this.windows11EeaMediaService.StatusChanged += Windows11EeaMediaService_OnStatusChanged;
 
@@ -190,8 +214,6 @@ public partial class MainWindowViewModel : ObservableObject
         ];
 
         SavedMacros = [];
-        InitializeInstallerState();
-        InitializeToolsState();
 
         ActivityLogEntries =
         [
@@ -318,6 +340,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string statusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainStatusLoadingSettings);
+
+    [ObservableProperty]
+    private int selectedMainTabIndex;
 
     [ObservableProperty]
     private int hours;
@@ -535,6 +560,21 @@ public partial class MainWindowViewModel : ObservableObject
     public void SetMainWindowActive(bool isActive)
     {
         isMainWindowActive = isActive;
+    }
+
+    partial void OnSelectedMainTabIndexChanged(int value)
+    {
+        HandleScreenshotTabSelectionChanged(value);
+
+        switch (value)
+        {
+            case InstallerTabIndex:
+                EnsureInstallerInitialized();
+                break;
+            case ToolsTabIndex:
+                InitializeToolsState();
+                break;
+        }
     }
 
 }

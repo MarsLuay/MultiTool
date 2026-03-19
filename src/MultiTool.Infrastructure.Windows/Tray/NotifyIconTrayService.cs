@@ -8,10 +8,15 @@ namespace MultiTool.Infrastructure.Windows.Tray;
 public sealed class NotifyIconTrayService : ITrayIconService
 {
     private const int MaximumNotifyIconTextLength = 63;
-    private static readonly TimeSpan MetricsRefreshInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan DefaultMetricsRefreshInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan DefaultMetricsRefreshInterestWindow = TimeSpan.FromSeconds(15);
 
     private readonly string iconDirectoryPath;
     private readonly ISystemTrayMetricsService systemTrayMetricsService;
+    private readonly TimeSpan metricsRefreshInterval;
+    private readonly TimeSpan metricsRefreshInterestWindow;
+    private readonly Func<DateTimeOffset> utcNowProvider;
+    private readonly object metricsRefreshSync = new();
 
     private System.Windows.Forms.NotifyIcon? notifyIcon;
     private System.Windows.Forms.ContextMenuStrip? menu;
@@ -30,16 +35,34 @@ public sealed class NotifyIconTrayService : ITrayIconService
     private bool initialized;
     private bool disposed;
     private bool isRunning;
+    private DateTimeOffset metricsRefreshInterestUntilUtc;
 
     public NotifyIconTrayService(ISystemTrayMetricsService systemTrayMetricsService)
-        : this(Path.Combine(AppContext.BaseDirectory, "Resources", "Icons"), systemTrayMetricsService)
+        : this(
+            Path.Combine(AppContext.BaseDirectory, "Resources", "Icons"),
+            systemTrayMetricsService,
+            DefaultMetricsRefreshInterval,
+            DefaultMetricsRefreshInterestWindow,
+            () => DateTimeOffset.UtcNow)
     {
     }
 
-    internal NotifyIconTrayService(string iconDirectoryPath, ISystemTrayMetricsService systemTrayMetricsService)
+    internal NotifyIconTrayService(
+        string iconDirectoryPath,
+        ISystemTrayMetricsService systemTrayMetricsService,
+        TimeSpan metricsRefreshInterval,
+        TimeSpan metricsRefreshInterestWindow,
+        Func<DateTimeOffset>? utcNowProvider = null)
     {
         this.iconDirectoryPath = iconDirectoryPath;
         this.systemTrayMetricsService = systemTrayMetricsService;
+        this.metricsRefreshInterval = metricsRefreshInterval > TimeSpan.Zero
+            ? metricsRefreshInterval
+            : DefaultMetricsRefreshInterval;
+        this.metricsRefreshInterestWindow = metricsRefreshInterestWindow > TimeSpan.Zero
+            ? metricsRefreshInterestWindow
+            : DefaultMetricsRefreshInterestWindow;
+        this.utcNowProvider = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
     }
 
     public event EventHandler? ShowRequested;
@@ -69,6 +92,7 @@ public sealed class NotifyIconTrayService : ITrayIconService
         showItem.Click += (_, _) => ShowRequested?.Invoke(this, EventArgs.Empty);
         hideItem.Click += (_, _) => HideRequested?.Invoke(this, EventArgs.Empty);
         exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
+        menu.Opening += (_, _) => RegisterMetricsRefreshInterest();
 
         menu.Items.Add(showItem);
         menu.Items.Add(hideItem);
@@ -90,9 +114,7 @@ public sealed class NotifyIconTrayService : ITrayIconService
                 ShowRequested?.Invoke(this, EventArgs.Empty);
             }
         };
-
-        metricsRefreshCancellationTokenSource = new CancellationTokenSource();
-        metricsRefreshTask = RunMetricsRefreshLoopAsync(metricsRefreshCancellationTokenSource.Token);
+        notifyIcon.MouseMove += (_, _) => RegisterMetricsRefreshInterest();
         initialized = true;
     }
 
@@ -116,9 +138,7 @@ public sealed class NotifyIconTrayService : ITrayIconService
         }
 
         disposed = true;
-        metricsRefreshCancellationTokenSource?.Cancel();
-        metricsRefreshCancellationTokenSource?.Dispose();
-        metricsRefreshCancellationTokenSource = null;
+        CancelMetricsRefreshLoop();
 
         if (notifyIcon is not null)
         {
@@ -141,6 +161,19 @@ public sealed class NotifyIconTrayService : ITrayIconService
             : tooltipText[..MaximumNotifyIconTextLength];
     }
 
+    internal bool IsMetricsRefreshLoopActive
+    {
+        get
+        {
+            lock (metricsRefreshSync)
+            {
+                return metricsRefreshTask is { IsCompleted: false };
+            }
+        }
+    }
+
+    internal string CurrentTooltipText => currentTooltipText;
+
     private Icon LoadIcon(string fileName)
     {
         var path = Path.Combine(iconDirectoryPath, fileName);
@@ -159,20 +192,83 @@ public sealed class NotifyIconTrayService : ITrayIconService
         }
     }
 
-    private async Task RunMetricsRefreshLoopAsync(CancellationToken cancellationToken)
+    internal void RegisterMetricsRefreshInterest()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+
+        CancellationTokenSource? cancellationTokenSourceToStart = null;
+
+        lock (metricsRefreshSync)
+        {
+            metricsRefreshInterestUntilUtc = utcNowProvider().Add(metricsRefreshInterestWindow);
+
+            if (metricsRefreshTask is { IsCompleted: false })
+            {
+                return;
+            }
+
+            metricsRefreshCancellationTokenSource?.Dispose();
+            metricsRefreshCancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSourceToStart = metricsRefreshCancellationTokenSource;
+            metricsRefreshTask = RunMetricsRefreshLoopAsync(cancellationTokenSourceToStart);
+        }
+
+        _ = metricsRefreshTask;
+    }
+
+    private void CancelMetricsRefreshLoop()
+    {
+        CancellationTokenSource? cancellationTokenSource;
+
+        lock (metricsRefreshSync)
+        {
+            cancellationTokenSource = metricsRefreshCancellationTokenSource;
+            metricsRefreshCancellationTokenSource = null;
+            metricsRefreshTask = null;
+            metricsRefreshInterestUntilUtc = DateTimeOffset.MinValue;
+        }
+
+        if (cancellationTokenSource is null)
+        {
+            return;
+        }
+
+        cancellationTokenSource.Cancel();
+        cancellationTokenSource.Dispose();
+    }
+
+    private async Task RunMetricsRefreshLoopAsync(CancellationTokenSource cancellationTokenSource)
     {
         try
         {
-            await RefreshMetricsAsync(cancellationToken).ConfigureAwait(false);
+            await RefreshMetricsAsync(cancellationTokenSource.Token).ConfigureAwait(false);
 
-            using var timer = new PeriodicTimer(MetricsRefreshInterval);
-            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            using var timer = new PeriodicTimer(metricsRefreshInterval);
+            while (await timer.WaitForNextTickAsync(cancellationTokenSource.Token).ConfigureAwait(false))
             {
-                await RefreshMetricsAsync(cancellationToken).ConfigureAwait(false);
+                if (!ShouldContinueMetricsRefreshLoop())
+                {
+                    break;
+                }
+
+                await RefreshMetricsAsync(cancellationTokenSource.Token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
         {
+        }
+        finally
+        {
+            lock (metricsRefreshSync)
+            {
+                if (ReferenceEquals(metricsRefreshCancellationTokenSource, cancellationTokenSource))
+                {
+                    metricsRefreshCancellationTokenSource = null;
+                    metricsRefreshTask = null;
+                }
+            }
+
+            cancellationTokenSource.Dispose();
         }
     }
 
@@ -189,6 +285,14 @@ public sealed class NotifyIconTrayService : ITrayIconService
         }
         catch
         {
+        }
+    }
+
+    private bool ShouldContinueMetricsRefreshLoop()
+    {
+        lock (metricsRefreshSync)
+        {
+            return utcNowProvider() < metricsRefreshInterestUntilUtc;
         }
     }
 

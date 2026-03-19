@@ -72,15 +72,15 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void UpdateLatestScreenshotPreview(string filePath, string fileName)
     {
-        LatestScreenshotPreview = LoadPreview(filePath);
+        latestScreenshotFilePath = filePath;
         LatestScreenshotCaption = fileName;
         latestScreenshotUpdatedAtUtc = File.GetLastWriteTimeUtc(filePath);
-        OnPropertyChanged(nameof(IsLatestMediaVideo));
+        RefreshLatestScreenshotPresentation(forceReload: true);
     }
 
     private bool RefreshLatestVideoFromCaptureService()
     {
-        var previousPath = LatestVideoPath;
+        var previousPath = latestVideoFilePath;
         var filePath = screenshotCaptureService.LastSavedVideoPath;
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
         {
@@ -91,16 +91,10 @@ public partial class MainWindowViewModel : ObservableObject
         var isSamePath = string.Equals(previousPath, filePath, StringComparison.OrdinalIgnoreCase);
         var wasUpdated = !isSamePath || fileLastWriteTimeUtc != latestVideoUpdatedAtUtc;
 
-        // Force a source refresh when the recorder writes to the same file path.
-        if (isSamePath)
-        {
-            LatestVideoPath = null;
-        }
-
-        LatestVideoPath = filePath;
+        latestVideoFilePath = filePath;
         LatestVideoCaption = Path.GetFileName(filePath);
         latestVideoUpdatedAtUtc = fileLastWriteTimeUtc;
-        OnPropertyChanged(nameof(IsLatestMediaVideo));
+        RefreshLatestVideoPresentation(forceReload: true);
         return wasUpdated;
     }
 
@@ -116,6 +110,133 @@ public partial class MainWindowViewModel : ObservableObject
         image.EndInit();
         image.Freeze();
         return image;
+    }
+
+    private void HandleScreenshotTabSelectionChanged(int selectedTabIndex)
+    {
+        if (selectedTabIndex == ScreenshotTabIndex)
+        {
+            RefreshLatestScreenshotPresentation(forceReload: true);
+            RefreshLatestVideoPresentation(forceReload: true);
+            return;
+        }
+
+        UnloadLatestMediaPresentation();
+    }
+
+    private void RefreshLatestScreenshotPresentation(bool forceReload)
+    {
+        if (SelectedMainTabIndex != ScreenshotTabIndex)
+        {
+            if (LatestScreenshotPreview is not null)
+            {
+                LatestScreenshotPreview = null;
+            }
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(latestScreenshotFilePath))
+        {
+            if (LatestScreenshotPreview is not null)
+            {
+                LatestScreenshotPreview = null;
+            }
+
+            return;
+        }
+
+        if (!File.Exists(latestScreenshotFilePath))
+        {
+            ClearLatestScreenshotState();
+            return;
+        }
+
+        if (!forceReload && LatestScreenshotPreview is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            LatestScreenshotPreview = LoadPreview(latestScreenshotFilePath);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Info($"Unable to reload the latest screenshot preview from '{latestScreenshotFilePath}': {ex.Message}");
+            ClearLatestScreenshotState();
+        }
+    }
+
+    private void RefreshLatestVideoPresentation(bool forceReload)
+    {
+        if (SelectedMainTabIndex != ScreenshotTabIndex)
+        {
+            if (LatestVideoPath is not null)
+            {
+                LatestVideoPath = null;
+            }
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(latestVideoFilePath))
+        {
+            if (LatestVideoPath is not null)
+            {
+                LatestVideoPath = null;
+            }
+
+            return;
+        }
+
+        if (!File.Exists(latestVideoFilePath))
+        {
+            ClearLatestVideoState();
+            return;
+        }
+
+        if (!forceReload && string.Equals(LatestVideoPath, latestVideoFilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // Force MediaElement to reopen when the same file path is reused.
+        if (forceReload && string.Equals(LatestVideoPath, latestVideoFilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            LatestVideoPath = null;
+        }
+
+        LatestVideoPath = latestVideoFilePath;
+    }
+
+    private void UnloadLatestMediaPresentation()
+    {
+        if (LatestScreenshotPreview is not null)
+        {
+            LatestScreenshotPreview = null;
+        }
+
+        if (LatestVideoPath is not null)
+        {
+            LatestVideoPath = null;
+        }
+    }
+
+    private void ClearLatestScreenshotState()
+    {
+        latestScreenshotFilePath = null;
+        latestScreenshotUpdatedAtUtc = default;
+        LatestScreenshotPreview = null;
+        LatestScreenshotCaption = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainLatestScreenshotNone);
+    }
+
+    private void ClearLatestVideoState()
+    {
+        latestVideoFilePath = null;
+        latestVideoUpdatedAtUtc = default;
+        LatestVideoPath = null;
+        LatestVideoCaption = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainLatestVideoNone);
     }
 
 

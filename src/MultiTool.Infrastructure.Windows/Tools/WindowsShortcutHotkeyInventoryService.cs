@@ -12,6 +12,56 @@ namespace MultiTool.Infrastructure.Windows.Tools;
 
 public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInventoryService
 {
+    private const int AppShortcutConfigSearchDepth = 6;
+
+    private static readonly HashSet<string> IgnoredShortcutConfigDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".git",
+        "AC",
+        "AppDataCache",
+        "blob_storage",
+        "Cache",
+        "Caches",
+        "Code Cache",
+        "CrashDumps",
+        "Crashpad",
+        "extensions",
+        "GPUCache",
+        "IndexedDB",
+        "Local Storage",
+        "Logs",
+        "node_modules",
+        "Service Worker",
+        "Session Storage",
+        "Temp",
+        "TempState",
+        "tmp",
+    };
+
+    private static readonly HashSet<string> GenericShortcutConfigPathSegments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".config",
+        "AppData",
+        "Config",
+        "Configuration",
+        "Data",
+        "Default",
+        "Defaults",
+        "keymap",
+        "keymaps",
+        "Local",
+        "LocalState",
+        "Packages",
+        "Profile",
+        "Profiles",
+        "Roaming",
+        "Setting",
+        "Settings",
+        "Storage",
+        "User",
+        "Users",
+    };
+
     private readonly Func<IEnumerable<string>> scanRootResolver;
     private readonly Func<string, (string Hotkey, string TargetPath)?> shortcutMetadataReader;
     private readonly Func<string, int?> exactFolderCountResolver;
@@ -454,10 +504,11 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
     private static IReadOnlyList<ShortcutHotkeyInfo> BuildKnownApplicationShortcuts()
     {
         var shortcuts = new List<ShortcutHotkeyInfo>();
+        var configRoots = ResolveCompatibleAppConfigRoots().ToArray();
 
-        shortcuts.AddRange(ReadVsCodeFamilyShortcuts());
-        shortcuts.AddRange(ReadObsidianShortcuts());
-        shortcuts.AddRange(ReadJetBrainsShortcuts());
+        shortcuts.AddRange(ReadVsCodeLikeShortcuts(ResolveVsCodeLikeKeybindingFiles(configRoots)));
+        shortcuts.AddRange(ReadHotkeysJsonShortcuts(ResolveHotkeysJsonFiles(configRoots)));
+        shortcuts.AddRange(ReadJetBrainsShortcuts(ResolveJetBrainsKeymapFiles(configRoots)));
         shortcuts.AddRange(ReadFlowLauncherShortcuts(ResolveFlowLauncherSettingsFiles()));
         shortcuts.AddRange(ReadWindowsTerminalShortcuts(ResolveWindowsTerminalSettingsFiles()));
         shortcuts.AddRange(ReadAutoHotkeyScriptShortcuts(ResolveAutoHotkeyScriptFiles()));
@@ -465,32 +516,21 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         return shortcuts;
     }
 
-    private static IReadOnlyList<ShortcutHotkeyInfo> ReadVsCodeFamilyShortcuts()
+    internal static IReadOnlyList<ShortcutHotkeyInfo> ReadVsCodeLikeShortcuts(IEnumerable<string> keybindingFilePaths)
     {
         var shortcuts = new List<ShortcutHotkeyInfo>();
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (string.IsNullOrWhiteSpace(appData))
-        {
-            return shortcuts;
-        }
 
-        var sources = new (string AppName, string FilePath)[]
+        foreach (var filePath in keybindingFilePaths
+                     .Where(static path => !string.IsNullOrWhiteSpace(path))
+                     .Select(static path => Path.GetFullPath(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            ("Visual Studio Code", Path.Combine(appData, "Code", "User", "keybindings.json")),
-            ("VS Code Insiders", Path.Combine(appData, "Code - Insiders", "User", "keybindings.json")),
-            ("VSCodium", Path.Combine(appData, "VSCodium", "User", "keybindings.json")),
-            ("Cursor", Path.Combine(appData, "Cursor", "User", "keybindings.json")),
-            ("Windsurf", Path.Combine(appData, "Windsurf", "User", "keybindings.json")),
-        };
-
-        foreach (var source in sources)
-        {
-            if (!File.Exists(source.FilePath))
+            if (!File.Exists(filePath))
             {
                 continue;
             }
 
-            using var document = TryReadJsonDocument(source.FilePath);
+            using var document = TryReadJsonDocument(filePath);
             if (document is null)
             {
                 continue;
@@ -525,20 +565,25 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
                 var whenClause = element.TryGetProperty("when", out var whenElement) && whenElement.ValueKind == JsonValueKind.String
                     ? whenElement.GetString()
                     : null;
+                var normalizedHotkey = NormalizeVsCodeHotkey(rawKey);
+                if (string.IsNullOrWhiteSpace(normalizedHotkey))
+                {
+                    continue;
+                }
 
                 var details = string.IsNullOrWhiteSpace(whenClause)
-                    ? "Detected from keybindings.json"
-                    : $"When: {whenClause}";
+                    ? $"Detected from {Path.GetFileName(filePath)}"
+                    : $"Detected from {Path.GetFileName(filePath)}. When: {Truncate(whenClause, 120)}";
 
                 shortcuts.Add(new ShortcutHotkeyInfo(
-                    NormalizeVsCodeHotkey(rawKey),
+                    normalizedHotkey,
                     string.IsNullOrWhiteSpace(command) ? "User keybinding" : command,
-                    source.FilePath,
-                    Path.GetDirectoryName(source.FilePath) ?? string.Empty,
+                    filePath,
+                    Path.GetDirectoryName(filePath) ?? string.Empty,
                     string.Empty,
                     TargetExists: false,
                     "Detected app keymap",
-                    source.AppName,
+                    InferShortcutApplicationName(filePath, "Desktop app"),
                     details));
             }
         }
@@ -546,22 +591,14 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         return shortcuts;
     }
 
-    private static IReadOnlyList<ShortcutHotkeyInfo> ReadObsidianShortcuts()
+    internal static IReadOnlyList<ShortcutHotkeyInfo> ReadHotkeysJsonShortcuts(IEnumerable<string> hotkeyFilePaths)
     {
         var shortcuts = new List<ShortcutHotkeyInfo>();
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (string.IsNullOrWhiteSpace(appData))
-        {
-            return shortcuts;
-        }
 
-        var filesToTry = new[]
-        {
-            Path.Combine(appData, "obsidian", "hotkeys.json"),
-            Path.Combine(appData, "Obsidian", "hotkeys.json"),
-        };
-
-        foreach (var filePath in filesToTry)
+        foreach (var filePath in hotkeyFilePaths
+                     .Where(static path => !string.IsNullOrWhiteSpace(path))
+                     .Select(static path => Path.GetFullPath(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (!File.Exists(filePath))
             {
@@ -602,8 +639,8 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
                         string.Empty,
                         TargetExists: false,
                         "Detected app keymap",
-                        "Obsidian",
-                        "Detected from Obsidian hotkeys.json"));
+                        InferShortcutApplicationName(filePath, "Desktop app"),
+                        $"Detected from {Path.GetFileName(filePath)}"));
                 }
             }
         }
@@ -611,34 +648,14 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         return shortcuts;
     }
 
-    private static IReadOnlyList<ShortcutHotkeyInfo> ReadJetBrainsShortcuts()
+    internal static IReadOnlyList<ShortcutHotkeyInfo> ReadJetBrainsShortcuts(IEnumerable<string> keymapFilePaths)
     {
         var shortcuts = new List<ShortcutHotkeyInfo>();
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (string.IsNullOrWhiteSpace(appData))
-        {
-            return shortcuts;
-        }
 
-        var jetBrainsRoot = Path.Combine(appData, "JetBrains");
-        if (!Directory.Exists(jetBrainsRoot))
-        {
-            return shortcuts;
-        }
-
-        IEnumerable<string> keymapFiles;
-        try
-        {
-            keymapFiles = Directory.EnumerateFiles(jetBrainsRoot, "*.xml", SearchOption.AllDirectories)
-                .Where(static path => path.Contains($"{Path.DirectorySeparatorChar}keymaps{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-        }
-        catch
-        {
-            return shortcuts;
-        }
-
-        foreach (var filePath in keymapFiles)
+        foreach (var filePath in keymapFilePaths
+                     .Where(static path => !string.IsNullOrWhiteSpace(path))
+                     .Select(static path => Path.GetFullPath(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             XDocument? document = null;
             try
@@ -671,8 +688,8 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
                             string.Empty,
                             TargetExists: false,
                             "Detected app keymap",
-                            "JetBrains IDE",
-                            "Detected from JetBrains keymap XML"));
+                            InferShortcutApplicationName(filePath, "JetBrains IDE"),
+                            "Detected from keymap XML"));
                     }
                 }
             }
@@ -1085,6 +1102,68 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         return candidates;
     }
 
+    private static IEnumerable<string> ResolveCompatibleAppConfigRoots()
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        return new[]
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                string.IsNullOrWhiteSpace(userProfile) ? string.Empty : Path.Combine(userProfile, ".config"),
+            }
+            .Where(static path => !string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
+            .Select(static path => Path.GetFullPath(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    internal static IEnumerable<string> ResolveVsCodeLikeKeybindingFiles(IEnumerable<string> rootPaths)
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var fileName in new[] { "keybindings.json", "keyboard-shortcuts.json" })
+        {
+            foreach (var filePath in EnumerateNamedFiles(rootPaths, fileName, AppShortcutConfigSearchDepth))
+            {
+                if (ShouldIncludeVsCodeLikeKeybindingFile(filePath))
+                {
+                    candidates.Add(filePath);
+                }
+            }
+        }
+
+        return candidates;
+    }
+
+    internal static IEnumerable<string> ResolveHotkeysJsonFiles(IEnumerable<string> rootPaths) =>
+        EnumerateNamedFiles(rootPaths, "hotkeys.json", AppShortcutConfigSearchDepth)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    internal static IEnumerable<string> ResolveJetBrainsKeymapFiles(IEnumerable<string> rootPaths)
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var directoryName in new[] { "keymaps", "keymap" })
+        {
+            foreach (var keymapDirectory in EnumerateNamedDirectories(rootPaths, directoryName, AppShortcutConfigSearchDepth))
+            {
+                try
+                {
+                    foreach (var filePath in Directory.EnumerateFiles(keymapDirectory, "*.xml", SearchOption.AllDirectories))
+                    {
+                        candidates.Add(Path.GetFullPath(filePath));
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        return candidates;
+    }
+
     private static IEnumerable<string> ResolveAutoHotkeyScriptFiles()
     {
         var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1206,6 +1285,240 @@ public sealed class WindowsShortcutHotkeyInventoryService : IShortcutHotkeyInven
         }
 
         return null;
+    }
+
+    private static IEnumerable<string> EnumerateNamedFiles(IEnumerable<string> rootPaths, string fileName, int maxDepth)
+    {
+        var seenFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rootPath in rootPaths
+                     .Where(static path => !string.IsNullOrWhiteSpace(path))
+                     .Select(static path => Path.GetFullPath(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!Directory.Exists(rootPath))
+            {
+                continue;
+            }
+
+            var pendingDirectories = new Stack<(string Path, int Depth)>();
+            pendingDirectories.Push((rootPath, 0));
+
+            while (pendingDirectories.Count > 0)
+            {
+                var (currentPath, depth) = pendingDirectories.Pop();
+
+                string[] files;
+                try
+                {
+                    files = Directory.GetFiles(currentPath, fileName, SearchOption.TopDirectoryOnly);
+                }
+                catch
+                {
+                    files = [];
+                }
+
+                foreach (var filePath in files)
+                {
+                    var fullPath = Path.GetFullPath(filePath);
+                    if (seenFiles.Add(fullPath))
+                    {
+                        yield return fullPath;
+                    }
+                }
+
+                if (depth >= maxDepth)
+                {
+                    continue;
+                }
+
+                string[] subdirectories;
+                try
+                {
+                    subdirectories = Directory.GetDirectories(currentPath);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var subdirectoryPath in subdirectories)
+                {
+                    if (!ShouldSkipShortcutConfigDirectory(subdirectoryPath))
+                    {
+                        pendingDirectories.Push((subdirectoryPath, depth + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateNamedDirectories(IEnumerable<string> rootPaths, string directoryName, int maxDepth)
+    {
+        var seenDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rootPath in rootPaths
+                     .Where(static path => !string.IsNullOrWhiteSpace(path))
+                     .Select(static path => Path.GetFullPath(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!Directory.Exists(rootPath))
+            {
+                continue;
+            }
+
+            var pendingDirectories = new Stack<(string Path, int Depth)>();
+            pendingDirectories.Push((rootPath, 0));
+
+            while (pendingDirectories.Count > 0)
+            {
+                var (currentPath, depth) = pendingDirectories.Pop();
+
+                if (Path.GetFileName(currentPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+                        .Equals(directoryName, StringComparison.OrdinalIgnoreCase))
+                {
+                    var fullPath = Path.GetFullPath(currentPath);
+                    if (seenDirectories.Add(fullPath))
+                    {
+                        yield return fullPath;
+                    }
+                }
+
+                if (depth >= maxDepth)
+                {
+                    continue;
+                }
+
+                string[] subdirectories;
+                try
+                {
+                    subdirectories = Directory.GetDirectories(currentPath);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var subdirectoryPath in subdirectories)
+                {
+                    if (!ShouldSkipShortcutConfigDirectory(subdirectoryPath))
+                    {
+                        pendingDirectories.Push((subdirectoryPath, depth + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    private static bool ShouldSkipShortcutConfigDirectory(string directoryPath)
+    {
+        var directoryName = Path.GetFileName(directoryPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return string.IsNullOrWhiteSpace(directoryName)
+            || IgnoredShortcutConfigDirectoryNames.Contains(directoryName);
+    }
+
+    private static bool ShouldIncludeVsCodeLikeKeybindingFile(string filePath) =>
+        !PathContainsSegment(filePath, "extensions")
+        && !PathContainsSegment(filePath, "node_modules");
+
+    private static string InferShortcutApplicationName(string filePath, string fallbackName)
+    {
+        var knownApplicationName = TryGetKnownShortcutApplicationName(filePath);
+        if (!string.IsNullOrWhiteSpace(knownApplicationName))
+        {
+            return knownApplicationName;
+        }
+
+        var userName = Environment.UserName;
+        var directoryPath = Path.GetDirectoryName(filePath) ?? string.Empty;
+        var segments = GetPathSegments(directoryPath);
+
+        for (var index = segments.Count - 1; index >= 0; index--)
+        {
+            var segment = segments[index];
+            if (string.IsNullOrWhiteSpace(segment)
+                || GenericShortcutConfigPathSegments.Contains(segment)
+                || string.Equals(segment, userName, StringComparison.OrdinalIgnoreCase)
+                || (segment.Length == 2 && segment[1] == ':'))
+            {
+                continue;
+            }
+
+            var normalizedSegment = NormalizeApplicationSegment(segment);
+            if (!string.IsNullOrWhiteSpace(normalizedSegment))
+            {
+                return normalizedSegment;
+            }
+        }
+
+        return fallbackName;
+    }
+
+    private static string TryGetKnownShortcutApplicationName(string filePath)
+    {
+        var normalizedPath = Path.GetFullPath(filePath);
+        var separator = Path.DirectorySeparatorChar;
+
+        return normalizedPath switch
+        {
+            var path when path.Contains($"{separator}Code{separator}User{separator}keybindings.json", StringComparison.OrdinalIgnoreCase) => "Visual Studio Code",
+            var path when path.Contains($"{separator}Code - Insiders{separator}User{separator}keybindings.json", StringComparison.OrdinalIgnoreCase) => "VS Code Insiders",
+            var path when path.Contains($"{separator}VSCodium{separator}User{separator}keybindings.json", StringComparison.OrdinalIgnoreCase) => "VSCodium",
+            var path when path.Contains($"{separator}Cursor{separator}User{separator}keybindings.json", StringComparison.OrdinalIgnoreCase) => "Cursor",
+            var path when path.Contains($"{separator}Windsurf{separator}User{separator}keybindings.json", StringComparison.OrdinalIgnoreCase) => "Windsurf",
+            var path when path.Contains($"{separator}obsidian{separator}hotkeys.json", StringComparison.OrdinalIgnoreCase)
+                || path.Contains($"{separator}Obsidian{separator}hotkeys.json", StringComparison.OrdinalIgnoreCase) => "Obsidian",
+            var path when path.Contains("Microsoft.WindowsTerminal", StringComparison.OrdinalIgnoreCase)
+                || path.Contains($"{separator}Windows Terminal{separator}", StringComparison.OrdinalIgnoreCase)
+                || path.Contains($"{separator}Windows Terminal Preview{separator}", StringComparison.OrdinalIgnoreCase) => "Windows Terminal",
+            var path when PathContainsSegment(path, "FlowLauncher") => "Flow Launcher",
+            var path when PathContainsSegment(path, "JetBrains") => "JetBrains IDE",
+            _ => string.Empty,
+        };
+    }
+
+    private static IReadOnlyList<string> GetPathSegments(string path) =>
+        path.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static bool PathContainsSegment(string path, string segment) =>
+        GetPathSegments(path).Any(pathSegment => string.Equals(pathSegment, segment, StringComparison.OrdinalIgnoreCase));
+
+    private static string NormalizeApplicationSegment(string segment)
+    {
+        var value = segment.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var underscoreIndex = value.IndexOf('_');
+        if (underscoreIndex > 0)
+        {
+            var suffix = value[(underscoreIndex + 1)..];
+            if (suffix.All(static character => char.IsLetterOrDigit(character)))
+            {
+                value = value[..underscoreIndex];
+            }
+        }
+
+        var parts = Regex.Split(value, @"[\.\-_]+")
+            .Where(static part => !string.IsNullOrWhiteSpace(part))
+            .Select(
+                static part =>
+                {
+                    var trimmed = part.Trim();
+                    if (trimmed.All(static character => char.IsLower(character) || char.IsDigit(character)))
+                    {
+                        return char.ToUpperInvariant(trimmed[0]) + trimmed[1..];
+                    }
+
+                    return trimmed;
+                })
+            .ToArray();
+
+        return parts.Length == 0
+            ? string.Empty
+            : string.Join(" ", parts);
     }
 
     private static JsonDocument? TryReadJsonDocument(string filePath)

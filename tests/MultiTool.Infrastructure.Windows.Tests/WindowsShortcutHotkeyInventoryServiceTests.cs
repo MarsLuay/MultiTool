@@ -194,6 +194,45 @@ public sealed class WindowsShortcutHotkeyInventoryServiceTests : IDisposable
     }
 
     [Fact]
+    public void ResolveVsCodeLikeKeybindingFiles_ShouldFindCompatibleFilesAndSkipExtensionDefaults()
+    {
+        var rootPath = CreateDirectory("CompatibleKeymaps");
+        var compatibleFilePath = CreateFile(Path.Combine(rootPath, "SuperEditor", "User", "keybindings.json"));
+        var alternateCompatibleFilePath = CreateFile(Path.Combine(rootPath, "Writer", "Config", "keyboard-shortcuts.json"));
+        var extensionFilePath = CreateFile(Path.Combine(rootPath, "Code", "extensions", "theme-pack", "keybindings.json"));
+
+        var files = WindowsShortcutHotkeyInventoryService.ResolveVsCodeLikeKeybindingFiles([rootPath]).ToArray();
+
+        files.Should().BeEquivalentTo([compatibleFilePath, alternateCompatibleFilePath]);
+        files.Should().NotContain(extensionFilePath);
+    }
+
+    [Fact]
+    public void ReadVsCodeLikeShortcuts_ShouldInferAppNameFromCompatibleKeybindingFiles()
+    {
+        var settingsPath = CreateFile(Path.Combine(workingDirectory, "SuperEditor", "User", "keybindings.json"));
+        File.WriteAllText(
+            settingsPath,
+            """
+            [
+              {
+                "key": "ctrl+alt+p",
+                "command": "super.run",
+                "when": "editorTextFocus"
+              }
+            ]
+            """);
+
+        var shortcuts = WindowsShortcutHotkeyInventoryService.ReadVsCodeLikeShortcuts([settingsPath]);
+
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Ctrl + Alt + P"
+            && shortcut.ShortcutName == "super.run"
+            && shortcut.AppliesTo == "SuperEditor");
+        shortcuts[0].Details.Should().Contain("editorTextFocus");
+    }
+
+    [Fact]
     public void ReadWindowsTerminalShortcuts_ShouldParseSettingsJsonWithCommentsAndMultipleKeys()
     {
         var settingsPath = CreateFile(Path.Combine(workingDirectory, "terminal", "settings.json"));
@@ -229,6 +268,31 @@ public sealed class WindowsShortcutHotkeyInventoryServiceTests : IDisposable
         shortcuts.Should().ContainSingle(shortcut => shortcut.Hotkey == "Ctrl + Alt + V" && shortcut.ShortcutName == "splitPane");
         shortcuts.Should().OnlyContain(shortcut => shortcut.AppliesTo == "Windows Terminal");
         shortcuts.Single(shortcut => shortcut.Hotkey == "Alt + Shift + -").Details.Should().Contain("split=vertical");
+    }
+
+    [Fact]
+    public void ReadHotkeysJsonShortcuts_ShouldInferAppNameFromCompatibleHotkeyFiles()
+    {
+        var hotkeysPath = CreateFile(Path.Combine(workingDirectory, "NoteLab", "hotkeys.json"));
+        File.WriteAllText(
+            hotkeysPath,
+            """
+            {
+              "open-command-palette": [
+                {
+                  "modifiers": ["Ctrl", "Alt"],
+                  "key": "p"
+                }
+              ]
+            }
+            """);
+
+        var shortcuts = WindowsShortcutHotkeyInventoryService.ReadHotkeysJsonShortcuts([hotkeysPath]);
+
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Ctrl + Alt + P"
+            && shortcut.ShortcutName == "open-command-palette"
+            && shortcut.AppliesTo == "NoteLab");
     }
 
     [Fact]
@@ -284,6 +348,33 @@ public sealed class WindowsShortcutHotkeyInventoryServiceTests : IDisposable
         shortcuts.Should().OnlyContain(shortcut =>
             shortcut.AppliesTo == "Flow Launcher"
             && shortcut.SourceLabel == "Detected app settings");
+    }
+
+    [Fact]
+    public void ResolveJetBrainsKeymapFiles_AndReadJetBrainsShortcuts_ShouldHandlePortableKeymaps()
+    {
+        var rootPath = CreateDirectory("PortableJetBrains");
+        var keymapPath = CreateFile(Path.Combine(rootPath, "RiderPortable", "config", "keymaps", "custom.xml"));
+        var unrelatedPath = CreateFile(Path.Combine(rootPath, "Themes", "keymaps.xml"));
+        File.WriteAllText(
+            keymapPath,
+            """
+            <keymap version="1">
+              <action id="EditorDuplicate">
+                <keyboard-shortcut first-keystroke="ctrl D" />
+              </action>
+            </keymap>
+            """);
+
+        var discoveredFiles = WindowsShortcutHotkeyInventoryService.ResolveJetBrainsKeymapFiles([rootPath]).ToArray();
+        var shortcuts = WindowsShortcutHotkeyInventoryService.ReadJetBrainsShortcuts(discoveredFiles);
+
+        discoveredFiles.Should().Contain(keymapPath);
+        discoveredFiles.Should().NotContain(unrelatedPath);
+        shortcuts.Should().ContainSingle(shortcut =>
+            shortcut.Hotkey == "Ctrl + D"
+            && shortcut.ShortcutName == "EditorDuplicate"
+            && shortcut.AppliesTo == "RiderPortable");
     }
 
     [Fact]

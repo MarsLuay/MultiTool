@@ -80,8 +80,20 @@ public partial class MainWindowViewModel
 
     private bool hasCompletedInstallerStatusCheck;
 
+    private void EnsureInstallerInitialized()
+    {
+        InitializeInstallerState();
+        StartInstallerInitialization();
+    }
+
     private void InitializeInstallerState()
     {
+        if (isInstallerStateInitialized)
+        {
+            return;
+        }
+
+        isInstallerStateInitialized = true;
         InstallerOperations.CollectionChanged += InstallerOperations_OnCollectionChanged;
 
         foreach (var package in installerService.GetCatalog().OrderBy(item => item.Category).ThenBy(item => item.DisplayName))
@@ -118,6 +130,16 @@ public partial class MainWindowViewModel
 
         InstallerPackagesView = CollectionViewSource.GetDefaultView(InstallerPackages);
         InstallerPackagesView.Filter = FilterInstallerPackage;
+        if (InstallerPackagesView is ListCollectionView installerPackagesCollectionView)
+        {
+            installerPackagesCollectionView.SortDescriptions.Clear();
+            installerPackagesCollectionView.SortDescriptions.Add(new SortDescription(nameof(InstallerPackageItem.Category), ListSortDirection.Ascending));
+            installerPackagesCollectionView.SortDescriptions.Add(new SortDescription(nameof(InstallerPackageItem.DisplayName), ListSortDirection.Ascending));
+            installerPackagesCollectionView.GroupDescriptions.Clear();
+            installerPackagesCollectionView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(InstallerPackageItem.Category)));
+        }
+
+        ApplyInstallerSettings(deferredInstallerSettings);
         OnPropertyChanged(nameof(InstallerSelectionSummary));
         OnPropertyChanged(nameof(InstallerUpdateSummary));
         OnPropertyChanged(nameof(CleanupSelectionSummary));
@@ -132,6 +154,13 @@ public partial class MainWindowViewModel
 
     private void ApplyInstallerSettings(InstallerSettings? settings)
     {
+        deferredInstallerSettings = settings?.Clone() ?? new InstallerSettings();
+
+        if (!isInstallerStateInitialized)
+        {
+            return;
+        }
+
         var selectedIds = settings?.SelectedPackageIds is { Count: > 0 }
             ? new HashSet<string>(settings.SelectedPackageIds, StringComparer.OrdinalIgnoreCase)
             : [];
@@ -174,8 +203,14 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(CleanupSelectionSummary));
     }
 
-    private InstallerSettings BuildInstallerSettings() =>
-        new()
+    private InstallerSettings BuildInstallerSettings()
+    {
+        if (!isInstallerStateInitialized)
+        {
+            return deferredInstallerSettings.Clone();
+        }
+
+        return new InstallerSettings
         {
             SelectedPackageIds =
             [
@@ -206,9 +241,16 @@ public partial class MainWindowViewModel
                         }),
             ],
         };
+    }
 
     private void StartInstallerInitialization()
     {
+        if (isInstallerInitializationStarted)
+        {
+            return;
+        }
+
+        isInstallerInitializationStarted = true;
         _ = InitializeInstallerAsync();
     }
 

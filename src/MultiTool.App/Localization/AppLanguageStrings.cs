@@ -399,6 +399,7 @@ public static class AppLanguageKeys
     public const string ShortcutExplorerSearchLabel = "ShortcutExplorerSearchLabel";
     public const string ShortcutExplorerConflictsOnly = "ShortcutExplorerConflictsOnly";
     public const string ShortcutExplorerColumnHotkey = "ShortcutExplorerColumnHotkey";
+    public const string ShortcutExplorerColumnEnabled = "ShortcutExplorerColumnEnabled";
     public const string ShortcutExplorerColumnShortcut = "ShortcutExplorerColumnShortcut";
     public const string ShortcutExplorerColumnSource = "ShortcutExplorerColumnSource";
     public const string ShortcutExplorerColumnAppliesTo = "ShortcutExplorerColumnAppliesTo";
@@ -632,6 +633,7 @@ public static class AppLanguageKeys
     public const string ToolsStatusShortcutScanNoShortcutsFormat = "ToolsStatusShortcutScanNoShortcutsFormat";
     public const string ToolsStatusShortcutScanOpenedViewerFormat = "ToolsStatusShortcutScanOpenedViewerFormat";
     public const string ToolsStatusShortcutOpenedCachedViewerFormat = "ToolsStatusShortcutOpenedCachedViewerFormat";
+    public const string ToolsStatusShortcutScanExpired = "ToolsStatusShortcutScanExpired";
     public const string ToolsStatusShortcutDisableCompletedFormat = "ToolsStatusShortcutDisableCompletedFormat";
     public const string ToolsStatusShortcutDisableSkippedUnsupportedSuffixFormat = "ToolsStatusShortcutDisableSkippedUnsupportedSuffixFormat";
     public const string ToolsStatusShortcutDisableWarningsSuffixFormat = "ToolsStatusShortcutDisableWarningsSuffixFormat";
@@ -691,12 +693,14 @@ public static class AppLanguageKeys
     public const string ToolsStatusDisplayRefreshAlreadyBest = "ToolsStatusDisplayRefreshAlreadyBest";
     public const string ToolsStatusDisplayRefreshAppliedSummaryFormat = "ToolsStatusDisplayRefreshAppliedSummaryFormat";
     public const string ToolsStatusDisplayRefreshUpdateFailedFormat = "ToolsStatusDisplayRefreshUpdateFailedFormat";
+    public const string ToolsStatusDisplayRefreshExpired = "ToolsStatusDisplayRefreshExpired";
     public const string ToolsStatusIpv4SocketRefreshing = "ToolsStatusIpv4SocketRefreshing";
     public const string ToolsStatusIpv4SocketCapturedFormat = "ToolsStatusIpv4SocketCapturedFormat";
     public const string ToolsStatusIpv4SocketEmptyFormat = "ToolsStatusIpv4SocketEmptyFormat";
     public const string ToolsStatusIpv4SocketFailedFormat = "ToolsStatusIpv4SocketFailedFormat";
     public const string ToolsStatusIpv4SocketCopiedClipboard = "ToolsStatusIpv4SocketCopiedClipboard";
     public const string ToolsStatusIpv4SocketCopyFailedFormat = "ToolsStatusIpv4SocketCopyFailedFormat";
+    public const string ToolsStatusIpv4SocketExpired = "ToolsStatusIpv4SocketExpired";
     public const string ToolsIpv4SocketSummaryEmpty = "ToolsIpv4SocketSummaryEmpty";
     public const string ToolsIpv4SocketSummaryFormat = "ToolsIpv4SocketSummaryFormat";
     public const string ToolsIpv4SocketClipboardTitle = "ToolsIpv4SocketClipboardTitle";
@@ -740,6 +744,7 @@ public static class AppLanguageKeys
     public const string ToolsStatusEmptyDirectoryNoneFoundFormat = "ToolsStatusEmptyDirectoryNoneFoundFormat";
     public const string ToolsStatusEmptyDirectoryFoundFormat = "ToolsStatusEmptyDirectoryFoundFormat";
     public const string ToolsStatusEmptyDirectoryScanFailedFormat = "ToolsStatusEmptyDirectoryScanFailedFormat";
+    public const string ToolsStatusEmptyDirectoryExpired = "ToolsStatusEmptyDirectoryExpired";
     public const string ToolsStatusDriverScanStarting = "ToolsStatusDriverScanStarting";
     public const string ToolsStatusDriverScanStartingUsingCachedHardware = "ToolsStatusDriverScanStartingUsingCachedHardware";
     public const string ToolsStatusDriverScanWarningsSuffixFormat = "ToolsStatusDriverScanWarningsSuffixFormat";
@@ -747,10 +752,12 @@ public static class AppLanguageKeys
     public const string ToolsStatusDriverScanNoneFormat = "ToolsStatusDriverScanNoneFormat";
     public const string ToolsStatusDriverScanFoundFormat = "ToolsStatusDriverScanFoundFormat";
     public const string ToolsStatusDriverScanFailedFormat = "ToolsStatusDriverScanFailedFormat";
+    public const string ToolsStatusDriverScanExpired = "ToolsStatusDriverScanExpired";
     public const string ToolsStatusHardwareScanStarting = "ToolsStatusHardwareScanStarting";
     public const string ToolsStatusHardwareScanWarningsSuffixFormat = "ToolsStatusHardwareScanWarningsSuffixFormat";
     public const string ToolsStatusHardwareScanCompleteFormat = "ToolsStatusHardwareScanCompleteFormat";
     public const string ToolsStatusHardwareScanFailedFormat = "ToolsStatusHardwareScanFailedFormat";
+    public const string ToolsStatusHardwareScanExpired = "ToolsStatusHardwareScanExpired";
     public const string ToolsStatusDisplayRefreshScanStarting = "ToolsStatusDisplayRefreshScanStarting";
     public const string ToolsStatusDisplayRefreshNoDisplays = "ToolsStatusDisplayRefreshNoDisplays";
     public const string ToolsStatusDisplayRefreshCheckedAllBestFormat = "ToolsStatusDisplayRefreshCheckedAllBestFormat";
@@ -1325,6 +1332,7 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ShortcutExplorerSearchLabel] = ("Search", "Search"),
         [AppLanguageKeys.ShortcutExplorerConflictsOnly] = ("Show only conflicts", "Show only conflicts"),
         [AppLanguageKeys.ShortcutExplorerColumnHotkey] = ("Hotkey", "Hotkey"),
+        [AppLanguageKeys.ShortcutExplorerColumnEnabled] = ("Enabled", "Enabled"),
         [AppLanguageKeys.ShortcutExplorerColumnShortcut] = ("Shortcut", "Shortcut"),
         [AppLanguageKeys.ShortcutExplorerColumnSource] = ("Source", "Source"),
         [AppLanguageKeys.ShortcutExplorerColumnAppliesTo] = ("Applies To", "Applies To"),
@@ -1332,17 +1340,17 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ShortcutExplorerColumnDetails] = ("Details", "Details"),
         [AppLanguageKeys.ShortcutExplorerColumnFile] = ("Source File", "Source File"),
         [AppLanguageKeys.ShortcutExplorerRescan] = ("Rescan", "Rescan"),
-        [AppLanguageKeys.ShortcutExplorerDisableSelected] = ("Disable Selected", "Disable Selected"),
+        [AppLanguageKeys.ShortcutExplorerDisableSelected] = ("Apply Changes", "Apply Changes"),
         [AppLanguageKeys.ShortcutExplorerClose] = ("Close", "Close"),
         [AppLanguageKeys.ShortcutExplorerSummaryNoneFormat] = (
-            "Scanned {0} Windows shortcut file{1} on fixed drives and checked supported app shortcut sources. No shortcut keys were found.",
-            "Scanned {0} Windows shortcut file{1} on fixed drives and checked supported app shortcut sources. No shortcut keys were found."),
+            "Scanned {0} Windows shortcut file{1} on fixed drives and checked compatible app shortcut sources that could be discovered on this PC. No shortcut keys were found.",
+            "Scanned {0} Windows shortcut file{1} on fixed drives and checked compatible app shortcut sources that could be discovered on this PC. No shortcut keys were found."),
         [AppLanguageKeys.ShortcutExplorerSummaryFoundFormat] = (
-            "Found {0} detected shortcut{1} after scanning {2} Windows shortcut file{3} on fixed drives and checking supported app shortcut sources.",
-            "Found {0} detected shortcut{1} after scanning {2} Windows shortcut file{3} on fixed drives and checking supported app shortcut sources."),
+            "Found {0} detected shortcut{1} after scanning {2} Windows shortcut file{3} on fixed drives and checking compatible app shortcut sources that could be discovered on this PC.",
+            "Found {0} detected shortcut{1} after scanning {2} Windows shortcut file{3} on fixed drives and checking compatible app shortcut sources that could be discovered on this PC."),
         [AppLanguageKeys.ShortcutExplorerSummaryNoAssigned] = (
-            "No shortcut keys were detected from Windows shortcut files or supported app shortcut sources on this PC.",
-            "No shortcut keys were detected from Windows shortcut files or supported app shortcut sources on this PC."),
+            "No shortcut keys were detected from Windows shortcut files or compatible app shortcut sources that could be discovered on this PC.",
+            "No shortcut keys were detected from Windows shortcut files or compatible app shortcut sources that could be discovered on this PC."),
         [AppLanguageKeys.ShortcutExplorerReferenceIncludedFormat] = (
             " Included {0} built-in Windows and common app shortcut reference entr{1}.",
             " Included {0} built-in Windows and common app shortcut reference entr{1}."),
@@ -1350,8 +1358,8 @@ public static class AppLanguageStrings
             "Skipped {0} folder or shortcut read{1} during the scan.",
             "Skipped {0} folder or shortcut read{1} during the scan."),
         [AppLanguageKeys.ShortcutExplorerReferenceNote] = (
-            "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner also pulls real bindings from supported app keymap and settings files plus AutoHotkey scripts when available, but Windows still has no universal API that exposes every private keybind from every program.",
-            "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner also pulls real bindings from supported app keymap and settings files plus AutoHotkey scripts when available, but Windows still has no universal API that exposes every private keybind from every program."),
+            "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner also pulls real bindings from Windows shortcut files, heuristically discovered compatible app keymap and settings files, plus AutoHotkey scripts when available, but Windows still has no universal API that exposes every private keybind from every program.",
+            "Built-in Windows and common app shortcuts are included as a reference catalog. The scanner also pulls real bindings from Windows shortcut files, heuristically discovered compatible app keymap and settings files, plus AutoHotkey scripts when available, but Windows still has no universal API that exposes every private keybind from every program."),
         [AppLanguageKeys.ShortcutExplorerConflictWarningFormat] = (
             "Warning: {0} shortcut{1} share {2} hotkey{3}. Some overlaps are harmless reference combos, but detected shortcut files, app keymaps, and script bindings can still conflict in real use.",
             "Warning: {0} shortcut{1} share {2} hotkey{3}. Some overlaps are harmless reference combos, but detected shortcut files, app keymaps, and script bindings can still conflict in real use."),
@@ -1379,8 +1387,8 @@ public static class AppLanguageStrings
             "Shortcut rescan failed: {0}",
             "Shortcut rescan failed: {0}"),
         [AppLanguageKeys.ShortcutExplorerStatusDisableNoSelection] = (
-            "Select one or more shortcuts first.",
-            "Select one or more shortcuts first."),
+            "Clear one or more Enabled checkboxes first.",
+            "Clear one or more Enabled checkboxes first."),
         [AppLanguageKeys.ShortcutExplorerStatusDisabling] = (
             "Disabling selected shortcut hotkeys...",
             "Disabling selected shortcut hotkeys..."),
@@ -1666,7 +1674,7 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsUsefulSitesToggleHide] = ("Hide Useful Sites", "Hide Useful Sites"),
         [AppLanguageKeys.ToolsUsefulSitesToggleShow] = ("Useful Sites", "Useful Sites"),
         [AppLanguageKeys.ToolsStatusEmptyDirectoryInitial] = ("Choose a folder tree to scan for empty directories.", "Choose a folder tree to scan for empty directories."),
-        [AppLanguageKeys.ToolsStatusShortcutHotkeyInitial] = ("Scan Windows shortcut hotkeys, supported app keymap and settings files, and AutoHotkey scripts on this PC, then include built-in Windows and common shortcuts in one viewer.", "Scan Windows shortcut hotkeys, supported app keymap and settings files, and AutoHotkey scripts on this PC, then include built-in Windows and common shortcuts in one viewer."),
+        [AppLanguageKeys.ToolsStatusShortcutHotkeyInitial] = ("Scan Windows shortcut hotkeys, heuristically discovered compatible app keymap and settings files, and AutoHotkey scripts on this PC, then include built-in Windows and common shortcuts in one viewer.", "Scan Windows shortcut hotkeys, heuristically discovered compatible app keymap and settings files, and AutoHotkey scripts on this PC, then include built-in Windows and common shortcuts in one viewer."),
         [AppLanguageKeys.ToolsStatusMouseSensitivityInitial] = ("Pick a slower or faster mouse speed. 10/20 is the normal middle setting in Windows, so it is a good place to start if you are unsure.", "Pick a slower or faster mouse speed. 10/20 is the normal middle setting in Windows, so it is a good place to start if you are unsure."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshInitial] = ("Click Check Displays to see if your monitors can run at a faster refresh rate.", "Click Check Displays to see if your monitors can run at a faster refresh rate."),
         [AppLanguageKeys.ToolsStatusIpv4SocketInitial] = ("Refresh this list to see which apps are using IPv4 right now, including active connections and listening ports.", "Refresh this list to see which apps are using IPv4 right now, including active connections and listening ports."),
@@ -1697,11 +1705,12 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsFolderPickerSelectEmptyDirectoryRoot] = ("Select the folder tree to scan for empty directories", "Select the folder tree to scan for empty directories"),
         [AppLanguageKeys.ToolsStatusFolderSelectionCanceled] = ("Folder selection canceled.", "Folder selection canceled."),
         [AppLanguageKeys.ToolsStatusEmptyDirectoryRootSetFormat] = ("Empty directory scan root set to {0}.", "Empty directory scan root set to {0}."),
-        [AppLanguageKeys.ToolsStatusShortcutScanRunning] = ("Scanning fixed drives for assigned Windows shortcut keys, loading supported app keymaps/settings and AutoHotkey scripts, and adding built-in shortcut references...", "Scanning fixed drives for assigned Windows shortcut keys, loading supported app keymaps/settings and AutoHotkey scripts, and adding built-in shortcut references..."),
+        [AppLanguageKeys.ToolsStatusShortcutScanRunning] = ("Scanning fixed drives for assigned Windows shortcut keys, loading heuristically discovered compatible app keymaps/settings and AutoHotkey scripts, and adding built-in shortcut references...", "Scanning fixed drives for assigned Windows shortcut keys, loading heuristically discovered compatible app keymaps/settings and AutoHotkey scripts, and adding built-in shortcut references..."),
         [AppLanguageKeys.ToolsStatusShortcutScanWarningsSuffixFormat] = (" Skipped {0} folder or shortcut read{1}.", " Skipped {0} folder or shortcut read{1}."),
-        [AppLanguageKeys.ToolsStatusShortcutScanNoShortcutsFormat] = ("Scanned {0} Windows shortcut file{1} and checked supported app shortcut sources. No shortcut keys were found.{2}", "Scanned {0} Windows shortcut file{1} and checked supported app shortcut sources. No shortcut keys were found.{2}"),
+        [AppLanguageKeys.ToolsStatusShortcutScanNoShortcutsFormat] = ("Scanned {0} Windows shortcut file{1} and checked compatible app shortcut sources that could be discovered on this PC. No shortcut keys were found.{2}", "Scanned {0} Windows shortcut file{1} and checked compatible app shortcut sources that could be discovered on this PC. No shortcut keys were found.{2}"),
         [AppLanguageKeys.ToolsStatusShortcutScanOpenedViewerFormat] = ("Opened the shortcut viewer with {0} detected shortcut{1} and {2} built-in/common shortcut reference entr{3}.{4}", "Opened the shortcut viewer with {0} detected shortcut{1} and {2} built-in/common shortcut reference entr{3}.{4}"),
         [AppLanguageKeys.ToolsStatusShortcutOpenedCachedViewerFormat] = ("Opened the shortcut viewer with the last found {0} detected shortcut{1} and {2} built-in/common shortcut reference entr{3}.{4}", "Opened the shortcut viewer with the last found {0} detected shortcut{1} and {2} built-in/common shortcut reference entr{3}.{4}"),
+        [AppLanguageKeys.ToolsStatusShortcutScanExpired] = ("Shortcut scan results expired and were cleared from memory. Scan again to reopen the viewer.", "Shortcut scan results expired and were cleared from memory. Scan again to reopen the viewer."),
         [AppLanguageKeys.ToolsStatusShortcutDisableCompletedFormat] = ("Disabled {0} shortcut{1} from Windows shortcut files.{2}{3}", "Disabled {0} shortcut{1} from Windows shortcut files.{2}{3}"),
         [AppLanguageKeys.ToolsStatusShortcutDisableSkippedUnsupportedSuffixFormat] = (" Skipped {0} unsupported entr{1}.", " Skipped {0} unsupported entr{1}."),
         [AppLanguageKeys.ToolsStatusShortcutDisableWarningsSuffixFormat] = (" Skipped {0} shortcut change{1}.", " Skipped {0} shortcut change{1}."),
@@ -1761,12 +1770,14 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsStatusDisplayRefreshAlreadyBest] = ("All displays were already at their top refresh rate for the current resolution.", "All displays were already at their top refresh rate for the current resolution."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshAppliedSummaryFormat] = ("{0} display{1} updated, {2} failed.", "{0} display{1} updated, {2} failed."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshUpdateFailedFormat] = ("Display refresh update failed: {0}", "Display refresh update failed: {0}"),
+        [AppLanguageKeys.ToolsStatusDisplayRefreshExpired] = ("Display refresh results expired and were cleared from memory. Check displays again to reload them.", "Display refresh results expired and were cleared from memory. Check displays again to reload them."),
         [AppLanguageKeys.ToolsStatusIpv4SocketRefreshing] = ("Checking which apps are using IPv4 right now...", "Checking which apps are using IPv4 right now..."),
         [AppLanguageKeys.ToolsStatusIpv4SocketCapturedFormat] = ("Found {0} IPv4 entr{1} across {2} app{3} at {4}.", "Found {0} IPv4 entr{1} across {2} app{3} at {4}."),
         [AppLanguageKeys.ToolsStatusIpv4SocketEmptyFormat] = ("No IPv4 app activity was found at {0}.", "No IPv4 app activity was found at {0}."),
         [AppLanguageKeys.ToolsStatusIpv4SocketFailedFormat] = ("IPv4 app activity check failed: {0}", "IPv4 app activity check failed: {0}"),
         [AppLanguageKeys.ToolsStatusIpv4SocketCopiedClipboard] = ("Copied the IPv4 app activity list to the clipboard.", "Copied the IPv4 app activity list to the clipboard."),
         [AppLanguageKeys.ToolsStatusIpv4SocketCopyFailedFormat] = ("Unable to copy the IPv4 app activity list: {0}", "Unable to copy the IPv4 app activity list: {0}"),
+        [AppLanguageKeys.ToolsStatusIpv4SocketExpired] = ("IPv4 app activity results expired and were cleared from memory. Refresh the list to scan again.", "IPv4 app activity results expired and were cleared from memory. Refresh the list to scan again."),
         [AppLanguageKeys.ToolsIpv4SocketSummaryEmpty] = ("No IPv4 app activity captured yet.", "No IPv4 app activity captured yet."),
         [AppLanguageKeys.ToolsIpv4SocketSummaryFormat] = ("{0} IPv4 entr{1} across {2} app{3}  |  TCP connections: {4}  |  TCP listeners: {5}  |  UDP listeners: {6}  |  Captured: {7}", "{0} IPv4 entr{1} across {2} app{3}  |  TCP connections: {4}  |  TCP listeners: {5}  |  UDP listeners: {6}  |  Captured: {7}"),
         [AppLanguageKeys.ToolsIpv4SocketClipboardTitle] = ("IPv4 App Activity", "IPv4 App Activity"),
@@ -1810,6 +1821,7 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsStatusEmptyDirectoryNoneFoundFormat] = ("No deletable empty directories found.{0}", "No deletable empty directories found.{0}"),
         [AppLanguageKeys.ToolsStatusEmptyDirectoryFoundFormat] = ("Found {0} deletable empty director{1}.{2}", "Found {0} deletable empty director{1}.{2}"),
         [AppLanguageKeys.ToolsStatusEmptyDirectoryScanFailedFormat] = ("Scan failed: {0}", "Scan failed: {0}"),
+        [AppLanguageKeys.ToolsStatusEmptyDirectoryExpired] = ("Empty-directory scan results expired and were cleared from memory. Scan again to reload them.", "Empty-directory scan results expired and were cleared from memory. Scan again to reload them."),
         [AppLanguageKeys.ToolsStatusDriverScanStarting] = ("Detecting hardware and checking Windows Update for driver updates...", "Detecting hardware and checking Windows Update for driver updates..."),
         [AppLanguageKeys.ToolsStatusDriverScanStartingUsingCachedHardware] = ("Using the hardware check from this session and checking Windows Update for driver updates...", "Using the hardware check from this session and checking Windows Update for driver updates..."),
         [AppLanguageKeys.ToolsStatusDriverScanWarningsSuffixFormat] = (" Warnings: {0}.", " Warnings: {0}."),
@@ -1817,10 +1829,12 @@ public static class AppLanguageStrings
         [AppLanguageKeys.ToolsStatusDriverScanNoneFormat] = ("Detected {0} hardware component{1}. No driver updates are currently available from Windows Update.{2}", "Detected {0} hardware component{1}. No driver updates are currently available from Windows Update.{2}"),
         [AppLanguageKeys.ToolsStatusDriverScanFoundFormat] = ("Detected {0} hardware component{1}. Found {2} recommended and {3} optional driver update{4}.{5}{6}", "Detected {0} hardware component{1}. Found {2} recommended and {3} optional driver update{4}.{5}{6}"),
         [AppLanguageKeys.ToolsStatusDriverScanFailedFormat] = ("Driver scan failed: {0}", "Driver scan failed: {0}"),
+        [AppLanguageKeys.ToolsStatusDriverScanExpired] = ("Driver scan results expired and were cleared from memory. Check driver updates again to reload them.", "Driver scan results expired and were cleared from memory. Check driver updates again to reload them."),
         [AppLanguageKeys.ToolsStatusHardwareScanStarting] = ("Scanning this PC's hardware details...", "Scanning this PC's hardware details..."),
         [AppLanguageKeys.ToolsStatusHardwareScanWarningsSuffixFormat] = (" Warnings: {0}.", " Warnings: {0}."),
         [AppLanguageKeys.ToolsStatusHardwareScanCompleteFormat] = ("Hardware scan complete. {0} Found {1} graphics adapter{2}, {3} storage drive{4}, {5} partition{6}, {7} PCI/PCIe device{8}, {9} sensor reading{10}, and {11} RAID/storage detail{12}.{13}", "Hardware scan complete. {0} Found {1} graphics adapter{2}, {3} storage drive{4}, {5} partition{6}, {7} PCI/PCIe device{8}, {9} sensor reading{10}, and {11} RAID/storage detail{12}.{13}"),
         [AppLanguageKeys.ToolsStatusHardwareScanFailedFormat] = ("Hardware scan failed: {0}", "Hardware scan failed: {0}"),
+        [AppLanguageKeys.ToolsStatusHardwareScanExpired] = ("Hardware scan results expired and were cleared from memory. Scan PC hardware again to reload them.", "Hardware scan results expired and were cleared from memory. Scan PC hardware again to reload them."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshScanStarting] = ("Checking display refresh rate recommendations...", "Checking display refresh rate recommendations..."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshNoDisplays] = ("No desktop-attached displays were detected.", "No desktop-attached displays were detected."),
         [AppLanguageKeys.ToolsStatusDisplayRefreshCheckedAllBestFormat] = ("Checked {0} display{1}. All are already at their top refresh rate for the current resolution.", "Checked {0} display{1}. All are already at their top refresh rate for the current resolution."),
