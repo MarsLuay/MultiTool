@@ -3,7 +3,7 @@ setlocal EnableExtensions
 
 for %%I in ("%~dp0..") do set "ROOT_DIR=%%~fI"
 set "SOURCE_DIR=%ROOT_DIR%"
-set "PROJECT_FILE=%ROOT_DIR%\src\AutoClicker.App\AutoClicker.App.csproj"
+set "PROJECT_FILE=%ROOT_DIR%\src\MultiTool.App\MultiTool.App.csproj"
 set "RUNTIME_DIR=%ROOT_DIR%"
 set "RUNTIME_RESOURCES_DIR=%RUNTIME_DIR%\Resources"
 set "RUNTIME_MACROS_DIR=%RUNTIME_DIR%\Macros"
@@ -11,12 +11,12 @@ set "LEGACY_APP_DIR=%ROOT_DIR%\app"
 set "LEGACY_APP_RESOURCES_DIR=%LEGACY_APP_DIR%\Resources"
 set "LEGACY_APP_MACROS_DIR=%LEGACY_APP_DIR%\Macros"
 set "LEGACY_APP_EXE=%LEGACY_APP_DIR%\MultiTool.exe"
-set "LEGACY_APP_LEGACY_EXE=%LEGACY_APP_DIR%\AutoClicker.exe"
+set "LEGACY_APP_LEGACY_EXE=%LEGACY_APP_DIR%\MultiTool.exe"
 set "ROOT_STAGE_DIR=%ROOT_DIR%\.publish-root"
 set "ROOT_PUBLISH_EXE=%ROOT_STAGE_DIR%\MultiTool.exe"
 set "RUNTIME_EXE=%RUNTIME_DIR%\MultiTool.exe"
 set "RUNTIME_EXE_FALLBACK=%RUNTIME_DIR%\MultiTool-new.exe"
-set "RUNTIME_LEGACY_EXE=%RUNTIME_DIR%\AutoClicker.exe"
+set "RUNTIME_LEGACY_EXE=%RUNTIME_DIR%\MultiTool.exe"
 set "RUNTIME_FFMPEG_EXE=%RUNTIME_DIR%\ffmpeg.exe"
 set "DEPENDENCY_INSTALLER=%ROOT_DIR%\tools\install-runtime-dependencies.bat"
 set "DOTNET_EXE=%USERPROFILE%\.dotnet\dotnet.exe"
@@ -64,9 +64,9 @@ if not errorlevel 1 (
     exit /b 1
 )
 
-taskkill /IM AutoClicker.exe /F /T >nul 2>&1
+taskkill /IM MultiTool.exe /F /T >nul 2>&1
 if not errorlevel 1 (
-    echo Closed running AutoClicker.exe.
+    echo Closed running MultiTool.exe.
     timeout /t 1 /nobreak >nul
 )
 
@@ -105,8 +105,8 @@ if exist "%LEGACY_APP_LEGACY_EXE%" (
     del /q "%LEGACY_APP_LEGACY_EXE%"
 )
 
-if exist "%ROOT_DIR%\AutoClicker.App.exe" (
-    del /q "%ROOT_DIR%\AutoClicker.App.exe"
+if exist "%ROOT_DIR%\MultiTool.App.exe" (
+    del /q "%ROOT_DIR%\MultiTool.App.exe"
 )
 
 if not exist "%ROOT_PUBLISH_EXE%" (

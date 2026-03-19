@@ -21,10 +21,8 @@ if errorlevel 1 (
 set "ROOT_DIR=%~dp0"
 set "REBUILD_SCRIPT=%ROOT_DIR%tools\rebuild-app.bat"
 set "DEPENDENCY_SCRIPT=%ROOT_DIR%tools\install-runtime-dependencies.bat"
-set "REMOVE_STARTUP_SCRIPT=%ROOT_DIR%tools\remove-startup-launcher.bat"
-set "STARTUP_SCRIPT=%ROOT_DIR%tools\install-startup-launcher.bat"
 
-for %%S in ("%REBUILD_SCRIPT%" "%DEPENDENCY_SCRIPT%" "%REMOVE_STARTUP_SCRIPT%" "%STARTUP_SCRIPT%") do (
+for %%S in ("%REBUILD_SCRIPT%" "%DEPENDENCY_SCRIPT%") do (
     if not exist "%%~fS" (
         echo Required script was not found:
         echo   %%~fS
@@ -52,23 +50,8 @@ if errorlevel 1 (
 )
 
 echo.
-call "%REMOVE_STARTUP_SCRIPT%"
-if errorlevel 1 (
-    echo.
-    echo Startup launcher removal failed. Stopping run-to-start setup.
-    exit /b 1
-)
-
-echo.
-call "%STARTUP_SCRIPT%"
-if errorlevel 1 (
-    echo.
-    echo Startup launcher install failed. Stopping run-to-start setup.
-    exit /b 1
-)
-
-echo.
 echo MultiTool run-to-start setup completed successfully.
+echo Manage Windows startup from inside MultiTool Settings using Run at startup.
 
 if not defined NO_LAUNCH (
     echo.

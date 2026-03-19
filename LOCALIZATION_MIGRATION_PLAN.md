@@ -1,217 +1,217 @@
-﻿# Localization Migration Plan (Per File)
+# Localization Migration Plan (Per File)
 
-Goal: remove user-facing hardcoded strings by moving them to src/AutoClicker.App/Localization/AppLanguageStrings.cs.
+Goal: remove user-facing hardcoded strings by moving them to src/MultiTool.App/Localization/AppLanguageStrings.cs.
 
 Status legend:
 - [ ] Not started
 - [~] In progress
 - [x] Done
 
-- [x] src/AutoClicker.App/App.xaml  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/App.xaml.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Converters/EnumDisplayNameConverter.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Helpers/HotkeyDisplayNameFormatter.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Localization/AppLanguageStrings.cs  |  Maintain keys/values catalog
-- [x] src/AutoClicker.App/Models/DisplayRefreshRecommendationItem.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/DriverUpdateItem.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/EmptyDirectoryItem.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/InstallerOperationItem.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/InstallerOperationQueueState.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/InstallerPackageItem.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/InstallerPackageOptionItem.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/SavedMacroEntry.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/ScreenshotOptionsResult.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Models/UsefulSiteItem.cs  |  Audit and migrate surfaced UI/status text
-- [x] src/AutoClicker.App/Services/AboutWindowService.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/AppLaunchOptions.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/AppLog.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/ClipboardTextService.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/CoordinateCaptureDialogService.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/FolderPickerService.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/HotkeySettingsDialogService.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/IAboutWindowService.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/IClipboardTextService.cs  |  Migrate user-visible strings to catalog
-- [x] src/AutoClicker.App/Services/ICoordinateCaptureDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IFolderPickerService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IHotkeySettingsDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IMacroEditorDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IMacroFileDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IMacroHotkeyAssignmentsDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IMacroLibraryService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IMacroNamePromptService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IScreenshotAreaSelectionService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IScreenshotOptionsDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IShortcutHotkeyDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/IThemeService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/MacroEditorDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/MacroFileDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/MacroHotkeyAssignmentsDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/MacroLibraryService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/MacroNamePromptService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/ScreenshotAreaSelectionService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/ScreenshotOptionsDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/ShortcutHotkeyDialogService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Services/ThemeService.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/ViewModels/HotkeySettingsViewModel.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/ViewModels/MacroEditorViewModel.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/ViewModels/MacroEventEditorItem.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/ViewModels/MacroHotkeyAssignmentItemViewModel.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/ViewModels/MacroHotkeyAssignmentsWindowViewModel.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/ViewModels/MainWindowViewModel.cs  |  Migrate user-visible strings to catalog
-- [~] src/AutoClicker.App/ViewModels/MainWindowViewModel.Installer.cs  |  Migrate user-visible strings to catalog
-- [~] src/AutoClicker.App/ViewModels/MainWindowViewModel.MacroHotkeys.cs  |  Migrate user-visible strings to catalog
-- [~] src/AutoClicker.App/ViewModels/MainWindowViewModel.Tools.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/ViewModels/ShortcutHotkeyWindowViewModel.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/AboutWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/AboutWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/CoordinateCaptureWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/CoordinateCaptureWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/HotkeySettingsWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/HotkeySettingsWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/MacroEditorWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/MacroEditorWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/MacroHotkeyAssignmentsWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/MacroHotkeyAssignmentsWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/MacroNamePromptWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/MacroNamePromptWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/MainWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/MainWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/ScreenshotAreaSelectionWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/ScreenshotAreaSelectionWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/ScreenshotOptionsWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/ScreenshotOptionsWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/ShortcutHotkeyWindow.xaml  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.App/Views/ShortcutHotkeyWindow.xaml.cs  |  Migrate user-visible strings to catalog
-- [ ] src/AutoClicker.Core/Defaults/DefaultSettingsFactory.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Enums/ClickKind.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/ClickLocationMode.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/ClickMouseButton.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/CustomInputKind.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/HotkeyAction.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/HotkeyInputKind.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/HotkeyModifiers.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/MacroEventKind.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/MacroHotkeyPlaybackMode.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/RepeatMode.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Enums/ScreenshotMode.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Models/AppSettings.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/AppUpdateInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/BrowserLaunchResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/ClickSettings.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/DisplayRefreshApplyResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/DisplayRefreshRecommendation.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/DriverHardwareInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/DriverUpdateCandidate.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/DriverUpdateInstallResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/DriverUpdateScanResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/EdgeRemovalResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/EdgeRemovalStatus.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/EmptyDirectoryCandidate.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/EmptyDirectoryDeleteResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/EmptyDirectoryScanProgress.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/EmptyDirectoryScanResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/FnCtrlSwapResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/FnCtrlSwapStatus.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HardwareDisplayAdapterInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HardwareInventoryReport.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HardwarePartitionInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HardwarePciDeviceInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HardwareRaidInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HardwareSensorInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HardwareStorageDriveInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HotkeyBinding.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/HotkeySettings.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerCatalogItem.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerEnvironmentInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerOperationResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerOptionDefinition.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerPackageAction.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerPackageCapabilities.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerPackageOptionSelection.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerPackageStatus.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/InstallerSettings.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/MacroEvent.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/MacroHotkeyAssignment.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/MacroSettings.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/MouseSensitivityApplyResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/MouseSensitivityStatus.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/OneDriveRemovalResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/OneDriveRemovalStatus.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/RecordedMacro.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/ScreenPoint.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/ScreenRectangle.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/ScreenshotSettings.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/ShortcutHotkeyInfo.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/ShortcutHotkeyScanProgress.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/ShortcutHotkeyScanResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/ToolSettings.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/UiSettings.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/Windows11EeaMediaPreparationResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/WindowsSearchReindexResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/WindowsSearchReindexStatus.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/WindowsSearchReplacementResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/WindowsSearchReplacementStatus.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/WindowsTelemetryResult.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Models/WindowsTelemetryStatus.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Results/HotkeyPressedEventArgs.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Results/HotkeyRegistrationResult.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Results/RunningStateChangedEventArgs.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Results/ValidationIssue.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Results/ValidationResult.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/AutoClickerController.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Core/Services/IAppSettingsStore.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IAppUpdateService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IAutoClickerController.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IBrowserLauncherService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/ICursorService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IDisplayRefreshRateService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IDriverUpdateService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IEdgeRemovalService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IEmptyDirectoryService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IFirefoxExtensionService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IFnCtrlSwapService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IHardwareInventoryService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IHotkeyService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IInstallerService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IMacroFileStore.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IMacroService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IMouseInputService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IMouseSensitivityService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IOneDriveRemovalService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IScreenshotCaptureService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IShortcutHotkeyInventoryService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/ITrayIconService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IWindows11EeaMediaService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IWindowsSearchReindexService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IWindowsSearchReplacementService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Services/IWindowsTelemetryService.cs  |  Audit only (likely no UI text)
-- [ ] src/AutoClicker.Core/Validation/SettingsValidator.cs  |  Audit and migrate any surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Hotkeys/WindowsHotkeyService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Input/WindowsCursorService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Input/WindowsMouseInputService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Installer/WindowsFirefoxExtensionService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Installer/WindowsWingetInstallerService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Interop/Gdi32.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Interop/Kernel32.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Interop/User32.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Macro/WindowsMacroService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Persistence/JsonAppSettingsStore.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Persistence/JsonMacroFileStore.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Screenshot/WindowsScreenshotCaptureService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/NtfsFolderCountProvider.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/Windows11EeaMediaService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsBrowserLauncherService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsDisplayRefreshRateService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsDriverUpdateService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsEdgeRemovalService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsEmptyDirectoryService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsFnCtrlSwapService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsHardwareInventoryService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsMouseSensitivityService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsOneDriveRemovalService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsSearchReindexService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsSearchReplacementService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsShortcutHotkeyInventoryService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tools/WindowsTelemetryService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Tray/NotifyIconTrayService.cs  |  Audit and migrate surfaced UI/status text
-- [ ] src/AutoClicker.Infrastructure.Windows/Updates/GitHubAppUpdateService.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/App.xaml  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/App.xaml.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Converters/EnumDisplayNameConverter.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Helpers/HotkeyDisplayNameFormatter.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Localization/AppLanguageStrings.cs  |  Maintain keys/values catalog
+- [x] src/MultiTool.App/Models/DisplayRefreshRecommendationItem.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/DriverUpdateItem.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/EmptyDirectoryItem.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/InstallerOperationItem.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/InstallerOperationQueueState.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/InstallerPackageItem.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/InstallerPackageOptionItem.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/SavedMacroEntry.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/ScreenshotOptionsResult.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Models/UsefulSiteItem.cs  |  Audit and migrate surfaced UI/status text
+- [x] src/MultiTool.App/Services/AboutWindowService.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/AppLaunchOptions.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/AppLog.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/ClipboardTextService.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/CoordinateCaptureDialogService.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/FolderPickerService.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/HotkeySettingsDialogService.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/IAboutWindowService.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/IClipboardTextService.cs  |  Migrate user-visible strings to catalog
+- [x] src/MultiTool.App/Services/ICoordinateCaptureDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IFolderPickerService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IHotkeySettingsDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IMacroEditorDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IMacroFileDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IMacroHotkeyAssignmentsDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IMacroLibraryService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IMacroNamePromptService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IScreenshotAreaSelectionService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IScreenshotOptionsDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IShortcutHotkeyDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/IThemeService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/MacroEditorDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/MacroFileDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/MacroHotkeyAssignmentsDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/MacroLibraryService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/MacroNamePromptService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/ScreenshotAreaSelectionService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/ScreenshotOptionsDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/ShortcutHotkeyDialogService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Services/ThemeService.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/ViewModels/HotkeySettingsViewModel.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/ViewModels/MacroEditorViewModel.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/ViewModels/MacroEventEditorItem.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/ViewModels/MacroHotkeyAssignmentItemViewModel.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/ViewModels/MacroHotkeyAssignmentsWindowViewModel.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/ViewModels/MainWindowViewModel.cs  |  Migrate user-visible strings to catalog
+- [~] src/MultiTool.App/ViewModels/MainWindowViewModel.Installer.cs  |  Migrate user-visible strings to catalog
+- [~] src/MultiTool.App/ViewModels/MainWindowViewModel.MacroHotkeys.cs  |  Migrate user-visible strings to catalog
+- [~] src/MultiTool.App/ViewModels/MainWindowViewModel.Tools.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/ViewModels/ShortcutHotkeyWindowViewModel.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/AboutWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/AboutWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/CoordinateCaptureWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/CoordinateCaptureWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/HotkeySettingsWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/HotkeySettingsWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/MacroEditorWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/MacroEditorWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/MacroHotkeyAssignmentsWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/MacroHotkeyAssignmentsWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/MacroNamePromptWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/MacroNamePromptWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/MainWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/MainWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/ScreenshotAreaSelectionWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/ScreenshotAreaSelectionWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/ScreenshotOptionsWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/ScreenshotOptionsWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/ShortcutHotkeyWindow.xaml  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.App/Views/ShortcutHotkeyWindow.xaml.cs  |  Migrate user-visible strings to catalog
+- [ ] src/MultiTool.Core/Defaults/DefaultSettingsFactory.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Enums/ClickKind.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/ClickLocationMode.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/ClickMouseButton.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/CustomInputKind.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/HotkeyAction.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/HotkeyInputKind.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/HotkeyModifiers.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/MacroEventKind.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/MacroHotkeyPlaybackMode.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/RepeatMode.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Enums/ScreenshotMode.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Models/AppSettings.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/AppUpdateInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/BrowserLaunchResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/ClickSettings.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/DisplayRefreshApplyResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/DisplayRefreshRecommendation.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/DriverHardwareInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/DriverUpdateCandidate.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/DriverUpdateInstallResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/DriverUpdateScanResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/EdgeRemovalResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/EdgeRemovalStatus.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/EmptyDirectoryCandidate.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/EmptyDirectoryDeleteResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/EmptyDirectoryScanProgress.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/EmptyDirectoryScanResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/FnCtrlSwapResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/FnCtrlSwapStatus.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HardwareDisplayAdapterInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HardwareInventoryReport.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HardwarePartitionInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HardwarePciDeviceInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HardwareRaidInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HardwareSensorInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HardwareStorageDriveInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HotkeyBinding.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/HotkeySettings.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerCatalogItem.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerEnvironmentInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerOperationResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerOptionDefinition.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerPackageAction.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerPackageCapabilities.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerPackageOptionSelection.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerPackageStatus.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/InstallerSettings.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/MacroEvent.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/MacroHotkeyAssignment.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/MacroSettings.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/MouseSensitivityApplyResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/MouseSensitivityStatus.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/OneDriveRemovalResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/OneDriveRemovalStatus.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/RecordedMacro.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/ScreenPoint.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/ScreenRectangle.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/ScreenshotSettings.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/ShortcutHotkeyInfo.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/ShortcutHotkeyScanProgress.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/ShortcutHotkeyScanResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/ToolSettings.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/UiSettings.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/Windows11EeaMediaPreparationResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/WindowsSearchReindexResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/WindowsSearchReindexStatus.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/WindowsSearchReplacementResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/WindowsSearchReplacementStatus.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/WindowsTelemetryResult.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Models/WindowsTelemetryStatus.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Results/HotkeyPressedEventArgs.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Results/HotkeyRegistrationResult.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Results/RunningStateChangedEventArgs.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Results/ValidationIssue.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Results/ValidationResult.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/AutoClickerController.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Core/Services/IAppSettingsStore.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IAppUpdateService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IAutoClickerController.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IBrowserLauncherService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/ICursorService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IDisplayRefreshRateService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IDriverUpdateService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IEdgeRemovalService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IEmptyDirectoryService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IFirefoxExtensionService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IFnCtrlSwapService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IHardwareInventoryService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IHotkeyService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IInstallerService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IMacroFileStore.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IMacroService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IMouseInputService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IMouseSensitivityService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IOneDriveRemovalService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IScreenshotCaptureService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IShortcutHotkeyInventoryService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/ITrayIconService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IWindows11EeaMediaService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IWindowsSearchReindexService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IWindowsSearchReplacementService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Services/IWindowsTelemetryService.cs  |  Audit only (likely no UI text)
+- [ ] src/MultiTool.Core/Validation/SettingsValidator.cs  |  Audit and migrate any surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Hotkeys/WindowsHotkeyService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Input/WindowsCursorService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Input/WindowsMouseInputService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Installer/WindowsFirefoxExtensionService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Installer/WindowsWingetInstallerService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Interop/Gdi32.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Interop/Kernel32.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Interop/User32.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Macro/WindowsMacroService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Persistence/JsonAppSettingsStore.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Persistence/JsonMacroFileStore.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Screenshot/WindowsScreenshotCaptureService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/NtfsFolderCountProvider.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/Windows11EeaMediaService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsBrowserLauncherService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsDisplayRefreshRateService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsDriverUpdateService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsEdgeRemovalService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsEmptyDirectoryService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsFnCtrlSwapService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsHardwareInventoryService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsMouseSensitivityService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsOneDriveRemovalService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsSearchReindexService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsSearchReplacementService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsShortcutHotkeyInventoryService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tools/WindowsTelemetryService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Tray/NotifyIconTrayService.cs  |  Audit and migrate surfaced UI/status text
+- [ ] src/MultiTool.Infrastructure.Windows/Updates/GitHubAppUpdateService.cs  |  Audit and migrate surfaced UI/status text

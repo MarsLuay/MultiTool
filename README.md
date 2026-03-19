@@ -14,12 +14,18 @@ MultiTool is a Windows app that combines several everyday utility features in on
 ## Quick start (beginner friendly)
 
 1. Make sure you are on Windows.
-2. In the repository root, right-click `run-to-start.bat` and run as administrator.
-3. If Windows shows a UAC/admin prompt, click Yes.
-4. Wait for the script to finish building and setup.
-5. MultiTool launches automatically when complete.
+2. If `MultiTool.exe` is already in the repository root, launch it directly.
+3. If you want the helper to install dependencies, rebuild, and launch for you, right-click `run-to-start.bat` and run as administrator.
+4. If Windows shows a UAC/admin prompt, click Yes.
+5. Wait for the script to finish setup and launch MultiTool.
 
 ## Run again later
 
 - Open `MultiTool.exe` in the repository root.
 - Or run `run-to-start.bat` as admin again whenever you want to rebuild and launch in one step.
+
+## Run at startup
+
+- Open MultiTool, go to Settings, and turn on `Run at startup`.
+- That in-app setting is the main startup control and cleans up old Startup-folder shortcuts from earlier versions.
+- `tools\install-startup-launcher.bat` and `tools\remove-startup-launcher.bat` are optional command-line helpers that now toggle the same Windows startup registration used by the app setting.

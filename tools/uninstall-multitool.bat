@@ -14,7 +14,7 @@ echo That includes:
 echo   - MultiTool.exe
 echo   - Logs, Macros, and Resources
 echo   - src, tests, and the tools folder
-echo   - run-to-start.bat and the helper scripts
+echo   - run-to-start.bat, the helper scripts, and the current Run at startup registration
 echo.
 echo This cannot be undone.
 echo.
@@ -35,7 +35,7 @@ if errorlevel 2 (
 echo.
 echo Closing MultiTool if it is running...
 taskkill /IM MultiTool.exe /F /T >nul 2>&1
-taskkill /IM AutoClicker.exe /F /T >nul 2>&1
+taskkill /IM MultiTool.exe /F /T >nul 2>&1
 
 if exist "%SHORTCUT_REMOVER%" (
     call "%SHORTCUT_REMOVER%" >nul 2>&1

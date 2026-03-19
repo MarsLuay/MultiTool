@@ -1,0 +1,3197 @@
+<Window x:Class="MultiTool.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:converters="clr-namespace:MultiTool.App.Converters"
+        Title="{Binding WindowTitle}"
+        Width="520"
+        Height="540"
+        MinWidth="420"
+        MinHeight="380"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False"
+        WindowStyle="None"
+        PreviewMouseDown="MainWindow_OnPreviewMouseDown"
+        PreviewKeyDown="MainWindow_OnPreviewKeyDown"
+        PreviewMouseWheel="MainWindow_OnPreviewMouseWheel"
+        Topmost="{Binding IsTopMost}">
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="0"
+                        CornerRadius="0"
+                        GlassFrameThickness="0"
+                        ResizeBorderThickness="6"
+                        UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
+  <Window.Resources>
+    <converters:EnumDisplayNameConverter x:Key="EnumDisplayNameConverter" />
+    <Style x:Key="CaptureReadyButtonStyle" TargetType="ToggleButton">
+      <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="6,4" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="ToolTip" Value="Click here, then press the new hotkey." />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="CaptureBorder"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="4"
+                    SnapsToDevicePixels="True">
+              <ContentPresenter Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="CaptureBorder" Property="Background" Value="{DynamicResource InputActiveBackgroundBrush}" />
+                <Setter TargetName="CaptureBorder" Property="BorderBrush" Value="{DynamicResource InputActiveBorderBrush}" />
+                <Setter TargetName="CaptureBorder" Property="BorderThickness" Value="3" />
+                <Setter Property="Foreground" Value="{DynamicResource InputActiveTextBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="RepeatCountTextBoxStyle" TargetType="TextBox">
+      <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="4,2" />
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Background" Value="{DynamicResource DisabledBackgroundBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="LinkButtonStyle" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <ContentPresenter />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="InstallerInlineExpanderToggleStyle" TargetType="ToggleButton">
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="HeaderBorder"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="6"
+                    SnapsToDevicePixels="True">
+              <Grid Margin="{TemplateBinding Padding}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Path x:Name="Chevron"
+                      Grid.Column="0"
+                      Width="10"
+                      Height="6"
+                      Margin="0,0,8,0"
+                      VerticalAlignment="Center"
+                      Data="M 0 0 L 5 5 L 10 0"
+                      Stroke="{TemplateBinding Foreground}"
+                      StrokeThickness="2"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round">
+                  <Path.RenderTransform>
+                    <RotateTransform Angle="0" CenterX="5" CenterY="3" />
+                  </Path.RenderTransform>
+                </Path>
+
+                <ContentPresenter Grid.Column="1"
+                                  VerticalAlignment="Center"
+                                  RecognizesAccessKey="True" />
+              </Grid>
+            </Border>
+
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                <Setter TargetName="Chevron" Property="RenderTransform">
+                  <Setter.Value>
+                    <RotateTransform Angle="180" CenterX="5" CenterY="3" />
+                  </Setter.Value>
+                </Setter>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource DisabledBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="InstallerInlineExpanderStyle" TargetType="Expander">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Expander">
+            <StackPanel>
+              <ToggleButton x:Name="HeaderSite"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            Content="{TemplateBinding Header}"
+                            Foreground="{TemplateBinding Foreground}"
+                            IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                            Style="{StaticResource InstallerInlineExpanderToggleStyle}" />
+              <Border x:Name="ContentBorder"
+                      Margin="0,8,0,0"
+                      Padding="10"
+                      Background="{DynamicResource ControlBackgroundBrush}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Visibility="Collapsed">
+                <ContentPresenter />
+              </Border>
+            </StackPanel>
+
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsExpanded" Value="True">
+                <Setter TargetName="ContentBorder" Property="Visibility" Value="Visible" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="InstallerActionButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style x:Key="InstallerActionPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+      <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SelectionBackgroundBrush}" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="{DynamicResource InputActiveBackgroundBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource InputActiveBackgroundBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource InputActiveTextBrush}" />
+        </Trigger>
+        <Trigger Property="IsPressed" Value="True">
+          <Setter Property="Background" Value="{DynamicResource InputActiveBackgroundBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource InputActiveBackgroundBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource InputActiveTextBrush}" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Background" Value="{DynamicResource DisabledBackgroundBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </Window.Resources>
+
+  <Border BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          Background="{DynamicResource WindowBackgroundBrush}">
+      <Grid x:Name="MainRootGrid"
+          Margin="0"
+          Focusable="True"
+          FocusVisualStyle="{x:Null}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="34" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <Grid Grid.Row="0"
+            Background="{DynamicResource SurfaceAltBrush}"
+            MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown"
+            MouseMove="TitleBar_OnMouseMove"
+            MouseLeftButtonUp="TitleBar_OnMouseLeftButtonUp"
+            LostMouseCapture="TitleBar_OnLostMouseCapture">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0"
+                    Margin="12,0,0,0"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+          <Image Width="14"
+                 Height="14"
+                 Margin="0,0,6,0"
+                 Source="Resources/Icons/icon.ico">
+            <Image.Style>
+              <Style TargetType="Image">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsWindowPinned}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Image.Style>
+          </Image>
+
+          <TextBlock FontWeight="SemiBold"
+                     Text="{Binding WindowTitle}" />
+
+          <TextBlock Margin="8,0,0,0"
+                     Foreground="{DynamicResource AccentBrush}"
+                     FontWeight="SemiBold"
+                     Text="[PINNED]">
+            <TextBlock.Style>
+              <Style TargetType="TextBlock">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsWindowPinned}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </TextBlock.Style>
+          </TextBlock>
+        </StackPanel>
+
+        <Button Grid.Column="1"
+                Width="38"
+                Height="26"
+                Margin="0,4,0,4"
+                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                Click="MinimizeButton_OnClick"
+                Content="_" />
+        <Button Grid.Column="2"
+                Width="38"
+                Height="26"
+                Margin="0,4,0,4"
+                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                Click="MaximizeRestoreButton_OnClick"
+                Content="[ ]" />
+        <Button Grid.Column="3"
+                Width="38"
+                Height="26"
+                Margin="0,4,6,4"
+                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                Click="CloseButton_OnClick"
+                Content="X" />
+      </Grid>
+
+      <Border Grid.Row="1"
+              Margin="16,12,16,0"
+              Padding="10,8"
+              Background="{DynamicResource SurfaceAltBrush}"
+              BorderBrush="{DynamicResource AccentBrush}"
+              BorderThickness="1"
+              CornerRadius="6">
+        <Border.Style>
+          <Style TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding ShouldShowAdminModeBanner}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <TextBlock Grid.Column="0"
+                     Text="{Binding AdminModeBannerText}"
+                     TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+
+          <Button Grid.Column="1"
+                  Margin="8,0,0,0"
+                  Padding="4,2"
+                  VerticalAlignment="Top"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Command="{Binding DismissAdminBannerCommand}"
+                  Content="X"
+                  FontWeight="Bold"
+                  Cursor="Hand" />
+        </Grid>
+      </Border>
+
+      <Grid Grid.Row="2"
+            Margin="16,12,16,16">
+        <TabControl>
+          <TabControl.LayoutTransform>
+            <ScaleTransform x:Name="MainContentScaleTransform"
+                            ScaleX="1"
+                            ScaleY="1" />
+          </TabControl.LayoutTransform>
+      <TabItem Header="{Binding ClickerTabHeaderText}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <Grid Margin="0,12,0,0">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <GroupBox Grid.Row="0" Header="Click Setup" Margin="0,0,0,12">
+              <Grid Margin="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="12" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                  <TextBlock Margin="4,0,4,6"
+                             FontWeight="SemiBold"
+                             Text="{Binding IntervalLabelText}" />
+                  <UniformGrid Columns="2">
+                    <StackPanel Margin="4">
+                      <TextBlock Margin="0,0,0,4" Text="{Binding HoursLabelText}" />
+                      <TextBox Text="{Binding Hours, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Margin="4">
+                      <TextBlock Margin="0,0,0,4" Text="{Binding MinutesLabelText}" />
+                      <TextBox Text="{Binding Minutes, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Margin="4">
+                      <TextBlock Margin="0,0,0,4" Text="{Binding SecondsLabelText}" />
+                      <TextBox Text="{Binding Seconds, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Margin="4">
+                      <TextBlock Margin="0,0,0,4" Text="{Binding MillisecondsLabelText}" />
+                      <TextBox Text="{Binding Milliseconds, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                  </UniformGrid>
+
+                  <StackPanel Margin="4,10,4,0">
+                    <CheckBox Content="{Binding RandomTimingLabelText}"
+                              IsChecked="{Binding IsRandomTimingEnabled}" />
+                    <StackPanel Margin="24,6,0,0"
+                                Orientation="Horizontal">
+                      <TextBlock VerticalAlignment="Center"
+                                 Text="{Binding RandomTimingVarianceLabelText}" />
+                      <TextBox Width="84"
+                               Margin="8,0,0,0"
+                               IsEnabled="{Binding IsRandomTimingVarianceEnabled}"
+                               Text="{Binding RandomTimingVarianceMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <TextBlock Margin="24,6,0,0"
+                               FontSize="12"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding RandomTimingHelperText}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                  <TextBlock Margin="4,0,4,6"
+                             FontWeight="SemiBold"
+                             Text="{Binding RepeatLabelText}" />
+                  <Grid Margin="4,0,4,10">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox Grid.Column="0"
+                              Margin="0,0,8,0"
+                              ItemsSource="{Binding RepeatModes}"
+                              SelectedItem="{Binding SelectedRepeatMode}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBox Grid.Column="1"
+                             Style="{StaticResource RepeatCountTextBoxStyle}"
+                             Width="72"
+                             IsEnabled="{Binding IsRepeatCountEnabled}"
+                             Text="{Binding RepeatCount, UpdateSourceTrigger=PropertyChanged}" />
+                  </Grid>
+
+                  <StackPanel IsEnabled="{Binding UsesMousePositionSettings}">
+                    <TextBlock Margin="4,0,4,6"
+                               FontWeight="SemiBold"
+                               Text="{Binding PositionLabelText}" />
+                    <Grid Margin="4,0,4,0">
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <ComboBox Grid.Column="0"
+                                Grid.Row="0"
+                                Margin="0,0,8,0"
+                                MinWidth="110"
+                                ItemsSource="{Binding LocationModes}"
+                                SelectedItem="{Binding SelectedLocationMode}">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                      <Button Grid.Row="0" Grid.Column="1" Width="68" Command="{Binding CaptureCoordinatesCommand}" Content="{Binding CaptureButtonText}" />
+
+                      <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Orientation="Horizontal">
+                        <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="{Binding XLabelText}" />
+                        <TextBox Width="64" Margin="0,0,12,0" Text="{Binding FixedX, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Text="{Binding YLabelText}" />
+                        <TextBox Width="64" Text="{Binding FixedY, UpdateSourceTrigger=PropertyChanged}" />
+                      </StackPanel>
+                    </Grid>
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+            </GroupBox>
+
+            <GroupBox Grid.Row="1" Header="Click Options" Margin="0,0,0,12">
+              <Grid Margin="12">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding InputLabelText}" />
+                <ComboBox Grid.Row="0"
+                          Grid.Column="1"
+                          Margin="4"
+                          ItemsSource="{Binding MouseButtons}"
+                          SelectedItem="{Binding SelectedMouseButton}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding TypeLabelText}" />
+                <ComboBox Grid.Row="1"
+                          Grid.Column="1"
+                          Margin="4"
+                          ItemsSource="{Binding ClickKinds}"
+                          SelectedItem="{Binding SelectedClickKind}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding CustomInputLabelText}" />
+                <TextBox x:Name="CustomKeyTextBox"
+                         Grid.Row="2"
+                         Grid.Column="1"
+                         Margin="4"
+                         IsReadOnly="True"
+                         IsEnabled="{Binding IsCustomKeySelected}"
+                         PreviewMouseDown="CustomInputTextBox_OnPreviewMouseDown"
+                         PreviewKeyDown="CustomKeyTextBox_OnPreviewKeyDown"
+                         Text="{Binding CustomKeyDisplayText}"
+                         ToolTip="{Binding CustomKeyOrMousePromptText}" />
+              </Grid>
+            </GroupBox>
+
+            <Grid Grid.Row="2">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0"
+                         Margin="0,0,0,8"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         Text="{Binding StatusMessage}" />
+
+              <WrapPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Margin="4,0,8,0" VerticalAlignment="Center" Text="{Binding ClickerHotkeyLabelText}" />
+                <ToggleButton x:Name="ClickerHotkeyTextBox"
+                              Margin="4"
+                              MinWidth="96"
+                              Style="{StaticResource CaptureReadyButtonStyle}"
+                              GotKeyboardFocus="ClickerHotkeyTextBox_OnGotKeyboardFocus"
+                              LostKeyboardFocus="CaptureButton_OnLostKeyboardFocus"
+                              PreviewMouseDown="ClickerHotkeyTextBox_OnPreviewMouseDown"
+                              PreviewKeyDown="ClickerHotkeyTextBox_OnPreviewKeyDown"
+                              Content="{Binding ClickerHotkeyDisplay}"
+                              ToolTip="{Binding HotkeyEditToolTip}" />
+              </WrapPanel>
+
+              <WrapPanel Grid.Row="2" HorizontalAlignment="Right">
+                <CheckBox Margin="12,0,0,0" VerticalAlignment="Center" Content="{Binding AlwaysOnTopLabelText}" IsChecked="{Binding IsTopMost}" />
+              </WrapPanel>
+
+              <TextBlock Grid.Row="3"
+                         Margin="0,10,0,0"
+                         FontSize="11"
+                         Foreground="{DynamicResource MutedTextBrush}"
+                         Text="{Binding ClickerForceStopHelperText}"
+                         TextAlignment="Center"
+                         TextWrapping="Wrap" />
+            </Grid>
+          </Grid>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="{Binding ScreenshotTabHeaderText}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="0,12,0,0">
+          <GroupBox Header="Capture" Margin="0,0,0,12">
+            <Grid Margin="12">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding ScreenshotHotkeyLabelText}" />
+              <ToggleButton x:Name="ScreenshotHotkeyTextBox"
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Margin="4"
+                            Style="{StaticResource CaptureReadyButtonStyle}"
+                            GotKeyboardFocus="ScreenshotHotkeyTextBox_OnGotKeyboardFocus"
+                            LostKeyboardFocus="CaptureButton_OnLostKeyboardFocus"
+                            PreviewMouseDown="ScreenshotHotkeyTextBox_OnPreviewMouseDown"
+                            PreviewKeyDown="ScreenshotHotkeyTextBox_OnPreviewKeyDown"
+                            Content="{Binding ScreenshotHotkeyDisplay}"
+                            ToolTip="{Binding HotkeyEditToolTip}" />
+
+              <TextBlock Grid.Row="1"
+                         Grid.Column="1"
+                         Margin="4,-2,4,8"
+                         Foreground="{DynamicResource AccentBrush}"
+                         Visibility="Collapsed"
+                         Text="{Binding WaitingForKeyText}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding ElementName=ScreenshotHotkeyTextBox, Path=IsChecked}" Value="True">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+
+              <TextBlock Grid.Row="2" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding FolderLabelText}" />
+              <TextBox Grid.Row="2"
+                       Grid.Column="1"
+                       Margin="4"
+                       Text="{Binding ScreenshotFolderPath, UpdateSourceTrigger=PropertyChanged}" />
+                      <Button Grid.Row="2"
+                      Grid.Column="2"
+                      Margin="4"
+                      Padding="10,4"
+                      Command="{Binding BrowseScreenshotFolderCommand}"
+                      Content="{Binding BrowseButtonText}" />
+
+              <TextBlock Grid.Row="3" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding PrefixLabelText}" />
+              <TextBox Grid.Row="3"
+                       Grid.Column="1"
+                       Margin="4"
+                       Text="{Binding ScreenshotFilePrefix, UpdateSourceTrigger=PropertyChanged}" />
+
+              <TextBlock Grid.Row="4"
+                         Grid.ColumnSpan="3"
+                         Margin="4,4,4,0"
+                         Foreground="{DynamicResource MutedTextBrush}"
+                         Text="{Binding ScreenshotHelperText}"
+                         TextWrapping="Wrap" />
+
+                <WrapPanel Grid.Row="5" Grid.ColumnSpan="3" Margin="0,12,0,0" HorizontalAlignment="Right">
+                <Button Margin="4" Padding="12,6" Command="{Binding CaptureScreenshotCommand}" Content="{Binding CaptureScreenButtonText}" />
+                <Button Margin="4" Padding="12,6" Command="{Binding OpenScreenshotFolderCommand}" Content="{Binding OpenFolderButtonText}" />
+              </WrapPanel>
+            </Grid>
+          </GroupBox>
+
+          <GroupBox Header="Latest Screenshot">
+            <Grid Margin="12">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <Border Grid.Row="0"
+                       Margin="0,0,0,12"
+                       MinHeight="240"
+                       Padding="8"
+                       Background="{DynamicResource SurfaceAltBrush}"
+                       BorderBrush="{DynamicResource BorderBrush}"
+                       BorderThickness="1"
+                      CornerRadius="6">
+                <Grid>
+                  <MediaElement x:Name="LatestVideoPlayer"
+                                Stretch="Uniform"
+                                Source="{Binding LatestVideoSource}"
+                                LoadedBehavior="Manual"
+                                UnloadedBehavior="Stop"
+                                MediaOpened="LatestVideoPlayer_OnMediaOpened"
+                                MediaEnded="LatestVideoPlayer_OnMediaEnded">
+                    <MediaElement.Style>
+                      <Style TargetType="MediaElement">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsLatestMediaVideo}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </MediaElement.Style>
+                  </MediaElement>
+
+                  <Image Stretch="Uniform"
+                         Source="{Binding LatestScreenshotPreview}">
+                    <Image.Style>
+                      <Style TargetType="Image">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding HasLatestScreenshot}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding IsLatestMediaVideo}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Image.Style>
+                  </Image>
+
+                  <TextBlock HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             MaxWidth="260"
+                             Text="{Binding LatestScreenshotPlaceholderText}"
+                             TextAlignment="Center"
+                             TextWrapping="Wrap">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding HasLatestScreenshot}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding HasLatestVideo}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                </Grid>
+              </Border>
+
+              <TextBlock Grid.Row="1"
+                         Margin="0,0,0,6"
+                         FontWeight="SemiBold"
+                         Text="{Binding LatestScreenshotCaption}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsLatestMediaVideo}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+
+              <TextBlock Grid.Row="1"
+                         Margin="0,0,0,6"
+                         FontWeight="SemiBold"
+                         Text="{Binding LatestVideoCaption, StringFormat=Video: {0}}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsLatestMediaVideo}" Value="True">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+
+              <TextBlock Grid.Row="2"
+                         Margin="0,0,0,6"
+                         Foreground="{DynamicResource MutedTextBrush}"
+                         TextWrapping="Wrap">
+                <Run Text="Latest video: " />
+                <Run Text="{Binding LatestVideoCaption}" />
+              </TextBlock>
+
+              <TextBlock Grid.Row="3"
+                         Foreground="{DynamicResource MutedTextBrush}"
+                         Text="{Binding ScreenshotStatusMessage}"
+                         TextWrapping="Wrap" />
+            </Grid>
+          </GroupBox>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="{Binding MacroTabHeaderText}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <Grid Margin="0,12,0,0">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <GroupBox Header="Macro Controls" Margin="0,0,0,12">
+              <Grid Margin="12">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding NameLabelText}" />
+                <TextBox Grid.Row="0"
+                         Grid.Column="1"
+                         Margin="4"
+                         Text="{Binding MacroName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding PlayCountLabelText}" />
+                <StackPanel Grid.Row="1"
+                            Grid.Column="1"
+                            Margin="4"
+                            Orientation="Horizontal">
+                  <TextBox Width="96"
+                           HorizontalAlignment="Left"
+                           IsEnabled="{Binding IsMacroPlaybackCountEnabled}"
+                           Text="{Binding MacroPlaybackCount, UpdateSourceTrigger=PropertyChanged}" />
+                  <CheckBox Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            Content="{Binding MacroInfiniteLabelText}"
+                            IsChecked="{Binding IsMacroPlaybackInfinite}" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="2"
+                           Grid.Column="1"
+                           Margin="4,-2,4,8"
+                           FontSize="12"
+                           Foreground="{DynamicResource AccentBrush}"
+                           Text="{Binding MacroInfiniteHelperText}"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMacroPlaybackInfinite}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+
+                <CheckBox Grid.Row="3"
+                          Grid.ColumnSpan="2"
+                          Margin="4,4,4,0"
+                          Content="{Binding RecordMouseMovementLabelText}"
+                          IsChecked="{Binding RecordMacroMouseMovement}" />
+
+                <TextBlock Grid.Row="4"
+                           Grid.Column="0"
+                           Margin="4"
+                           VerticalAlignment="Center"
+                           Text="{Binding PlayHotkeyLabelText}" />
+                <ToggleButton x:Name="MacroHotkeyTextBox"
+                              Grid.Row="4"
+                              Grid.Column="1"
+                              Margin="4"
+                              Style="{StaticResource CaptureReadyButtonStyle}"
+                              GotKeyboardFocus="MacroHotkeyTextBox_OnGotKeyboardFocus"
+                              LostKeyboardFocus="CaptureButton_OnLostKeyboardFocus"
+                              PreviewMouseDown="MacroHotkeyTextBox_OnPreviewMouseDown"
+                              PreviewKeyDown="MacroHotkeyTextBox_OnPreviewKeyDown"
+                              Content="{Binding MacroHotkeyDisplay}" />
+
+                <TextBlock Grid.Row="5"
+                           Grid.Column="1"
+                           Margin="4,-2,4,8"
+                           Foreground="{DynamicResource AccentBrush}"
+                           Visibility="Collapsed"
+                           Text="{Binding WaitingForKeyText}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding ElementName=MacroHotkeyTextBox, Path=IsChecked}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Grid.Row="6"
+                           Grid.Column="0"
+                           Margin="4"
+                           VerticalAlignment="Center"
+                           Text="{Binding RecordHotkeyLabelText}" />
+                <ToggleButton x:Name="MacroRecordHotkeyTextBox"
+                              Grid.Row="6"
+                              Grid.Column="1"
+                              Margin="4"
+                              Style="{StaticResource CaptureReadyButtonStyle}"
+                              GotKeyboardFocus="MacroRecordHotkeyTextBox_OnGotKeyboardFocus"
+                              LostKeyboardFocus="CaptureButton_OnLostKeyboardFocus"
+                              PreviewMouseDown="MacroRecordHotkeyTextBox_OnPreviewMouseDown"
+                              PreviewKeyDown="MacroRecordHotkeyTextBox_OnPreviewKeyDown"
+                              Content="{Binding MacroRecordHotkeyDisplay}" />
+
+                <TextBlock Grid.Row="7"
+                           Grid.Column="1"
+                           Margin="4,-2,4,8"
+                           Foreground="{DynamicResource AccentBrush}"
+                           Visibility="Collapsed"
+                           Text="{Binding WaitingForKeyText}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding ElementName=MacroRecordHotkeyTextBox, Path=IsChecked}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Grid.Row="8"
+                           Grid.ColumnSpan="2"
+                           Margin="4,10,4,0"
+                           Text="{Binding MacroSummaryText}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="9"
+                           Grid.ColumnSpan="2"
+                           Margin="4,10,4,0"
+                           Text="{Binding MacroStatusMessage}"
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Grid.Row="10"
+                           Grid.ColumnSpan="2"
+                           Margin="0,14,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4" Padding="12,6" Command="{Binding NewMacroCommand}" Content="{Binding NewMacroButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding StartMacroRecordingCommand}" Content="{Binding RecordButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding StopMacroRecordingCommand}" Content="{Binding StopButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding PlayMacroCommand}" Content="{Binding PlayButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding SaveMacroCommand}" Content="{Binding SaveButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding LoadMacroCommand}" Content="{Binding LoadButtonText}" />
+                </WrapPanel>
+              </Grid>
+            </GroupBox>
+
+            <GroupBox Grid.Row="1" Header="Saved Macros" Margin="0,0,0,12">
+              <Grid Margin="12">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Grid.Column="0"
+                           Margin="4"
+                           VerticalAlignment="Center"
+                           Text="{Binding SavedLabelText}" />
+                <ComboBox Grid.Row="0"
+                          Grid.Column="1"
+                          Margin="4"
+                          DisplayMemberPath="DisplayName"
+                          IsEnabled="{Binding HasSavedMacros}"
+                          ItemsSource="{Binding SavedMacros}"
+                          SelectedItem="{Binding SelectedSavedMacro}" />
+
+                <Grid Grid.Row="1"
+                      Grid.ColumnSpan="2"
+                      Margin="0,8,0,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Row="0"
+                             Margin="4,0,4,8"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding SelectedSavedMacro.DisplayName, StringFormat=Selected macro: {0}, TargetNullValue=No saved macros found in the Macros folder yet.}"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="1"
+                             Margin="4,0,4,8"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding SelectedSavedMacroHotkeySummary}"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="2"
+                             Margin="4,0,4,8"
+                             FontWeight="SemiBold"
+                             Text="{Binding AssignedMacroHotkeysSummary}"
+                             TextWrapping="Wrap" />
+
+                  <Border Grid.Row="3"
+                          Margin="4,0,4,8"
+                          Padding="8"
+                          Background="{DynamicResource SurfaceAltBrush}"
+                          BorderBrush="{DynamicResource BorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6">
+                    <Grid>
+                      <TextBlock HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 Foreground="{DynamicResource MutedTextBrush}"
+                                 Visibility="Collapsed"
+                                 Text="{Binding NoAssignedMacroShortcutsText}">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding HasAssignedMacroHotkeys}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+
+                      <ScrollViewer MaxHeight="120"
+                                    VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding AssignedMacroHotkeys}">
+                          <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                              <Setter Property="Visibility" Value="Visible" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAssignedMacroHotkeys}" Value="False">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </ItemsControl.Style>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Margin="0,0,0,8"
+                                      Padding="8"
+                                      Background="{DynamicResource ControlBackgroundBrush}"
+                                      BorderBrush="{DynamicResource BorderBrush}"
+                                      BorderThickness="1"
+                                      CornerRadius="6">
+                                <StackPanel>
+                                  <TextBlock FontWeight="SemiBold"
+                                             Text="{Binding MacroDisplayName}" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Text="{Binding Hotkey.DisplayName, StringFormat=Shortcut: {0}}"
+                                             TextWrapping="Wrap" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Text="{Binding PlaybackMode, Converter={StaticResource EnumDisplayNameConverter}, StringFormat=Action: {0}}"
+                                             TextWrapping="Wrap" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Foreground="{DynamicResource MutedTextBrush}"
+                                             Text="{Binding IsEnabled, StringFormat=Turned on: {0}}"
+                                             TextWrapping="Wrap" />
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </ScrollViewer>
+                    </Grid>
+                  </Border>
+
+                      <WrapPanel Grid.Row="4"
+                         HorizontalAlignment="Right">
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding RefreshSavedMacrosCommand}"
+                        Content="{Binding RefreshButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding LoadSelectedSavedMacroCommand}"
+                        Content="{Binding LoadSelectedButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding EditSelectedSavedMacroCommand}"
+                        Content="{Binding EditSelectedButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding AssignSelectedMacroHotkeyCommand}"
+                      Content="{Binding MacroSetShortcutButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding ManageMacroHotkeysCommand}"
+                      Content="{Binding MacroEditShortcutsButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding OpenSavedMacrosFolderCommand}"
+                        Content="{Binding OpenFolderButtonText}" />
+                    </WrapPanel>
+                </Grid>
+              </Grid>
+            </GroupBox>
+
+          </Grid>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="{Binding InstallerTabHeaderText}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="0,12,0,0">
+            <GroupBox Header="Package Picker" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding InstallerPackagePickerDescriptionText}"
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,12,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Margin="0,0,8,0"
+                             VerticalAlignment="Center"
+                             Text="{Binding InstallerSearchLabelText}" />
+                  <TextBox Grid.Column="1"
+                           Text="{Binding InstallerSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding InstallerSelectionSummary}" />
+
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource AccentBrush}"
+                           Text="{Binding InstallerUpdateSummary}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding InstallerAppUpdateSummary}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding InstallerEnvironmentMessage}"
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectRecommendedInstallerPackagesCommand}"
+                          Content="My Picks" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectDeveloperInstallerPackagesCommand}"
+                          Content="Dev Stack" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ClearInstallerSelectionCommand}"
+                          Content="Clear" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding CheckAllInstallerUpdatesCommand}"
+                          Content="Check All Updates" />
+                </WrapPanel>
+
+                <WrapPanel Margin="0,0,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding InstallSelectedPackagesCommand}"
+                          Content="Install Selected" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding UpgradeSelectedPackagesCommand}"
+                          Content="Update Selected" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding UpgradeAllInstalledPackagesCommand}"
+                          Content="Update All Ready" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource ControlBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsInstallerProgressVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding InstallerProgressText}"
+                               TextWrapping="Wrap" />
+                    <ProgressBar Margin="0,8,0,0"
+                                 Height="16"
+                                 Minimum="0"
+                                 Maximum="{Binding InstallerProgressMaximum}"
+                                 Value="{Binding InstallerProgressValue}" />
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasInstallerOperations}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Left"
+                                 FontWeight="SemiBold"
+                                 Text="{Binding InstallerOperationQueueSummary}" />
+                      <Button DockPanel.Dock="Right"
+                              Margin="8,0,0,0"
+                              Padding="10,4"
+                              Command="{Binding ClearCompletedInstallerOperationsCommand}"
+                              Content="Clear Finished" />
+                    </DockPanel>
+
+                    <ScrollViewer Margin="0,10,0,0"
+                                  MaxHeight="180"
+                                  VerticalScrollBarVisibility="Auto">
+                      <ItemsControl ItemsSource="{Binding InstallerOperations}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Border Margin="0,0,0,8"
+                                    Padding="8"
+                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                              <StackPanel>
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding HeaderText}"
+                                           TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding StatusText}"
+                                           TextWrapping="Wrap">
+                                  <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                      <Style.Triggers>
+                                        <DataTrigger Binding="{Binding State}" Value="Queued">
+                                          <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="Running">
+                                          <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                        </DataTrigger>
+                                      </Style.Triggers>
+                                    </Style>
+                                  </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           Text="{Binding GuidanceText}"
+                                           TextWrapping="Wrap">
+                                  <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                      <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GuidanceText}" Value="">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding GuidanceText}" Value="{x:Null}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                      </Style.Triggers>
+                                    </Style>
+                                  </TextBlock.Style>
+                                </TextBlock>
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </ScrollViewer>
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ScrollViewer MaxHeight="340"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding InstallerPackagesView}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Width="214"
+                                  Margin="0,0,10,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <Border.Style>
+                              <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Style.Triggers>
+                                  <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                    <Setter Property="BorderThickness" Value="2" />
+                                  </DataTrigger>
+                                </Style.Triggers>
+                              </Style>
+                            </Border.Style>
+
+                            <StackPanel>
+                              <CheckBox IsChecked="{Binding IsSelected}">
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding DisplayName}" />
+                              </CheckBox>
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding Category}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Text="{Binding Description}"
+                                         TextWrapping="Wrap" />
+
+                              <Expander Margin="0,8,0,0"
+                                        Header="Firefox Add-ons">
+                                <Expander.Style>
+                                  <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding HasOptions}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </Expander.Style>
+
+                                <StackPanel Margin="0,8,0,0">
+                                  <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                                             Text="These use Firefox's supported policies system. MultiTool will apply them automatically, try to restart Firefox if it is already open, and may show a Windows admin prompt when Firefox policies need elevated write access."
+                                             TextWrapping="Wrap" />
+
+                                  <ItemsControl Margin="0,6,0,0"
+                                                ItemsSource="{Binding Options}">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <StackPanel Margin="0,6,0,0">
+                                          <CheckBox IsChecked="{Binding IsSelected}">
+                                            <TextBlock FontWeight="SemiBold"
+                                                       Text="{Binding DisplayName}" />
+                                          </CheckBox>
+
+                                          <TextBlock Margin="20,4,0,0"
+                                                     Foreground="{DynamicResource MutedTextBrush}"
+                                                     Text="{Binding Description}"
+                                                     TextWrapping="Wrap" />
+                                        </StackPanel>
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                </StackPanel>
+                              </Expander>
+
+                              <TextBlock Margin="0,8,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding PackageHintText}"
+                                         TextWrapping="Wrap" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         FontSize="11"
+                                         Text="{Binding CapabilitySummaryText}"
+                                         TextWrapping="Wrap" />
+
+                              <Expander Margin="0,8,0,0"
+                                        Header="Quick Actions">
+                                <Expander.Style>
+                                  <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                      </DataTrigger>
+                                      <DataTrigger Binding="{Binding HasAdvancedActions}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </Expander.Style>
+
+                                <StackPanel Margin="0,8,0,0">
+                                  <TextBlock Margin="0,0,0,8"
+                                             Foreground="{DynamicResource MutedTextBrush}"
+                                             FontSize="11"
+                                             Text="Use the quickest path below for this app."
+                                             TextWrapping="Wrap" />
+
+                                  <StackPanel>
+                                    <Button Command="{Binding DataContext.QueuePrimaryInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding PrimaryActionText}">
+                                      <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionPrimaryButtonStyle}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                          <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
+                                              <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                          </Style.Triggers>
+                                        </Style>
+                                      </Button.Style>
+                                    </Button>
+                                    <Button Command="{Binding DataContext.QueueInteractiveInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding InteractiveActionText}">
+                                      <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                          <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanQueueInteractiveAction}" Value="True">
+                                              <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                          </Style.Triggers>
+                                        </Style>
+                                      </Button.Style>
+                                    </Button>
+                                    <Button Command="{Binding DataContext.QueueReinstallInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="Reinstall">
+                                      <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                          <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanQueueReinstallAction}" Value="True">
+                                              <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                          </Style.Triggers>
+                                        </Style>
+                                      </Button.Style>
+                                    </Button>
+                                    <Button Command="{Binding DataContext.OpenInstallerPackagePageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding PageActionText}">
+                                      <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                          <Setter Property="Margin" Value="0" />
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                          <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanOpenRelevantPage}" Value="True">
+                                              <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                          </Style.Triggers>
+                                        </Style>
+                                      </Button.Style>
+                                    </Button>
+                                  </StackPanel>
+                                </StackPanel>
+                              </Expander>
+
+                              <TextBlock Margin="0,8,0,0"
+                                         FontWeight="SemiBold"
+                                         Text="{Binding StatusText}">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding IsInstalled}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                      </DataTrigger>
+                                      <DataTrigger Binding="{Binding HasUpdateAvailable}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding InstallerStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Cleanup Picks" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="This list is intentionally conservative. It only targets apps Windows and winget currently expose as removable, and Edge only works on systems where Microsoft allows it, such as current EEA installs."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding CleanupSelectionSummary}" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectRecommendedCleanupPackagesCommand}"
+                          Content="Recommend Cleanup" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ClearCleanupSelectionCommand}"
+                          Content="Clear" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding UninstallSelectedCleanupPackagesCommand}"
+                          Content="Remove Selected" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ScrollViewer MaxHeight="220"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding CleanupPackages}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <CheckBox IsChecked="{Binding IsSelected}">
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding DisplayName}" />
+                              </CheckBox>
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Text="{Binding Description}"
+                                         TextWrapping="Wrap" />
+
+                              <TextBlock Margin="0,8,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding PackageHintText}"
+                                         TextWrapping="Wrap" />
+
+                              <TextBlock Margin="0,8,0,0"
+                                         FontWeight="SemiBold"
+                                         Text="{Binding StatusText}">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding IsInstalled}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding CleanupStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="{Binding ToolsTabHeaderText}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="0,12,0,0">
+            <GroupBox Header="{Binding NicheToolsHeaderText}" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Focused utility tools for cleanup and one-off maintenance jobs that do not fit neatly into the main tabs."
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <Expander Header="Input and Display"
+                      IsExpanded="False"
+                      Margin="0,0,0,12"
+                      Style="{StaticResource InstallerInlineExpanderStyle}">
+              <StackPanel>
+
+            <GroupBox Header="{Binding ShortcutKeyExplorerHeaderText}" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Deep-scan fixed drives for Windows .lnk shortcut files with assigned hotkeys, detect supported app keymap files, then combine those with built-in Windows and common shortcuts like Ctrl + C, Alt + Tab, and Win + R in one viewer."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ShowAssignedShortcutHotkeysCommand}"
+                      Content="{Binding ShortcutExplorerButtonText}" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsShortcutHotkeyScanProgressVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding ShortcutHotkeyScanProgressSummary}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding ShortcutHotkeyScanProgressPath}">
+                      <Run Text="Current folder: " />
+                      <Run Text="{Binding ShortcutHotkeyScanProgressPath}" />
+                    </TextBlock>
+                    <ProgressBar Margin="0,8,0,0"
+                                 Height="14"
+                                 Minimum="0"
+                                 Maximum="{Binding ShortcutHotkeyScanProgressMaximum}"
+                                 Value="{Binding ShortcutHotkeyScanProgressValue}" />
+                  </StackPanel>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding ShortcutHotkeyStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Display Refresh" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Check if your monitors are running at their fastest refresh rate. A higher refresh rate makes everything on screen feel smoother."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding DisplayRefreshSummary}" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ScanDisplayRefreshRecommendationsCommand}"
+                          Content="Check Displays" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ApplyDisplayRefreshRecommendationsCommand}"
+                          Content="Apply Best Rate" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ScrollViewer MaxHeight="220"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding DisplayRefreshRecommendations}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding DisplayName}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Text="{Binding FrequencySummaryText}"
+                                         TextWrapping="Wrap" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Text="{Binding StatusText}"
+                                         TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding NeedsChange}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+
+                              <TextBlock Margin="0,6,0,0"
+                                         FontFamily="Consolas"
+                                         FontSize="11"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding DeviceName}"
+                                         TextWrapping="Wrap" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding DisplayRefreshStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Mouse Speed (DPI Helper)" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Make the mouse pointer feel slower or faster for this Windows account. This changes Windows pointer speed, which is the closest built-in option to a generic DPI change when your mouse does not have its own software."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding MouseSensitivitySummary}" />
+
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding MouseSensitivitySelectionGuidance}"
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,12,0,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Margin="0,0,8,0"
+                             VerticalAlignment="Center"
+                             Text="Pointer Feel" />
+                  <Slider Grid.Column="1"
+                          Minimum="1"
+                          Maximum="20"
+                          SmallChange="1"
+                          LargeChange="1"
+                          TickFrequency="1"
+                          IsSnapToTickEnabled="True"
+                          AutoToolTipPlacement="TopLeft"
+                          AutoToolTipPrecision="0"
+                          Value="{Binding SelectedMouseSensitivityLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                  <TextBlock Grid.Row="1"
+                             Grid.Column="1"
+                             Margin="0,8,0,0"
+                             FontWeight="SemiBold"
+                             Text="{Binding MouseSensitivitySelectedLevelLabel}" />
+
+                  <UniformGrid Grid.Row="2"
+                               Grid.Column="1"
+                               Margin="0,8,0,0"
+                               Columns="5">
+                    <TextBlock HorizontalAlignment="Left"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding MouseSensitivityVerySlowLabelText}" />
+                    <TextBlock HorizontalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding MouseSensitivitySlowLabelText}" />
+                    <TextBlock HorizontalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding MouseSensitivityBalancedLabelText}" />
+                    <TextBlock HorizontalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding MouseSensitivityFastLabelText}" />
+                    <TextBlock HorizontalAlignment="Right"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding MouseSensitivityVeryFastLabelText}" />
+                  </UniformGrid>
+                </Grid>
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshMouseSensitivityStatusCommand}"
+                          Content="Check Current Speed" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ApplyMouseSensitivityCommand}"
+                          Content="Use This Speed" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding OpenMouseSettingsCommand}"
+                          Content="Open Windows Mouse Settings" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding MouseSensitivityStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Hardware and Drivers"
+                      IsExpanded="False"
+                      Margin="0,0,0,12"
+                      Style="{StaticResource InstallerInlineExpanderStyle}">
+              <StackPanel>
+
+            <GroupBox Header="Hardware Check" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Scan the PC for core hardware details like the system model, Windows version, CPU, memory, motherboard, BIOS, graphics adapters, storage health, partitions, live sensor telemetry, PCIe devices, and RAID or Storage Spaces details."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ScanHardwareCheckCommand}"
+                          Content="Scan Hardware" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding CopyHardwareCheckInfoCommand}"
+                          Content="Copy Info" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding HardwareCheckSystemSummary}" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding HardwareCheckHealthSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding HardwareCheckOperatingSystemSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Text="{Binding HardwareCheckProcessorSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Text="{Binding HardwareCheckMemorySummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Text="{Binding HardwareCheckMotherboardSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding HardwareCheckBiosSummary}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwareGraphicsSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ScrollViewer MaxHeight="160"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwareGraphicsAdapters}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding Name}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Driver: " />
+                                <Run Text="{Binding DriverVersion, Mode=OneWay}" />
+                                <Run Text="  |  Memory: " />
+                                <Run Text="{Binding AdapterMemory, Mode=OneWay}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwareSensorSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasHardwareSensors}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="180"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwareSensors}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding Name}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Category: " />
+                                <Run Text="{Binding Category, Mode=OneWay}" />
+                                <Run Text="  |  Reading: " />
+                                <Run Text="{Binding CurrentValue, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Source: " />
+                                <Run Text="{Binding Source, Mode=OneWay}" />
+                                <Run Text="  |  Status: " />
+                                <Run Text="{Binding Status, Mode=OneWay}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwarePciSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasHardwarePciDevices}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="220"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwarePciDevices}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding Name}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Class: " />
+                                <Run Text="{Binding DeviceClass, Mode=OneWay}" />
+                                <Run Text="  |  Manufacturer: " />
+                                <Run Text="{Binding Manufacturer, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Location: " />
+                                <Run Text="{Binding Location, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Status: " />
+                                <Run Text="{Binding Status, Mode=OneWay}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwareStorageSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ScrollViewer MaxHeight="180"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwareStorageDrives}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding Model}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Size: " />
+                                <Run Text="{Binding Size, Mode=OneWay}" />
+                                <Run Text="  |  Interface: " />
+                                <Run Text="{Binding InterfaceType, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Media: " />
+                                <Run Text="{Binding MediaType, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Health: " />
+                                <Run Text="{Binding HealthStatus, Mode=OneWay}" />
+                                <Run Text="  |  SMART: " />
+                                <Run Text="{Binding SmartStatus, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Firmware: " />
+                                <Run Text="{Binding FirmwareVersion, Mode=OneWay}" />
+                                <Run Text="  |  Serial: " />
+                                <Run Text="{Binding SerialNumber, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding Notes}"
+                                         TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                      <Trigger Property="Text" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                      </Trigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwarePartitionSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasHardwareStoragePartitions}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="220"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwareStoragePartitions}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding PartitionName}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Disk: " />
+                                <Run Text="{Binding DiskName, Mode=OneWay}" />
+                                <Run Text="  |  Size: " />
+                                <Run Text="{Binding Size, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Type: " />
+                                <Run Text="{Binding Type, Mode=OneWay}" />
+                                <Run Text="  |  Volume: " />
+                                <Run Text="{Binding Volume, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="File System: " />
+                                <Run Text="{Binding FileSystem, Mode=OneWay}" />
+                                <Run Text="  |  Free Space: " />
+                                <Run Text="{Binding FreeSpace, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Status: " />
+                                <Run Text="{Binding Status, Mode=OneWay}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding HardwareRaidSummary}" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasHardwareRaidDetails}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="180"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HardwareRaidDetails}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding Name}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Type: " />
+                                <Run Text="{Binding Type, Mode=OneWay}" />
+                                <Run Text="  |  Status: " />
+                                <Run Text="{Binding Status, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Details: " />
+                                <Run Text="{Binding Details, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Source: " />
+                                <Run Text="{Binding Source, Mode=OneWay}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding HardwareCheckStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Driver Updates" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Detect this PC's hardware, scan Windows Update for matching driver updates, preselect recommended items, show optional ones separately, and install only the drivers you confirm. Some driver offers can only be finished through Windows Update's own Optional Updates flow."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding DriverHardwareSummary}" />
+
+                <TextBlock Margin="0,4,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding DriverUpdateSelectionSummary}" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ScanDriverUpdatesCommand}"
+                          Content="Scan Drivers" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding OpenWindowsUpdateOptionalUpdatesCommand}"
+                          Content="Open Optional Updates" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectRecommendedDriverUpdatesCommand}"
+                          Content="Select Recommended" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectAllDriverUpdatesCommand}"
+                          Content="Select All" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ClearDriverUpdateSelectionCommand}"
+                          Content="Clear" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding InstallSelectedDriverUpdatesCommand}"
+                          Content="Install Selected" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="Detected Hardware" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ScrollViewer MaxHeight="180"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding DriverHardwareInventory}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding DeviceName}" />
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Manufacturer: " />
+                                <Run Text="{Binding Manufacturer, Mode=OneWay}" />
+                                <Run Text="  |  Provider: " />
+                                <Run Text="{Binding DriverProvider, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Driver Version: " />
+                                <Run Text="{Binding DriverVersion, Mode=OneWay}" />
+                                <Run Text="  |  Class: " />
+                                <Run Text="{Binding DeviceClass, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,6,0,0"
+                                         FontFamily="Consolas"
+                                         FontSize="11"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding DeviceId}"
+                                         TextWrapping="Wrap" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           FontWeight="SemiBold"
+                           Text="Windows Update Driver Recommendations" />
+
+                <Border Margin="0,8,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ScrollViewer MaxHeight="260"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding DriverUpdateCandidates}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <CheckBox IsChecked="{Binding IsSelected}">
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding Title}" />
+                              </CheckBox>
+
+                              <TextBlock Margin="20,6,0,0"
+                                         FontWeight="SemiBold"
+                                         Text="{Binding ClassificationText}">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding IsOptional}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+
+                              <TextBlock Margin="20,4,0,0"
+                                         Text="{Binding InstallFlowText}"
+                                         TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding RequiresUserInput}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+
+                              <TextBlock Margin="20,6,0,0"
+                                         TextWrapping="Wrap">
+                                <Run Text="Model: " />
+                                <Run Text="{Binding DriverModel, Mode=OneWay}" />
+                                <Run Text="  |  Manufacturer: " />
+                                <Run Text="{Binding DriverManufacturer, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="20,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Class: " />
+                                <Run Text="{Binding DriverClass, Mode=OneWay}" />
+                                <Run Text="  |  Driver Date: " />
+                                <Run Text="{Binding DriverDate, Mode=OneWay}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="20,6,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding Description}"
+                                         TextWrapping="Wrap" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding DriverUpdateStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Windows Tweaks"
+                      IsExpanded="False"
+                      Margin="0,0,0,12"
+                      Style="{StaticResource InstallerInlineExpanderStyle}">
+              <StackPanel>
+
+            <GroupBox Header="Dark Mode Helper" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Apply Windows dark mode preferences where the operating system and installed apps support them. This covers the Windows shell preference, supported apps, and MultiTool itself."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ApplySystemDarkModeCommand}"
+                          Content="Apply Dark Mode" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding OpenWindowsColorSettingsCommand}"
+                          Content="Open Color Settings" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding DarkModeToolStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Pin Window" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Pin MultiTool so it stays above other windows."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Assigned hotkey:"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,2,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding PinWindowHotkeyLabel}" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ToggleWindowPinCommand}"
+                          Content="Toggle Pin" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding PinWindowToolStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Replace Windows Search" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Windows Search (Win + S) is slow for many users. This replaces it with Flow Launcher, a faster search bar that finds apps, files, and folders instantly. It also installs Everything for lightning-fast file search behind the scenes."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="An administrator prompt may appear when turning Windows Search on or off."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshSearchReplacementStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ApplySearchReplacementCommand}"
+                          Content="Replace Search" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RestoreSearchReplacementCommand}"
+                          Content="Restore Windows Search" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding SearchReplacementStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Re-index Windows Search" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Force Windows Search to rebuild its index if files are missing from search results or indexing got stuck. This can take several minutes and may prompt for administrator permission."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshSearchReindexStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ReindexWindowsSearchCommand}"
+                          Content="Re-index Now" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding SearchReindexStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Stop Telemetry" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Reduce Windows telemetry by setting machine-level data collection policy to minimum, disabling common telemetry services, and turning off high-noise telemetry scheduled tasks. An administrator prompt may appear."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshTelemetryStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                    Padding="12,6"
+                    Command="{Binding RestoreTelemetryDefaultsCommand}"
+                    Content="Restore Defaults" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ApplyTelemetryReductionCommand}"
+                          Content="Stop Telemetry" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding TelemetryToolStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Remove OneDrive" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Detect whether OneDrive is still present on this PC, apply the machine-level policy that disables OneDrive file sync, and run Windows' built-in OneDrive uninstaller when it is available. Applying the policy may trigger a Windows administrator prompt."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshOneDriveStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RemoveOneDriveCommand}"
+                          Content="Remove OneDrive" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding OneDriveToolStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Remove Edge" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Detect whether Microsoft Edge is installed and remove it using the developer-override method. This bypasses the normal block that prevents removing Edge on non-European Windows devices. An administrator prompt will appear during removal."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshEdgeStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RemoveEdgeCommand}"
+                          Content="Remove Edge" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding EdgeToolStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Swap Fn and Ctrl (Lenovo)" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="For Lenovo laptops where Fn and Ctrl are reversed, this checks Lenovo BIOS support and flips the key positions. An administrator prompt appears when applying the change."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding RefreshFnCtrlSwapStatusCommand}"
+                          Content="Refresh Status" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ToggleFnCtrlSwapCommand}"
+                          Content="Toggle Fn/Ctrl" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding FnCtrlSwapStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Windows 11 EEA Media Prep" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Microsoft does not publish a separate Europe-only Windows 11 image. This button downloads the official Windows 11 Media Creation Tool, builds an Ireland-based EEA answer file, opens the prep folder, and watches for the finished USB so MultiTool can copy the file onto it automatically."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="If you want English International media, choose it in the Microsoft tool when the language step appears."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding PrepareWindows11EeaMediaCommand}"
+                          Content="Prepare EEA Media" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding Windows11EeaInstallStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Utilities"
+                      IsExpanded="False"
+                      Margin="0,0,0,12"
+                      Style="{StaticResource InstallerInlineExpanderStyle}">
+              <StackPanel>
+
+            <GroupBox Header="IPv4 Socket Snapshot" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Windows version of ss -4. Capture the current IPv4 TCP connections plus TCP and UDP listeners that are active right now."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding Ipv4SocketSummary}"
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding CaptureIpv4SocketSnapshotCommand}"
+                          Content="Refresh Snapshot" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding CopyIpv4SocketSnapshotCommand}"
+                          Content="Copy Snapshot" />
+                </WrapPanel>
+
+                <TextBlock Margin="0,12,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Run Refresh Snapshot to capture the current IPv4 sockets."
+                           TextWrapping="Wrap">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Visibility" Value="Visible" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasIpv4SocketEntries}" Value="True">
+                          <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasIpv4SocketEntries}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ScrollViewer MaxHeight="320"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Ipv4SocketEntries}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <TextBlock FontWeight="SemiBold">
+                                <Run Text="{Binding Protocol}" />
+                                <Run Text="  " />
+                                <Run Text="{Binding State}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,6,0,0"
+                                         FontFamily="Consolas"
+                                         FontSize="11"
+                                         TextWrapping="Wrap">
+                                <Run Text="Local:  " />
+                                <Run Text="{Binding LocalEndpoint}" />
+                              </TextBlock>
+
+                              <TextBlock Margin="0,4,0,0"
+                                         FontFamily="Consolas"
+                                         FontSize="11"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         TextWrapping="Wrap">
+                                <Run Text="Remote: " />
+                                <Run Text="{Binding RemoteEndpoint}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding Ipv4SocketStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Useful Sites" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Reveal a curated list of handy sites, then open the ones you want with one click."
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ToggleUsefulSitesCommand}"
+                          Content="{Binding UsefulSitesToggleText}" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding AreUsefulSitesVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <ItemsControl ItemsSource="{Binding UsefulSites}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Margin="0,0,0,10"
+                                Padding="10"
+                                Background="{DynamicResource ControlBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                          <StackPanel>
+                            <TextBlock FontWeight="SemiBold"
+                                       Text="{Binding DisplayName}" />
+
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="{Binding Description}"
+                                       TextWrapping="Wrap" />
+
+                            <Button Margin="0,8,0,0"
+                                    Style="{StaticResource LinkButtonStyle}"
+                                    Command="{Binding DataContext.OpenUsefulSiteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}">
+                              <TextBlock FontFamily="Consolas"
+                                         FontSize="11"
+                                         Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                         Text="{Binding Url}"
+                                         TextDecorations="Underline"
+                                         TextWrapping="Wrap" />
+                            </Button>
+
+                            <TextBlock Margin="0,6,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="{Binding BrowserLabel, StringFormat=Opens in: {0}}"
+                                       TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding UsefulSitesStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Remove Empty Directories" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Scan a folder tree for directories that are already empty or become empty after nested empty folders are removed. Review the checklist, then delete only the folders you want gone."
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,12,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Margin="0,0,8,0"
+                             VerticalAlignment="Center"
+                             Text="Root" />
+                  <TextBox Grid.Column="1"
+                           Margin="0,0,8,0"
+                           Text="{Binding EmptyDirectoryRootPath, UpdateSourceTrigger=PropertyChanged}" />
+                  <Button Grid.Column="2"
+                          Margin="0,0,8,0"
+                          Padding="12,6"
+                          Command="{Binding BrowseEmptyDirectoryRootCommand}"
+                          Content="Browse" />
+                  <Button Grid.Column="3"
+                          Padding="12,6"
+                          Command="{Binding OpenEmptyDirectoryRootCommand}"
+                          Content="Open" />
+                </Grid>
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding EmptyDirectorySelectionSummary}" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ScanEmptyDirectoriesCommand}"
+                          Content="Scan Tree" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectAllEmptyDirectoriesCommand}"
+                          Content="Select All" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ClearEmptyDirectorySelectionCommand}"
+                          Content="Clear" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding DeleteSelectedEmptyDirectoriesCommand}"
+                          Content="Delete Selected" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsEmptyDirectoryScanProgressVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding EmptyDirectoryScanProgressSummary}"
+                               TextWrapping="Wrap" />
+                    <ProgressBar Margin="0,8,0,0"
+                                 Height="14"
+                                 Minimum="0"
+                                 Maximum="{Binding EmptyDirectoryScanProgressMaximum}"
+                                 Value="{Binding EmptyDirectoryScanProgressValue}" />
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ScrollViewer MaxHeight="320"
+                                VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding EmptyDirectoryCandidates}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <CheckBox IsChecked="{Binding IsSelected}">
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding DisplayPath}" />
+                              </CheckBox>
+
+                              <TextBlock Margin="20,4,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding HintText}"
+                                         TextWrapping="Wrap" />
+
+                              <TextBlock Margin="20,6,0,0"
+                                         FontFamily="Consolas"
+                                         FontSize="11"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding FullPath}"
+                                         TextWrapping="Wrap" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding EmptyDirectoryStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+              </StackPanel>
+            </Expander>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem x:Name="SettingsTabItem" Header="{Binding SettingsTabHeaderText}">
+          <ScrollViewer Margin="0,12,0,0"
+                        VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <GroupBox Header="{Binding AppearanceHeaderText}" Margin="0,0,0,12">
+                <StackPanel Margin="12">
+                  <CheckBox Content="{Binding DarkModeLabelText}"
+                            IsChecked="{Binding IsDarkMode}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding CtrlWheelResizeLabelText}"
+                            IsChecked="{Binding IsCtrlWheelResizeEnabled}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding AlwaysOnTopLabelText}"
+                            IsChecked="{Binding IsTopMost}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding CatTranslatorLabelText}"
+                            IsChecked="{Binding IsSillyModeEnabled}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding RunAtStartupLabelText}"
+                            IsChecked="{Binding IsRunAtStartupEnabled}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding AutoHideOnStartupLabelText}"
+                            IsChecked="{Binding IsAutoHideOnStartupEnabled}" />
+                  <WrapPanel Margin="0,10,0,0"
+                             HorizontalAlignment="Right">
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding ResetAllSettingsCommand}"
+                        Content="{Binding ResetAllSettingsButtonText}" />
+                  </WrapPanel>
+                  <TextBlock Margin="0,8,0,0"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding AppearanceHelperText}"
+                             TextWrapping="Wrap" />
+                  <TextBlock Margin="0,8,0,0"
+                             Text="{Binding SettingsStatusMessage}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </GroupBox>
+
+              <GroupBox Header="{Binding BugCheckingHeaderText}">
+                <Grid Margin="12">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Row="0"
+                             Margin="0,0,0,10"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding BugCheckingHelperText}"
+                             TextWrapping="Wrap" />
+
+                  <WrapPanel Grid.Row="1"
+                             Margin="0,0,0,12"
+                             HorizontalAlignment="Right">
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding CopyActivityLogCommand}"
+                        Content="{Binding CopyLogButtonText}" />
+                  </WrapPanel>
+
+                  <ListBox Grid.Row="2"
+                           MinHeight="220"
+                           ItemsSource="{Binding ActivityLogEntries}" />
+                </Grid>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+        </TabControl>
+
+      <Canvas x:Name="SillyConfettiCanvas"
+              Grid.RowSpan="3"
+              Panel.ZIndex="1000"
+              IsHitTestVisible="False"
+              Visibility="Collapsed"
+              ClipToBounds="True" />
+      </Grid>
+    </Grid>
+  </Border>
+</Window>
