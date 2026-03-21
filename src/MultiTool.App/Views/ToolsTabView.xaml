@@ -291,7 +291,7 @@
                   <ComboBox Grid.Column="1"
                             MinWidth="420"
                             Margin="0,0,0,8"
-                            DisplayMemberPath="DisplayName"
+                            DisplayMemberPath="PickerLabel"
                             ItemsSource="{Binding DriveSmartTargets}"
                             SelectedItem="{Binding SelectedDriveSmartTarget, Mode=TwoWay}" />
 
@@ -518,7 +518,7 @@
                   <ComboBox Grid.Column="1"
                             MinWidth="420"
                             Margin="0,0,0,8"
-                            DisplayMemberPath="DisplayName"
+                            DisplayMemberPath="PickerLabel"
                             ItemsSource="{Binding StorageBenchmarkTargets}"
                             SelectedItem="{Binding SelectedStorageBenchmarkTarget, Mode=TwoWay}" />
 
@@ -1604,30 +1604,6 @@
 
                 <TextBlock Margin="0,10,0,0"
                            Text="{Binding OneDriveToolStatusMessage}"
-                           TextWrapping="Wrap" />
-              </StackPanel>
-            </GroupBox>
-
-            <GroupBox Header="Remove Edge" Margin="0,0,0,12">
-              <StackPanel Margin="12">
-                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Detect whether Microsoft Edge is installed and remove it using the developer-override method. This bypasses the normal block that prevents removing Edge on non-European Windows devices. An administrator prompt will appear during removal."
-                           TextWrapping="Wrap" />
-
-                <WrapPanel Margin="0,12,0,0"
-                           HorizontalAlignment="Right">
-                  <Button Margin="4"
-                          Padding="12,6"
-                          Command="{Binding RefreshEdgeStatusCommand}"
-                          Content="Refresh Status" />
-                  <Button Margin="4"
-                          Padding="12,6"
-                          Command="{Binding RemoveEdgeCommand}"
-                          Content="Remove Edge" />
-                </WrapPanel>
-
-                <TextBlock Margin="0,10,0,0"
-                           Text="{Binding EdgeToolStatusMessage}"
                            TextWrapping="Wrap" />
               </StackPanel>
             </GroupBox>
