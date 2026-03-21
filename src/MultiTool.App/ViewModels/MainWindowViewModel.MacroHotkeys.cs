@@ -563,6 +563,7 @@ public partial class MainWindowViewModel
                 || !string.Equals(current.MacroFilePath, updated.MacroFilePath, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(current.MacroDisplayName, updated.MacroDisplayName, StringComparison.Ordinal)
                 || current.Hotkey.VirtualKey != updated.Hotkey.VirtualKey
+                || current.Hotkey.Modifiers != updated.Hotkey.Modifiers
                 || !string.Equals(current.Hotkey.DisplayName, updated.Hotkey.DisplayName, StringComparison.Ordinal)
                 || current.IsEnabled != updated.IsEnabled
                 || current.PlaybackMode != updated.PlaybackMode)

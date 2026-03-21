@@ -145,7 +145,7 @@ public sealed class SettingsValidatorTests
     {
         var settings = new MacroSettings
         {
-            PlayHotkey = new HotkeyBinding(0x70, "F1"),
+            PlayHotkey = new HotkeyBinding(0x70, "Ctrl + F1", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control),
             RecordHotkey = new HotkeyBinding(0x71, "F2"),
             AssignedHotkeys =
             [
@@ -154,7 +154,7 @@ public sealed class SettingsValidatorTests
                     Id = "farm",
                     MacroDisplayName = "Farm",
                     MacroFilePath = @"C:\Macros\Farm.acmacro.json",
-                    Hotkey = new HotkeyBinding(0x70, "F1"),
+                    Hotkey = new HotkeyBinding(0x70, "Ctrl + F1", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control),
                     PlaybackMode = MacroHotkeyPlaybackMode.ToggleRepeat,
                     IsEnabled = true,
                 },
@@ -192,6 +192,32 @@ public sealed class SettingsValidatorTests
                     MacroFilePath = @"C:\Macros\Mine.acmacro.json",
                     Hotkey = new HotkeyBinding(0x73, "F4"),
                     PlaybackMode = MacroHotkeyPlaybackMode.ToggleRepeat,
+                    IsEnabled = true,
+                },
+            ],
+        };
+
+        var result = validator.ValidateMacro(settings);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ValidateMacro_ShouldAllowSameVirtualKeyWithDifferentModifiers()
+    {
+        var settings = new MacroSettings
+        {
+            PlayHotkey = new HotkeyBinding(0x43, "Ctrl + C", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control),
+            RecordHotkey = new HotkeyBinding(0x56, "Ctrl + V", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control),
+            AssignedHotkeys =
+            [
+                new MacroHotkeyAssignment
+                {
+                    Id = "plain-c",
+                    MacroDisplayName = "Plain C",
+                    MacroFilePath = @"C:\Macros\Plain C.acmacro.json",
+                    Hotkey = new HotkeyBinding(0x43, "C"),
+                    PlaybackMode = MacroHotkeyPlaybackMode.PlayOnce,
                     IsEnabled = true,
                 },
             ],

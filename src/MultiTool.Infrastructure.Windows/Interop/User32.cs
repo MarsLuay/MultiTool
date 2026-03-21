@@ -36,6 +36,16 @@ internal static class User32
     internal const uint XButton2 = 0x0002;
     internal const uint KeyEventFKeyUp = 0x0002;
     internal const uint GuiCaretBlinking = 0x00000001;
+    internal const uint ModNoRepeat = 0x4000;
+    internal const uint LlkhfInjected = 0x00000010;
+    internal const int VkLShift = 0xA0;
+    internal const int VkRShift = 0xA1;
+    internal const int VkLControl = 0xA2;
+    internal const int VkRControl = 0xA3;
+    internal const int VkLMenu = 0xA4;
+    internal const int VkRMenu = 0xA5;
+    internal const int VkLWin = 0x5B;
+    internal const int VkRWin = 0x5C;
 
     [DllImport("user32.dll", EntryPoint = "SetCursorPos", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -89,6 +99,9 @@ internal static class User32
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern int GetClassName(nint hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    internal static extern short GetAsyncKeyState(int vKey);
 
     internal delegate nint HookProc(int nCode, nint wParam, nint lParam);
 

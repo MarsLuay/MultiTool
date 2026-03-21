@@ -1,0 +1,10 @@
+namespace MultiTool.Core.Models;
+
+public sealed record DriverUpdateInstallResult(
+    string UpdateId,
+    string Title,
+    bool Succeeded,
+    bool Changed,
+    bool RequiresRestart,
+    bool RequiresUserInput,
+    string Message);

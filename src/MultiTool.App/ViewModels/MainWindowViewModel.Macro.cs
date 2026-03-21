@@ -429,33 +429,35 @@ public partial class MainWindowViewModel : ObservableObject
         MacroStatusMessage = L(AppLanguageKeys.MainMacroStatusLogCleared);
     }
 
-    public void CaptureMacroHotkey(Key key)
+    public void CaptureMacroHotkey(Key key, ModifierKeys modifiers)
     {
         var capturedKey = key == Key.System ? Key.None : key;
-        var virtualKey = HotkeyDisplayNameFormatter.ToVirtualKey(capturedKey);
-        if (virtualKey <= 0)
+        var binding = HotkeyDisplayNameFormatter.CreateKeyboardBinding(capturedKey, modifiers);
+        if (binding.VirtualKey <= 0)
         {
             return;
         }
 
-        MacroHotkeyVirtualKey = virtualKey;
-        MacroHotkeyDisplay = HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey);
+        MacroHotkeyVirtualKey = binding.VirtualKey;
+        MacroHotkeyModifiers = binding.Modifiers;
+        MacroHotkeyDisplay = binding.DisplayName;
         MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusHotkeySetFormat, MacroHotkeyDisplay);
         AddMacroLog(MacroStatusMessage);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void CaptureMacroRecordHotkey(Key key)
+    public void CaptureMacroRecordHotkey(Key key, ModifierKeys modifiers)
     {
         var capturedKey = key == Key.System ? Key.None : key;
-        var virtualKey = HotkeyDisplayNameFormatter.ToVirtualKey(capturedKey);
-        if (virtualKey <= 0)
+        var binding = HotkeyDisplayNameFormatter.CreateKeyboardBinding(capturedKey, modifiers);
+        if (binding.VirtualKey <= 0)
         {
             return;
         }
 
-        MacroRecordHotkeyVirtualKey = virtualKey;
-        MacroRecordHotkeyDisplay = HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey);
+        MacroRecordHotkeyVirtualKey = binding.VirtualKey;
+        MacroRecordHotkeyModifiers = binding.Modifiers;
+        MacroRecordHotkeyDisplay = binding.DisplayName;
         MacroStatusMessage = F(AppLanguageKeys.MainMacroStatusRecordHotkeySetFormat, MacroRecordHotkeyDisplay);
         AddMacroLog(MacroStatusMessage);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);

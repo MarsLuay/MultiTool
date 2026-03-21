@@ -1,0 +1,336 @@
+<UserControl x:Class="MultiTool.App.Views.MacroTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/MultiTool;component/Resources/MainWindowSharedResources.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+<ScrollViewer DataContext="{Binding Shell}" VerticalScrollBarVisibility="Auto">
+          <Grid Margin="0,12,0,0">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <GroupBox Header="Macro Controls" Margin="0,0,0,12">
+              <Grid Margin="12">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding NameLabelText}" />
+                <TextBox Grid.Row="0"
+                         Grid.Column="1"
+                         Margin="4"
+                         Text="{Binding MacroName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Margin="4" VerticalAlignment="Center" Text="{Binding PlayCountLabelText}" />
+                <StackPanel Grid.Row="1"
+                            Grid.Column="1"
+                            Margin="4"
+                            Orientation="Horizontal">
+                  <TextBox Width="96"
+                           HorizontalAlignment="Left"
+                           IsEnabled="{Binding IsMacroPlaybackCountEnabled}"
+                           Text="{Binding MacroPlaybackCount, UpdateSourceTrigger=PropertyChanged}" />
+                  <CheckBox Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            Content="{Binding MacroInfiniteLabelText}"
+                            IsChecked="{Binding IsMacroPlaybackInfinite}" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="2"
+                           Grid.Column="1"
+                           Margin="4,-2,4,8"
+                           FontSize="12"
+                           Foreground="{DynamicResource AccentBrush}"
+                           Text="{Binding MacroInfiniteHelperText}"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMacroPlaybackInfinite}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+
+                <CheckBox Grid.Row="3"
+                          Grid.ColumnSpan="2"
+                          Margin="4,4,4,0"
+                          Content="{Binding RecordMouseMovementLabelText}"
+                          IsChecked="{Binding RecordMacroMouseMovement}" />
+
+                <TextBlock Grid.Row="4"
+                           Grid.Column="0"
+                           Margin="4"
+                           VerticalAlignment="Center"
+                           Text="{Binding PlayHotkeyLabelText}" />
+                <ToggleButton x:Name="MacroHotkeyTextBox"
+                              Grid.Row="4"
+                              Grid.Column="1"
+                              Margin="4"
+                              Style="{StaticResource CaptureReadyButtonStyle}"
+                              GotKeyboardFocus="MacroHotkeyTextBox_OnGotKeyboardFocus"
+                              LostKeyboardFocus="CaptureButton_OnLostKeyboardFocus"
+                              PreviewMouseDown="MacroHotkeyTextBox_OnPreviewMouseDown"
+                              PreviewKeyDown="MacroHotkeyTextBox_OnPreviewKeyDown"
+                              Content="{Binding MacroHotkeyDisplay}" />
+
+                <TextBlock Grid.Row="5"
+                           Grid.Column="1"
+                           Margin="4,-2,4,8"
+                           Foreground="{DynamicResource AccentBrush}"
+                           Visibility="Collapsed"
+                           Text="{Binding WaitingForKeyText}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding ElementName=MacroHotkeyTextBox, Path=IsChecked}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Grid.Row="6"
+                           Grid.Column="0"
+                           Margin="4"
+                           VerticalAlignment="Center"
+                           Text="{Binding RecordHotkeyLabelText}" />
+                <ToggleButton x:Name="MacroRecordHotkeyTextBox"
+                              Grid.Row="6"
+                              Grid.Column="1"
+                              Margin="4"
+                              Style="{StaticResource CaptureReadyButtonStyle}"
+                              GotKeyboardFocus="MacroRecordHotkeyTextBox_OnGotKeyboardFocus"
+                              LostKeyboardFocus="CaptureButton_OnLostKeyboardFocus"
+                              PreviewMouseDown="MacroRecordHotkeyTextBox_OnPreviewMouseDown"
+                              PreviewKeyDown="MacroRecordHotkeyTextBox_OnPreviewKeyDown"
+                              Content="{Binding MacroRecordHotkeyDisplay}" />
+
+                <TextBlock Grid.Row="7"
+                           Grid.Column="1"
+                           Margin="4,-2,4,8"
+                           Foreground="{DynamicResource AccentBrush}"
+                           Visibility="Collapsed"
+                           Text="{Binding WaitingForKeyText}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding ElementName=MacroRecordHotkeyTextBox, Path=IsChecked}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Grid.Row="8"
+                           Grid.ColumnSpan="2"
+                           Margin="4,10,4,0"
+                           Text="{Binding MacroSummaryText}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="9"
+                           Grid.ColumnSpan="2"
+                           Margin="4,10,4,0"
+                           Text="{Binding MacroStatusMessage}"
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Grid.Row="10"
+                           Grid.ColumnSpan="2"
+                           Margin="0,14,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4" Padding="12,6" Command="{Binding NewMacroCommand}" Content="{Binding NewMacroButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding StartMacroRecordingCommand}" Content="{Binding RecordButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding StopMacroRecordingCommand}" Content="{Binding StopButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding PlayMacroCommand}" Content="{Binding PlayButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding SaveMacroCommand}" Content="{Binding SaveButtonText}" />
+                  <Button Margin="4" Padding="12,6" Command="{Binding LoadMacroCommand}" Content="{Binding LoadButtonText}" />
+                </WrapPanel>
+              </Grid>
+            </GroupBox>
+
+            <GroupBox Grid.Row="1" Header="Saved Macros" Margin="0,0,0,12">
+              <Grid Margin="12">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Grid.Column="0"
+                           Margin="4"
+                           VerticalAlignment="Center"
+                           Text="{Binding SavedLabelText}" />
+                <ComboBox Grid.Row="0"
+                          Grid.Column="1"
+                          Margin="4"
+                          DisplayMemberPath="DisplayName"
+                          IsEnabled="{Binding HasSavedMacros}"
+                          ItemsSource="{Binding SavedMacros}"
+                          SelectedItem="{Binding SelectedSavedMacro}" />
+
+                <Grid Grid.Row="1"
+                      Grid.ColumnSpan="2"
+                      Margin="0,8,0,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Row="0"
+                             Margin="4,0,4,8"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding SelectedSavedMacro.DisplayName, StringFormat=Selected macro: {0}, TargetNullValue=No saved macros found in the Macros folder yet.}"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="1"
+                             Margin="4,0,4,8"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding SelectedSavedMacroHotkeySummary}"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="2"
+                             Margin="4,0,4,8"
+                             FontWeight="SemiBold"
+                             Text="{Binding AssignedMacroHotkeysSummary}"
+                             TextWrapping="Wrap" />
+
+                  <Border Grid.Row="3"
+                          Margin="4,0,4,8"
+                          Padding="8"
+                          Background="{DynamicResource SurfaceAltBrush}"
+                          BorderBrush="{DynamicResource BorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6">
+                    <Grid>
+                      <TextBlock HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 Foreground="{DynamicResource MutedTextBrush}"
+                                 Visibility="Collapsed"
+                                 Text="{Binding NoAssignedMacroShortcutsText}">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding HasAssignedMacroHotkeys}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+
+                      <ScrollViewer DataContext="{Binding Shell}" MaxHeight="120"
+                                    VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding AssignedMacroHotkeys}">
+                          <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                              <Setter Property="Visibility" Value="Visible" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAssignedMacroHotkeys}" Value="False">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </ItemsControl.Style>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Margin="0,0,0,8"
+                                      Padding="8"
+                                      Background="{DynamicResource ControlBackgroundBrush}"
+                                      BorderBrush="{DynamicResource BorderBrush}"
+                                      BorderThickness="1"
+                                      CornerRadius="6">
+                                <StackPanel>
+                                  <TextBlock FontWeight="SemiBold"
+                                             Text="{Binding MacroDisplayName}" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Text="{Binding Hotkey.DisplayName, StringFormat=Shortcut: {0}}"
+                                             TextWrapping="Wrap" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Text="{Binding PlaybackMode, Converter={StaticResource EnumDisplayNameConverter}, StringFormat=Action: {0}}"
+                                             TextWrapping="Wrap" />
+
+                                  <TextBlock Margin="0,4,0,0"
+                                             Foreground="{DynamicResource MutedTextBrush}"
+                                             Text="{Binding IsEnabled, StringFormat=Turned on: {0}}"
+                                             TextWrapping="Wrap" />
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </ScrollViewer>
+                    </Grid>
+                  </Border>
+
+                      <WrapPanel Grid.Row="4"
+                         HorizontalAlignment="Right">
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding RefreshSavedMacrosCommand}"
+                        Content="{Binding RefreshButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding LoadSelectedSavedMacroCommand}"
+                        Content="{Binding LoadSelectedButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding EditSelectedSavedMacroCommand}"
+                        Content="{Binding EditSelectedButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding AssignSelectedMacroHotkeyCommand}"
+                      Content="{Binding MacroSetShortcutButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding ManageMacroHotkeysCommand}"
+                      Content="{Binding MacroEditShortcutsButtonText}" />
+                      <Button Margin="4"
+                        Padding="12,6"
+                        Command="{Binding OpenSavedMacrosFolderCommand}"
+                        Content="{Binding OpenFolderButtonText}" />
+                    </WrapPanel>
+                </Grid>
+              </Grid>
+            </GroupBox>
+
+          </Grid>
+        </ScrollViewer>
+</UserControl>

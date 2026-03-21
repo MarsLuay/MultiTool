@@ -1,6 +1,7 @@
-using MultiTool.Core.Enums;
 using System.Windows.Input;
 using MultiTool.App.Localization;
+using MultiTool.Core.Enums;
+using MultiTool.Core.Models;
 
 namespace MultiTool.App.Helpers;
 
@@ -39,5 +40,79 @@ public static class HotkeyDisplayNameFormatter
             _ => mouseButton.ToString(),
         };
 
+    public static string FormatKeyboardHotkey(int virtualKey, HotkeyModifiers modifiers)
+    {
+        var modifierNames = GetModifierDisplayNames(modifiers);
+        if (modifierNames.Count == 0)
+        {
+            return FormatVirtualKey(virtualKey);
+        }
+
+        return string.Join(" + ", [.. modifierNames, FormatVirtualKey(virtualKey)]);
+    }
+
+    public static HotkeyBinding CreateKeyboardBinding(Key key, ModifierKeys modifiers)
+    {
+        var virtualKey = ToVirtualKey(key);
+        var hotkeyModifiers = ToHotkeyModifiers(modifiers);
+        return new HotkeyBinding(virtualKey, FormatKeyboardHotkey(virtualKey, hotkeyModifiers))
+        {
+            Modifiers = hotkeyModifiers,
+        };
+    }
+
+    public static HotkeyModifiers ToHotkeyModifiers(ModifierKeys modifiers)
+    {
+        var hotkeyModifiers = HotkeyModifiers.None;
+
+        if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            hotkeyModifiers |= HotkeyModifiers.Control;
+        }
+
+        if ((modifiers & ModifierKeys.Alt) == ModifierKeys.Alt)
+        {
+            hotkeyModifiers |= HotkeyModifiers.Alt;
+        }
+
+        if ((modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        {
+            hotkeyModifiers |= HotkeyModifiers.Shift;
+        }
+
+        if ((modifiers & ModifierKeys.Windows) == ModifierKeys.Windows)
+        {
+            hotkeyModifiers |= HotkeyModifiers.Windows;
+        }
+
+        return hotkeyModifiers;
+    }
+
     public static int ToVirtualKey(Key key) => KeyInterop.VirtualKeyFromKey(key);
+
+    private static IReadOnlyList<string> GetModifierDisplayNames(HotkeyModifiers modifiers)
+    {
+        var names = new List<string>(4);
+        if ((modifiers & HotkeyModifiers.Control) == HotkeyModifiers.Control)
+        {
+            names.Add("Ctrl");
+        }
+
+        if ((modifiers & HotkeyModifiers.Alt) == HotkeyModifiers.Alt)
+        {
+            names.Add("Alt");
+        }
+
+        if ((modifiers & HotkeyModifiers.Shift) == HotkeyModifiers.Shift)
+        {
+            names.Add("Shift");
+        }
+
+        if ((modifiers & HotkeyModifiers.Windows) == HotkeyModifiers.Windows)
+        {
+            names.Add("Win");
+        }
+
+        return names;
+    }
 }

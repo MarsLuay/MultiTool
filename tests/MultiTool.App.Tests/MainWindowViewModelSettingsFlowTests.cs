@@ -12,620 +12,13 @@ using MultiTool.Core.Validation;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows.Data;
+using System.Windows.Input;
 
 namespace MultiTool.App.Tests;
 
-public sealed class MainWindowViewModelSettingsFlowTests
+
+public sealed partial class MainWindowViewModelSettingsFlowTests
 {
-    [Fact]
-    public void MainWindowXaml_ShouldUseOneWayBindingForRunTextBindings()
-    {
-        var xamlPath = Path.GetFullPath(
-            Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "..",
-                "src",
-                "MultiTool.App",
-                "Views",
-                "MainWindow.xaml"));
-
-        File.Exists(xamlPath).Should().BeTrue();
-
-        var xaml = File.ReadAllText(xamlPath);
-        var matches = Regex.Matches(xaml, "<Run\\s+Text=\"\\{Binding[^\\\"]*\\}\"");
-
-        matches.Should().OnlyContain(match => match.Value.Contains("Mode=OneWay", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task InitializeAsync_ShouldApplyLoadedUiSettings()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var settings = DefaultSettingsFactory.Create();
-                settings.Ui.IsDarkMode = true;
-                settings.Ui.EnableCtrlWheelResize = false;
-                settings.Ui.AutoHideOnStartup = true;
-                settings.Screenshot.CaptureHotkey = new HotkeyBinding(0x79, "F10");
-
-                var context = new MainWindowViewModelTestContext(settings);
-
-                await context.ViewModel.InitializeAsync();
-
-                context.ViewModel.IsDarkMode.Should().BeTrue();
-                context.ViewModel.IsCtrlWheelResizeEnabled.Should().BeFalse();
-                context.ViewModel.IsAutoHideOnStartupEnabled.Should().BeTrue();
-                context.ViewModel.ScreenshotHotkeyDisplay.Should().Be("F10");
-                context.ThemeService.AppliedModes.Should().ContainSingle().Which.Should().BeTrue();
-            });
-    }
-
-    [Fact]
-    public async Task InitializeAsync_WhenRunAtStartupSettingIsMissing_ShouldMigrateCurrentSystemState()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var settings = DefaultSettingsFactory.Create();
-                settings.Ui.RunAtStartup = null;
-
-                var context = new MainWindowViewModelTestContext(settings);
-                context.RunAtStartupService.CurrentState = true;
-
-                await context.ViewModel.InitializeAsync();
-                await context.SettingsStore.WaitForSaveCountAsync(expectedCount: 1);
-
-                context.ViewModel.IsRunAtStartupEnabled.Should().BeTrue();
-                context.RunAtStartupService.SetEnabledCalls.Should().Equal(true);
-                context.SettingsStore.LastSavedSettings.Should().NotBeNull();
-                context.SettingsStore.LastSavedSettings!.Ui.RunAtStartup.Should().BeTrue();
-            });
-    }
-
-    [Fact]
-    public async Task InitializeAsync_ShouldDeferInstallerInitializationUntilInstallerTabIsSelected()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-
-                await context.ViewModel.InitializeAsync();
-
-                context.InstallerService.GetCatalogCallCount.Should().Be(0);
-                context.InstallerService.GetCleanupCatalogCallCount.Should().Be(0);
-                context.InstallerService.GetPackageStatusesCallCount.Should().Be(0);
-                context.ViewModel.InstallerPackages.Should().BeEmpty();
-                context.ViewModel.CleanupPackages.Should().BeEmpty();
-
-                context.ViewModel.SelectedMainTabIndex = 3;
-                await context.InstallerService.WaitForPackageStatusCallsAsync(expectedCount: 1);
-
-                context.InstallerService.GetCatalogCallCount.Should().Be(1);
-                context.InstallerService.GetCleanupCatalogCallCount.Should().Be(1);
-                context.InstallerService.GetPackageStatusesCallCount.Should().Be(1);
-            });
-    }
-
-    [Fact]
-    public async Task InitializeAsync_ShouldDeferToolsInitializationUntilToolsTabIsSelected()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-
-                await context.ViewModel.InitializeAsync();
-
-                context.ViewModel.MouseSensitivityLevels.Should().BeEmpty();
-                context.ViewModel.UsefulSites.Should().BeEmpty();
-
-                context.ViewModel.SelectedMainTabIndex = 4;
-
-                context.ViewModel.MouseSensitivityLevels.Should().NotBeEmpty();
-                context.ViewModel.UsefulSites.Should().NotBeEmpty();
-            });
-    }
-
-    [Fact]
-    public async Task InitializeAsync_WhenInstallerTabLoads_ShouldGroupInstallerPackagesByCategory()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-                context.InstallerService.CatalogItems =
-                [
-                    new InstallerCatalogItem("Mozilla.Firefox", "Firefox", "Browsers", "Browser"),
-                    new InstallerCatalogItem("Microsoft.VisualStudioCode", "VS Code", "Developer Tools", "Editor"),
-                    new InstallerCatalogItem("Google.Chrome", "Chrome", "Browsers", "Browser"),
-                ];
-
-                await context.ViewModel.InitializeAsync();
-
-                context.ViewModel.SelectedMainTabIndex = 3;
-                await context.InstallerService.WaitForPackageStatusCallsAsync(expectedCount: 1);
-
-                var groups = context.ViewModel.InstallerPackagesView.Groups!
-                    .Cast<CollectionViewGroup>()
-                    .ToArray();
-
-                groups.Should().HaveCount(2);
-                groups[0].Name.Should().Be("Browsers");
-                groups[0].ItemCount.Should().Be(2);
-                groups[1].Name.Should().Be("Developer Tools");
-                groups[1].ItemCount.Should().Be(1);
-            });
-    }
-
-    [Fact]
-    public async Task ShowAssignedShortcutHotkeysAsync_ShouldRescanAfterCachedResultsExpire()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(
-                    DefaultSettingsFactory.Create(),
-                    toolScanResultRetentionWindow: TimeSpan.FromMilliseconds(50));
-                context.ShortcutHotkeyInventoryService.NextResult = new ShortcutHotkeyScanResult(
-                    [
-                        new ShortcutHotkeyInfo(
-                            "Ctrl+Alt+T",
-                            "Test Shortcut",
-                            @"C:\Temp\Test.lnk",
-                            @"C:\Temp",
-                            @"C:\Temp\Test.exe",
-                            true),
-                    ],
-                    1,
-                    []);
-
-                await context.ViewModel.InitializeAsync();
-
-                await context.ViewModel.ShowAssignedShortcutHotkeysCommand.ExecuteAsync(null);
-                context.ShortcutHotkeyInventoryService.ScanCallCount.Should().Be(1);
-
-                await WaitForConditionAsync(
-                    () => context.ViewModel.ShortcutHotkeyStatusMessage == AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusShortcutScanExpired));
-
-                await context.ViewModel.ShowAssignedShortcutHotkeysCommand.ExecuteAsync(null);
-                context.ShortcutHotkeyInventoryService.ScanCallCount.Should().Be(2);
-            });
-    }
-
-    [Fact]
-    public async Task CaptureIpv4SocketSnapshotAsync_ShouldAutoExpireVisibleResults()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(
-                    DefaultSettingsFactory.Create(),
-                    toolScanResultRetentionWindow: TimeSpan.FromMilliseconds(50));
-                context.Ipv4SocketSnapshotService.NextResult = new Ipv4SocketSnapshotResult(
-                    DateTimeOffset.Parse("2026-03-19T12:00:00Z"),
-                    [
-                        new Ipv4SocketEntry("tcp4", "ESTABLISHED", "127.0.0.1:5000", "93.184.216.34:443", "TestApp", 1234),
-                    ],
-                    1,
-                    0,
-                    0);
-
-                await context.ViewModel.InitializeAsync();
-
-                await context.ViewModel.CaptureIpv4SocketSnapshotCommand.ExecuteAsync(null);
-                context.ViewModel.Ipv4SocketEntries.Should().HaveCount(1);
-
-                await WaitForConditionAsync(() => context.ViewModel.Ipv4SocketEntries.Count == 0);
-
-                context.ViewModel.Ipv4SocketStatusMessage.Should().Be(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusIpv4SocketExpired));
-                context.ViewModel.Ipv4SocketSummary.Should().Be(AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsIpv4SocketSummaryEmpty));
-            });
-    }
-
-    [Fact]
-    public async Task ScanHardwareCheckAsync_ShouldExpireCachedDriverHardwareInventory()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(
-                    DefaultSettingsFactory.Create(),
-                    toolScanResultRetentionWindow: TimeSpan.FromMilliseconds(50));
-                context.HardwareInventoryService.NextReport = new HardwareInventoryReport(
-                    "Test system",
-                    "Healthy",
-                    "Windows 11",
-                    "Test CPU",
-                    "32 GB",
-                    "Test board",
-                    "Test BIOS",
-                    [],
-                    [],
-                    [],
-                    [],
-                    [],
-                    [],
-                    [
-                        new DriverHardwareInfo("GPU", "NVIDIA", "NVIDIA", "1.0.0", "Display", "PCI\\VEN_TEST"),
-                    ],
-                    []);
-                context.DriverUpdateService.NextScanResult = new DriverUpdateScanResult([], [], []);
-
-                await context.ViewModel.InitializeAsync();
-
-                await context.ViewModel.ScanHardwareCheckCommand.ExecuteAsync(null);
-                await context.ViewModel.ScanDriverUpdatesCommand.ExecuteAsync(null);
-                context.DriverUpdateService.LastHardwareInventoryArgument.Should().NotBeNull();
-                context.DriverUpdateService.LastHardwareInventoryArgument.Should().HaveCount(1);
-
-                await WaitForConditionAsync(
-                    () => context.ViewModel.HardwareCheckStatusMessage == AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusHardwareScanExpired));
-
-                await context.ViewModel.ScanDriverUpdatesCommand.ExecuteAsync(null);
-                context.DriverUpdateService.LastHardwareInventoryArgument.Should().BeNull();
-            });
-    }
-
-    [Fact]
-    public async Task ScreenshotPreview_ShouldUnloadWhenLeavingScreenshotTabAndReloadWhenReturning()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var settings = DefaultSettingsFactory.Create();
-                settings.Screenshot.SaveFolderPath = Path.Combine(Path.GetTempPath(), $"multitool-screenshot-test-{Guid.NewGuid():N}");
-
-                var context = new MainWindowViewModelTestContext(settings);
-
-                await context.ViewModel.InitializeAsync();
-                context.ViewModel.SelectedMainTabIndex = 1;
-
-                await context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-
-                context.ViewModel.LatestScreenshotPreview.Should().NotBeNull();
-                context.ViewModel.HasLatestScreenshot.Should().BeTrue();
-
-                context.ViewModel.SelectedMainTabIndex = 0;
-
-                context.ViewModel.LatestScreenshotPreview.Should().BeNull();
-                context.ViewModel.HasLatestScreenshot.Should().BeFalse();
-
-                context.ViewModel.SelectedMainTabIndex = 1;
-
-                context.ViewModel.LatestScreenshotPreview.Should().NotBeNull();
-                context.ViewModel.HasLatestScreenshot.Should().BeTrue();
-            });
-    }
-
-    [Fact]
-    public async Task LatestVideoPath_ShouldUnloadWhenLeavingScreenshotTabAndReloadWhenReturning()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var settings = DefaultSettingsFactory.Create();
-                settings.Screenshot.SaveFolderPath = Path.Combine(Path.GetTempPath(), $"multitool-video-test-{Guid.NewGuid():N}");
-
-                var context = new MainWindowViewModelTestContext(settings);
-
-                await context.ViewModel.InitializeAsync();
-                context.ViewModel.SelectedMainTabIndex = 1;
-                context.ScreenshotCaptureService.SetVideoCaptureRunning();
-
-                await context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-
-                context.ViewModel.LatestVideoPath.Should().NotBeNull();
-                context.ViewModel.HasLatestVideo.Should().BeTrue();
-
-                context.ViewModel.SelectedMainTabIndex = 0;
-
-                context.ViewModel.LatestVideoPath.Should().BeNull();
-                context.ViewModel.HasLatestVideo.Should().BeFalse();
-
-                context.ViewModel.SelectedMainTabIndex = 1;
-
-                context.ViewModel.LatestVideoPath.Should().NotBeNull();
-                context.ViewModel.HasLatestVideo.Should().BeTrue();
-            });
-    }
-
-    [Fact]
-    public async Task ChangingUiSettingsAfterInitialization_ShouldAutoSaveUpdatedValues()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var settings = DefaultSettingsFactory.Create();
-                settings.Ui.RunAtStartup = null;
-
-                var context = new MainWindowViewModelTestContext(settings);
-
-                await context.ViewModel.InitializeAsync();
-
-                context.ViewModel.IsCtrlWheelResizeEnabled = false;
-                context.ViewModel.IsAutoHideOnStartupEnabled = true;
-                context.ViewModel.IsRunAtStartupEnabled = true;
-
-                await context.SettingsStore.WaitForSaveCountAsync(expectedCount: 1);
-
-                context.RunAtStartupService.SetEnabledCalls.Should().Equal(true);
-                context.SettingsStore.LastSavedSettings.Should().NotBeNull();
-                context.SettingsStore.LastSavedSettings!.Ui.EnableCtrlWheelResize.Should().BeFalse();
-                context.SettingsStore.LastSavedSettings!.Ui.AutoHideOnStartup.Should().BeTrue();
-                context.SettingsStore.LastSavedSettings!.Ui.RunAtStartup.Should().BeTrue();
-            });
-    }
-
-    [Fact]
-    public async Task ChangingPinStateAfterInitialization_ShouldRefreshPinWindowToolPresentation()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var settings = DefaultSettingsFactory.Create();
-                settings.Hotkeys.PinWindow = new HotkeyBinding(0x78, "F9");
-
-                var context = new MainWindowViewModelTestContext(settings);
-
-                await context.ViewModel.InitializeAsync();
-
-                context.ViewModel.IsTopMost = true;
-
-                context.ViewModel.PinWindowStateText.Should().Be("pinned on top");
-                context.ViewModel.PinWindowActionButtonText.Should().Be("Unpin Window");
-                context.ViewModel.PinWindowToolStatusMessage.Should().Contain("pinned");
-                context.ViewModel.PinWindowToolStatusMessage.Should().Contain("F9");
-            });
-    }
-
-    [Fact]
-    public async Task OpenPinWindowHotkeySettingsAsync_ShouldUpdateHotkeyAndSave()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var settings = DefaultSettingsFactory.Create();
-
-                var context = new MainWindowViewModelTestContext(settings);
-
-                await context.ViewModel.InitializeAsync();
-
-                var updatedHotkeys = settings.Hotkeys.Clone();
-                updatedHotkeys.PinWindow = new HotkeyBinding(0x79, "F10");
-                context.HotkeySettingsDialogService.NextResult = updatedHotkeys;
-
-                await context.ViewModel.OpenPinWindowHotkeySettingsCommand.ExecuteAsync(null);
-                await context.SettingsStore.WaitForSaveCountAsync(expectedCount: 1);
-
-                context.HotkeySettingsDialogService.EditCalls.Should().Be(1);
-                context.ViewModel.PinWindowHotkeyLabel.Should().Be("F10");
-                context.ViewModel.PinWindowHotkeySummary.Should().Contain("F10");
-                context.ViewModel.PinWindowToolStatusMessage.Should().Contain("F10");
-                context.SettingsStore.LastSavedSettings.Should().NotBeNull();
-                context.SettingsStore.LastSavedSettings!.Hotkeys.PinWindow.VirtualKey.Should().Be(0x79);
-                context.SettingsStore.LastSavedSettings!.Hotkeys.PinWindow.DisplayName.Should().Be("F10");
-            });
-    }
-
-    [Fact]
-    public async Task ScreenshotHotkey_WhenPressedAgainDuringAreaSelection_ShouldPromoteToVideoCapture()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-                await context.ViewModel.InitializeAsync();
-                var promotedVideoArea = new ScreenRectangle(10, 20, 300, 200);
-
-                context.ScreenshotAreaSelectionService.EnqueueBehavior(
-                    async cancellationToken =>
-                    {
-                        try
-                        {
-                            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                        }
-
-                        return null;
-                    });
-                context.ScreenshotAreaSelectionService.EnqueueVideoSelectionResult(
-                    new VideoCaptureSelection(VideoCaptureSelectionKind.CurrentScreen, promotedVideoArea));
-
-                var firstPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-                await Task.Delay(50);
-                var secondPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-
-                await context.ScreenshotAreaSelectionService.WaitForCallCountAsync(expectedCount: 1);
-
-                var thirdPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-
-                await Task.WhenAll(firstPressTask, secondPressTask, thirdPressTask);
-                await context.ScreenshotCaptureService.WaitForVideoStartCountAsync(expectedCount: 1);
-
-                context.ScreenshotAreaSelectionService.CallCount.Should().Be(1);
-                context.ScreenshotAreaSelectionService.VideoSelectionCallCount.Should().Be(1);
-                context.ScreenshotCaptureService.StartVideoCaptureCallCount.Should().Be(1);
-                context.ScreenshotCaptureService.CaptureAreaCallCount.Should().Be(0);
-                context.ScreenshotCaptureService.LastStartVideoCaptureArea.Should().Be(promotedVideoArea);
-                context.ViewModel.ScreenshotStatusMessage.Should().Be(
-                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotStatusCurrentScreenRecordingStarted));
-            });
-    }
-
-    [Fact]
-    public async Task ScreenshotHotkey_WhenPressedThreeTimes_ShouldOpenVideoPickerAndStartChosenCapture()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-                await context.ViewModel.InitializeAsync();
-
-                context.ScreenshotAreaSelectionService.EnqueueVideoSelectionResult(
-                    new VideoCaptureSelection(VideoCaptureSelectionKind.AllScreens, null));
-
-                var firstPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-                await Task.Delay(50);
-                var secondPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-                await Task.Delay(50);
-                var thirdPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-
-                await Task.WhenAll(firstPressTask, secondPressTask, thirdPressTask);
-                await context.ScreenshotCaptureService.WaitForVideoStartCountAsync(expectedCount: 1);
-
-                context.ScreenshotAreaSelectionService.CallCount.Should().Be(0);
-                context.ScreenshotAreaSelectionService.VideoSelectionCallCount.Should().Be(1);
-                context.ScreenshotCaptureService.StartVideoCaptureCallCount.Should().Be(1);
-                context.ScreenshotCaptureService.LastStartVideoCaptureArea.Should().BeNull();
-                context.ViewModel.ScreenshotStatusMessage.Should().Be(
-                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotStatusAllScreensRecordingStarted));
-            });
-    }
-
-    [Fact]
-    public async Task ScreenshotHotkey_WhenPressedFourTimes_ShouldStartCurrentScreenRecordingWithoutPicker()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-                await context.ViewModel.InitializeAsync();
-
-                var firstPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-                await Task.Delay(50);
-                var secondPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-                await Task.Delay(50);
-                var thirdPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-                await Task.Delay(50);
-                var fourthPressTask = context.ViewModel.HandleHotkeyAsync(HotkeyAction.ScreenshotCapture);
-
-                await Task.WhenAll(firstPressTask, secondPressTask, thirdPressTask, fourthPressTask);
-                await context.ScreenshotCaptureService.WaitForVideoStartCountAsync(expectedCount: 1);
-
-                context.ScreenshotAreaSelectionService.CallCount.Should().Be(0);
-                context.ScreenshotAreaSelectionService.VideoSelectionCallCount.Should().Be(0);
-                context.ScreenshotCaptureService.StartVideoCaptureCallCount.Should().Be(1);
-                context.ScreenshotCaptureService.LastStartVideoCaptureArea.Should().NotBeNull();
-                context.ScreenshotCaptureService.LastStartVideoCaptureArea!.Value.Width.Should().BeGreaterThan(0);
-                context.ScreenshotCaptureService.LastStartVideoCaptureArea!.Value.Height.Should().BeGreaterThan(0);
-                context.ViewModel.ScreenshotStatusMessage.Should().Be(
-                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotStatusCurrentScreenRecordingStarted));
-            });
-    }
-
-    [Fact]
-    public async Task ToggleHotkey_WhenMainWindowIsActive_ShouldNotStartAutoClicker()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-
-                await context.ViewModel.InitializeAsync();
-                context.ViewModel.SetMainWindowActive(true);
-
-                await context.ViewModel.HandleHotkeyAsync(HotkeyAction.Toggle);
-
-                context.AutoClickerController.StartAsyncCallCount.Should().Be(0);
-                context.AutoClickerController.IsRunning.Should().BeFalse();
-                context.ViewModel.IsRunning.Should().BeFalse();
-                context.ViewModel.StatusMessage.Should().Be(
-                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainStatusClickerHotkeyIgnoredWhileFocused));
-            });
-    }
-
-    [Fact]
-    public async Task ToggleHotkey_WhenMainWindowIsActiveAndAutoClickerIsAlreadyRunning_ShouldStillStopAutoClicker()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-
-                await context.ViewModel.InitializeAsync();
-                context.ViewModel.SetMainWindowActive(false);
-                await context.ViewModel.HandleHotkeyAsync(HotkeyAction.Toggle);
-
-                context.ViewModel.SetMainWindowActive(true);
-                await context.ViewModel.HandleHotkeyAsync(HotkeyAction.Toggle);
-
-                context.AutoClickerController.StartAsyncCallCount.Should().Be(1);
-                context.AutoClickerController.StopAsyncCallCount.Should().Be(1);
-                context.AutoClickerController.IsRunning.Should().BeFalse();
-                context.ViewModel.IsRunning.Should().BeFalse();
-                context.ViewModel.StatusMessage.Should().Be(
-                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainStatusAutomationStopped));
-            });
-    }
-
-    [Fact]
-    public async Task CaptureIpv4SocketSnapshotAsync_ShouldShowProgramsAndFriendlyClipboardText()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-                context.Ipv4SocketSnapshotService.NextResult = new Ipv4SocketSnapshotResult(
-                    new DateTimeOffset(2026, 3, 19, 18, 30, 0, TimeSpan.Zero),
-                    [
-                        new Ipv4SocketEntry("tcp4", "ESTAB", "10.0.0.25:52344", "93.184.216.34:443", "chrome.exe", 7420),
-                        new Ipv4SocketEntry("tcp4", "LISTEN", "0.0.0.0:3000", "*:*", "node.exe", 9216),
-                        new Ipv4SocketEntry("udp4", "UNCONN", "127.0.0.1:5353", "*:*", string.Empty, 1104),
-                    ],
-                    1,
-                    1,
-                    1);
-
-                await context.ViewModel.InitializeAsync();
-                await context.ViewModel.CaptureIpv4SocketSnapshotCommand.ExecuteAsync(null);
-
-                context.ViewModel.Ipv4SocketSummary.Should().Contain("across 3 apps");
-                context.ViewModel.Ipv4SocketStatusMessage.Should().Contain("Found 3 IPv4 entries across 3 apps");
-                context.ViewModel.Ipv4SocketEntries.Select(static entry => entry.ProgramSummary).Should().Contain(
-                    "chrome.exe (PID 7420)",
-                    "node.exe (PID 9216)",
-                    "Unknown app (PID 1104)");
-
-                context.ViewModel.CopyIpv4SocketSnapshotCommand.Execute(null);
-
-                context.ClipboardTextService.LastText.Should().NotBeNull();
-                context.ClipboardTextService.LastText.Should().Contain("IPv4 App Activity");
-                context.ClipboardTextService.LastText.Should().Contain("chrome.exe (PID 7420)");
-                context.ClipboardTextService.LastText.Should().Contain("TCP connection  |  tcp4  ESTAB");
-                context.ClipboardTextService.LastText.Should().Contain("Unknown app (PID 1104)");
-            });
-    }
-
-    [Fact]
-    public async Task RestoreTelemetryDefaultsAsync_ShouldKeepRestoreSuccessMessage()
-    {
-        await StaDispatcherTestRunner.RunAsync(
-            async () =>
-            {
-                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
-                context.WindowsTelemetryService.Status = new WindowsTelemetryStatus(
-                    false,
-                    "Telemetry hardening not fully applied. AllowTelemetry policy is not set to 0.");
-                context.WindowsTelemetryService.RestoreResult = new WindowsTelemetryResult(
-                    true,
-                    true,
-                    "Restored telemetry defaults by removing the policy override, re-enabling telemetry tasks, and restoring telemetry service startup defaults.");
-
-                await context.ViewModel.InitializeAsync();
-                await context.ViewModel.RestoreTelemetryDefaultsCommand.ExecuteAsync(null);
-
-                context.ViewModel.TelemetryToolStatusMessage.Should().Be(context.WindowsTelemetryService.RestoreResult.Message);
-            });
-    }
-
     private static async Task WaitForConditionAsync(Func<bool> condition, TimeSpan? timeout = null)
     {
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(2);
@@ -651,7 +44,6 @@ public sealed class MainWindowViewModelSettingsFlowTests
             AutoClickerController = new FakeAutoClickerController();
             ScreenshotCaptureService = new FakeScreenshotCaptureService();
             ScreenshotAreaSelectionService = new FakeScreenshotAreaSelectionService();
-            HotkeySettingsDialogService = new FakeHotkeySettingsDialogService();
             ClipboardTextService = new FakeClipboardTextService();
             Ipv4SocketSnapshotService = new FakeIpv4SocketSnapshotService();
             WindowsTelemetryService = new FakeWindowsTelemetryService();
@@ -673,7 +65,6 @@ public sealed class MainWindowViewModelSettingsFlowTests
                 new FakeMacroEditorDialogService(),
                 new FakeMacroNamePromptService(),
                 new FakeMacroFileDialogService(),
-                HotkeySettingsDialogService,
                 new FakeMacroHotkeyAssignmentsDialogService(),
                 new FakeCoordinateCaptureDialogService(),
                 new FakeAboutWindowService(),
@@ -718,8 +109,6 @@ public sealed class MainWindowViewModelSettingsFlowTests
         public FakeScreenshotCaptureService ScreenshotCaptureService { get; }
 
         public FakeScreenshotAreaSelectionService ScreenshotAreaSelectionService { get; }
-
-        public FakeHotkeySettingsDialogService HotkeySettingsDialogService { get; }
 
         public FakeClipboardTextService ClipboardTextService { get; }
 
@@ -1064,22 +453,6 @@ public sealed class MainWindowViewModelSettingsFlowTests
         public string? PickOpenPath() => null;
     }
 
-    private sealed class FakeHotkeySettingsDialogService : IHotkeySettingsDialogService
-    {
-        public HotkeySettings? NextResult { get; set; }
-
-        public int EditCalls { get; private set; }
-
-        public HotkeySettings? LastInput { get; private set; }
-
-        public HotkeySettings? Edit(HotkeySettings currentSettings)
-        {
-            EditCalls++;
-            LastInput = currentSettings.Clone();
-            return NextResult?.Clone() ?? currentSettings.Clone();
-        }
-    }
-
     private sealed class FakeMacroHotkeyAssignmentsDialogService : IMacroHotkeyAssignmentsDialogService
     {
         public IReadOnlyList<MacroHotkeyAssignment>? Edit(
@@ -1121,15 +494,23 @@ public sealed class MainWindowViewModelSettingsFlowTests
 
     private sealed class FakeInstallerService : IInstallerService
     {
+        public event EventHandler<InstallerOperationProgressChangedEventArgs>? OperationProgressChanged;
+
         public int GetCatalogCallCount { get; private set; }
 
         public int GetCleanupCatalogCallCount { get; private set; }
 
         public int GetPackageStatusesCallCount { get; private set; }
 
+        public List<bool> PackageStatusIncludeUpdateChecks { get; } = [];
+
         public IReadOnlyList<InstallerCatalogItem> CatalogItems { get; set; } = [];
 
         public IReadOnlyList<InstallerCatalogItem> CleanupCatalogItems { get; set; } = [];
+
+        public IReadOnlyList<InstallerPackageStatus> PackageStatuses { get; set; } = [];
+
+        public Func<string, InstallerPackageAction, CancellationToken, Task<IReadOnlyList<InstallerOperationResult>>>? RunPackageOperationAsyncHandler { get; set; }
 
         public IReadOnlyList<InstallerCatalogItem> GetCatalog()
         {
@@ -1148,14 +529,23 @@ public sealed class MainWindowViewModelSettingsFlowTests
         public Task<InstallerEnvironmentInfo> GetEnvironmentInfoAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new InstallerEnvironmentInfo(true, "test", "Installer ready."));
 
-        public Task<IReadOnlyList<InstallerPackageStatus>> GetPackageStatusesAsync(IEnumerable<string> packageIds, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<InstallerPackageStatus>> GetPackageStatusesAsync(
+            IEnumerable<string> packageIds,
+            bool includeUpdateCheck = true,
+            CancellationToken cancellationToken = default)
         {
             GetPackageStatusesCallCount++;
-            return Task.FromResult<IReadOnlyList<InstallerPackageStatus>>([]);
+            PackageStatusIncludeUpdateChecks.Add(includeUpdateCheck);
+            var packageIdSet = packageIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var statuses = PackageStatuses
+                .Where(status => packageIdSet.Contains(status.PackageId))
+                .ToArray();
+            return Task.FromResult<IReadOnlyList<InstallerPackageStatus>>(statuses);
         }
 
         public Task<IReadOnlyList<InstallerOperationResult>> RunPackageOperationAsync(string packageId, InstallerPackageAction action, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<InstallerOperationResult>>([]);
+            RunPackageOperationAsyncHandler?.Invoke(packageId, action, cancellationToken)
+            ?? Task.FromResult<IReadOnlyList<InstallerOperationResult>>([]);
 
         public Task<IReadOnlyList<InstallerOperationResult>> InstallPackagesAsync(IEnumerable<string> packageIds, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<InstallerOperationResult>>([]);
@@ -1177,6 +567,23 @@ public sealed class MainWindowViewModelSettingsFlowTests
             }
 
             GetPackageStatusesCallCount.Should().BeGreaterOrEqualTo(expectedCount);
+        }
+
+        public void RaiseOperationProgress(
+            string packageId,
+            string displayName,
+            InstallerPackageAction action,
+            string statusText,
+            int? percent = null)
+        {
+            OperationProgressChanged?.Invoke(
+                this,
+                new InstallerOperationProgressChangedEventArgs(
+                    packageId,
+                    displayName,
+                    action,
+                    statusText,
+                    percent));
         }
     }
 

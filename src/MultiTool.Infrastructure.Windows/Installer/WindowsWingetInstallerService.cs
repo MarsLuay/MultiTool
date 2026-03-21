@@ -16,6 +16,11 @@ using Microsoft.Win32;
 namespace MultiTool.Infrastructure.Windows.Installer;
 
 public delegate Task<InstallerCommandResult> InstallerCommandRunner(ProcessStartInfo startInfo, CancellationToken cancellationToken);
+public delegate Task<InstallerCommandResult> InstallerProgressCommandRunner(
+    ProcessStartInfo startInfo,
+    CancellationToken cancellationToken,
+    Action<string>? outputSegmentHandler,
+    Action<string>? errorSegmentHandler);
 public delegate Task GuidedInstallerLauncher(string target, CancellationToken cancellationToken);
 public delegate Task InstallerFileDownloader(string url, string destinationPath, CancellationToken cancellationToken);
 public delegate Task<InstallerReleaseAsset?> InstallerReleaseAssetResolver(CancellationToken cancellationToken);
@@ -274,6 +279,7 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
     private readonly InstallerExecutableLauncher installerExecutableLauncher;
     private readonly Func<TimeSpan, CancellationToken, Task> delayAsync;
     private readonly Func<string, InstallerPackageStatus?> localPackageStatusResolver;
+    private readonly InstallerProgressCommandRunner? progressCommandRunner;
     private readonly bool supportsLiveWingetProgress;
     private readonly bool supportsLiveFileDownloadProgress;
 
@@ -327,7 +333,8 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         InstallerFileDownloader? fileDownloader = null,
         InstallerExecutableLauncher? installerExecutableLauncher = null,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
-        Func<string, InstallerPackageStatus?>? localPackageStatusResolver = null)
+        Func<string, InstallerPackageStatus?>? localPackageStatusResolver = null,
+        InstallerProgressCommandRunner? progressCommandRunner = null)
     {
         this.commandRunner = commandRunner;
         this.guidedInstallerLauncher = guidedInstallerLauncher ?? LaunchGuidedInstallerAsync;
@@ -351,7 +358,9 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         this.installerExecutableLauncher = installerExecutableLauncher ?? LaunchInstallerExecutableAsync;
         this.delayAsync = delayAsync ?? DelayAsync;
         this.localPackageStatusResolver = localPackageStatusResolver ?? TryGetLocalPackageStatus;
-        supportsLiveWingetProgress = IsDefaultCommandRunner(this.commandRunner);
+        this.progressCommandRunner = progressCommandRunner
+            ?? (IsDefaultCommandRunner(this.commandRunner) ? RunProcessAsync : null);
+        supportsLiveWingetProgress = this.progressCommandRunner is not null;
         supportsLiveFileDownloadProgress = IsDefaultFileDownloader(this.fileDownloader);
         catalogById = Catalog
             .Concat(CleanupCatalog)
@@ -398,7 +407,10 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         }
     }
 
-    public async Task<IReadOnlyList<InstallerPackageStatus>> GetPackageStatusesAsync(IEnumerable<string> packageIds, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<InstallerPackageStatus>> GetPackageStatusesAsync(
+        IEnumerable<string> packageIds,
+        bool includeUpdateCheck = true,
+        CancellationToken cancellationToken = default)
     {
         var normalizedIds = NormalizePackageIds(packageIds);
         if (normalizedIds.Count == 0)
@@ -411,7 +423,7 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
         foreach (var packageId in normalizedIds)
         {
-            var customStatus = await GetCustomPackageStatusAsync(packageId, cancellationToken).ConfigureAwait(false);
+            var customStatus = await GetCustomPackageStatusAsync(packageId, includeUpdateCheck, cancellationToken).ConfigureAwait(false);
             if (customStatus is not null)
             {
                 statusesById[packageId] = customStatus;
@@ -420,7 +432,11 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
             if (catalogById.TryGetValue(packageId, out var package) && !package.TrackStatusWithWinget)
             {
-                statusesById[packageId] = new InstallerPackageStatus(packageId, false, false, "Guided install");
+                statusesById[packageId] = new InstallerPackageStatus(
+                    packageId,
+                    false,
+                    false,
+                    package.UsesCustomInstallFlow ? "Not installed" : "Guided install");
                 continue;
             }
 
@@ -430,16 +446,20 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         if (wingetTrackedIds.Count > 0)
         {
             var installedResult = await RunWingetAsync("list --accept-source-agreements --disable-interactivity", cancellationToken).ConfigureAwait(false);
-            var upgradesResult = await RunWingetAsync("list --upgrade-available --accept-source-agreements --disable-interactivity", cancellationToken).ConfigureAwait(false);
-
             var installedOutput = NormalizeOutput(installedResult);
-            var upgradesOutput = NormalizeOutput(upgradesResult);
             var installedIds = FindPackageIdsInOutput(installedOutput, wingetTrackedIds);
-            var upgradeIds = FindPackageIdsInOutput(upgradesOutput, wingetTrackedIds);
+            var upgradeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (includeUpdateCheck)
+            {
+                var upgradesResult = await RunWingetAsync("list --upgrade-available --accept-source-agreements --disable-interactivity", cancellationToken).ConfigureAwait(false);
+                var upgradesOutput = NormalizeOutput(upgradesResult);
+                upgradeIds = FindPackageIdsInOutput(upgradesOutput, wingetTrackedIds);
+            }
 
             foreach (var packageId in wingetTrackedIds)
             {
-                var hasUpgrade = upgradeIds.Contains(packageId);
+                var hasUpgrade = includeUpdateCheck && upgradeIds.Contains(packageId);
                 var isInstalled = hasUpgrade || installedIds.Contains(packageId);
                 var statusText = hasUpgrade
                     ? "Update available"
@@ -514,7 +534,9 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
             return [];
         }
 
-        var statusesById = (await GetPackageStatusesAsync(expandedPackageIds, cancellationToken).ConfigureAwait(false))
+        var statusesById = (await GetPackageStatusesAsync(
+            expandedPackageIds,
+            cancellationToken: cancellationToken).ConfigureAwait(false))
             .GroupBy(static status => status.PackageId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(static group => group.Key, static group => group.Last(), StringComparer.OrdinalIgnoreCase);
         var results = new List<InstallerOperationResult>(expandedPackageIds.Count);
@@ -591,7 +613,7 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         string statusText,
         int? percent = null)
     {
-        var normalizedPercent = percent.HasValue
+        int? normalizedPercent = percent.HasValue
             ? Math.Clamp(percent.Value, 0, 100)
             : null;
         OperationProgressChanged?.Invoke(

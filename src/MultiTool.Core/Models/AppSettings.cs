@@ -2,7 +2,7 @@ namespace MultiTool.Core.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 9;
+    public const int CurrentVersion = 10;
 
     public int Version { get; set; } = CurrentVersion;
 

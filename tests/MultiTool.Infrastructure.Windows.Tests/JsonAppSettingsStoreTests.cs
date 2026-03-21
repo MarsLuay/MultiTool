@@ -231,6 +231,47 @@ public sealed class JsonAppSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync_AndLoadAsync_ShouldRoundTripModifierHotkeysAndOverrideSetting()
+    {
+        Directory.CreateDirectory(workingDirectory);
+
+        var settingsFilePath = Path.Combine(workingDirectory, "settings.json");
+        var legacyFilePath = Path.Combine(workingDirectory, "AutoClicker_Settings.json");
+        var store = new JsonAppSettingsStore(settingsFilePath, legacyFilePath);
+
+        var expected = new AppSettings
+        {
+            Clicker = new ClickSettings(),
+            Hotkeys = new HotkeySettings
+            {
+                Toggle = new HotkeyBinding(0x43, "Ctrl + C", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control),
+                PinWindow = new HotkeyBinding(0x56, "Ctrl + Shift + V", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control | HotkeyModifiers.Shift),
+                AllowModifierVariants = false,
+                OverrideApplicationShortcuts = true,
+            },
+            Screenshot = new ScreenshotSettings
+            {
+                CaptureHotkey = new HotkeyBinding(0x58, "Ctrl + Alt + X", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control | HotkeyModifiers.Alt),
+            },
+            Macro = new MacroSettings
+            {
+                PlayHotkey = new HotkeyBinding(0x42, "Ctrl + B", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control),
+                RecordHotkey = new HotkeyBinding(0x4D, "Ctrl + Shift + M", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control | HotkeyModifiers.Shift),
+            },
+        };
+
+        await store.SaveAsync(expected);
+        var actual = await store.LoadAsync();
+
+        actual.Hotkeys.OverrideApplicationShortcuts.Should().BeTrue();
+        actual.Hotkeys.Toggle.Modifiers.Should().Be(HotkeyModifiers.Control);
+        actual.Hotkeys.PinWindow.Modifiers.Should().Be(HotkeyModifiers.Control | HotkeyModifiers.Shift);
+        actual.Screenshot.CaptureHotkey.Modifiers.Should().Be(HotkeyModifiers.Control | HotkeyModifiers.Alt);
+        actual.Macro.PlayHotkey.Modifiers.Should().Be(HotkeyModifiers.Control);
+        actual.Macro.RecordHotkey.Modifiers.Should().Be(HotkeyModifiers.Control | HotkeyModifiers.Shift);
+    }
+
+    [Fact]
     public async Task SaveAsync_AndLoadAsync_ShouldRoundTripScreenshotSettings()
     {
         Directory.CreateDirectory(workingDirectory);

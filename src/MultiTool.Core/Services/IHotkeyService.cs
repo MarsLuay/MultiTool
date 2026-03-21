@@ -9,6 +9,8 @@ public interface IHotkeyService : IDisposable
 
     bool IsAttached { get; }
 
+    Func<bool>? LowLevelHotkeySuppressionEvaluator { get; set; }
+
     void Attach(nint windowHandle);
 
     IReadOnlyCollection<HotkeyRegistrationResult> RegisterHotkeys(

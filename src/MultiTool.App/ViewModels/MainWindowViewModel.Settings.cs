@@ -121,10 +121,13 @@ public partial class MainWindowViewModel : ObservableObject
         ScreenshotFilePrefix = settings.Screenshot.FilePrefix;
         ScreenshotHotkeyVirtualKey = settings.Screenshot.CaptureHotkey.VirtualKey;
         ScreenshotHotkeyDisplay = settings.Screenshot.CaptureHotkey.DisplayName;
+        ScreenshotHotkeyModifiers = settings.Screenshot.CaptureHotkey.Modifiers;
         MacroHotkeyVirtualKey = settings.Macro.PlayHotkey.VirtualKey;
         MacroHotkeyDisplay = settings.Macro.PlayHotkey.DisplayName;
+        MacroHotkeyModifiers = settings.Macro.PlayHotkey.Modifiers;
         MacroRecordHotkeyVirtualKey = settings.Macro.RecordHotkey.VirtualKey;
         MacroRecordHotkeyDisplay = settings.Macro.RecordHotkey.DisplayName;
+        MacroRecordHotkeyModifiers = settings.Macro.RecordHotkey.Modifiers;
         RecordMacroMouseMovement = settings.Macro.RecordMouseMovement;
         SetMacroHotkeyAssignments(settings.Macro.AssignedHotkeys);
         ApplyInstallerSettings(settings.Installer);
@@ -137,10 +140,15 @@ public partial class MainWindowViewModel : ObservableObject
         IsCtrlWheelResizeEnabled = settings.Ui.EnableCtrlWheelResize;
         IsRunAtStartupEnabled = resolvedRunAtStartupSetting;
         IsAutoHideOnStartupEnabled = settings.Ui.AutoHideOnStartup;
+        IsShortcutOverrideEnabled = settings.Hotkeys.OverrideApplicationShortcuts;
         IsSillyModeEnabled = settings.Ui.SillyMode;
         OnPropertyChanged(nameof(AppearanceHelperText));
         OnPropertyChanged(nameof(ClickerTabHeaderText));
         OnPropertyChanged(nameof(ClickerHotkeyLabelText));
+        OnPropertyChanged(nameof(HotkeyEditToolTip));
+        OnPropertyChanged(nameof(PinWindowHotkeyFieldLabelText));
+        OnPropertyChanged(nameof(HotkeyResetButtonText));
+        OnPropertyChanged(nameof(WaitingForKeyText));
         OnPropertyChanged(nameof(ClickerForceStopHelperText));
         OnPropertyChanged(nameof(ScreenshotTabHeaderText));
         OnPropertyChanged(nameof(MacroTabHeaderText));
@@ -161,10 +169,11 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(PinWindowStateText));
         OnPropertyChanged(nameof(PinWindowHotkeySummary));
         OnPropertyChanged(nameof(PinWindowActionButtonText));
-        OnPropertyChanged(nameof(PinWindowHotkeySettingsButtonText));
         OnPropertyChanged(nameof(CatTranslatorLabelText));
         OnPropertyChanged(nameof(RunAtStartupLabelText));
         OnPropertyChanged(nameof(AutoHideOnStartupLabelText));
+        OnPropertyChanged(nameof(ShortcutOverrideLabelText));
+        OnPropertyChanged(nameof(ShortcutOverrideHelperText));
         OnPropertyChanged(nameof(ResetAllSettingsButtonText));
         OnPropertyChanged(nameof(BugCheckingHeaderText));
         OnPropertyChanged(nameof(BugCheckingHelperText));
@@ -225,7 +234,10 @@ public partial class MainWindowViewModel : ObservableObject
         {
             CaptureHotkey = new HotkeyBinding(
                 virtualKey: ScreenshotHotkeyVirtualKey <= 0 ? ScreenshotSettings.DefaultCaptureVirtualKey : ScreenshotHotkeyVirtualKey,
-                displayName: string.IsNullOrWhiteSpace(ScreenshotHotkeyDisplay) ? ScreenshotSettings.DefaultCaptureDisplayName : ScreenshotHotkeyDisplay),
+                displayName: string.IsNullOrWhiteSpace(ScreenshotHotkeyDisplay) ? ScreenshotSettings.DefaultCaptureDisplayName : ScreenshotHotkeyDisplay,
+                inputKind: HotkeyInputKind.Keyboard,
+                mouseButton: ClickMouseButton.Left,
+                modifiers: ScreenshotHotkeyModifiers),
             SaveFolderPath = ScreenshotFolderPath,
             FilePrefix = ScreenshotFilePrefix,
         };
@@ -235,10 +247,16 @@ public partial class MainWindowViewModel : ObservableObject
         {
             PlayHotkey = new HotkeyBinding(
                 virtualKey: MacroHotkeyVirtualKey <= 0 ? MacroSettings.DefaultPlayVirtualKey : MacroHotkeyVirtualKey,
-                displayName: string.IsNullOrWhiteSpace(MacroHotkeyDisplay) ? MacroSettings.DefaultPlayDisplayName : MacroHotkeyDisplay),
+                displayName: string.IsNullOrWhiteSpace(MacroHotkeyDisplay) ? MacroSettings.DefaultPlayDisplayName : MacroHotkeyDisplay,
+                inputKind: HotkeyInputKind.Keyboard,
+                mouseButton: ClickMouseButton.Left,
+                modifiers: MacroHotkeyModifiers),
             RecordHotkey = new HotkeyBinding(
                 virtualKey: MacroRecordHotkeyVirtualKey <= 0 ? MacroSettings.DefaultRecordVirtualKey : MacroRecordHotkeyVirtualKey,
-                displayName: string.IsNullOrWhiteSpace(MacroRecordHotkeyDisplay) ? MacroSettings.DefaultRecordDisplayName : MacroRecordHotkeyDisplay),
+                displayName: string.IsNullOrWhiteSpace(MacroRecordHotkeyDisplay) ? MacroSettings.DefaultRecordDisplayName : MacroRecordHotkeyDisplay,
+                inputKind: HotkeyInputKind.Keyboard,
+                mouseButton: ClickMouseButton.Left,
+                modifiers: MacroRecordHotkeyModifiers),
             RecordMouseMovement = RecordMacroMouseMovement,
             AssignedHotkeys = macroHotkeyAssignments.Select(assignment => assignment.Clone()).ToList(),
         };
@@ -329,6 +347,7 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ClickerHotkeyDisplay));
         OnPropertyChanged(nameof(PinWindowHotkeyLabel));
         OnPropertyChanged(nameof(PinWindowHotkeySummary));
+        ClearPinWindowHotkeyCommand.NotifyCanExecuteChanged();
         RefreshPinWindowStatusCore(addLogEntry: false);
     }
 
@@ -456,6 +475,11 @@ public partial class MainWindowViewModel : ObservableObject
         ScheduleSettingsAutoSave();
     }
 
+    partial void OnScreenshotHotkeyModifiersChanged(HotkeyModifiers value)
+    {
+        ScheduleSettingsAutoSave();
+    }
+
     partial void OnMacroHotkeyDisplayChanged(string value)
     {
         OnPropertyChanged(nameof(MacroInfiniteHelperText));
@@ -467,12 +491,22 @@ public partial class MainWindowViewModel : ObservableObject
         ScheduleSettingsAutoSave();
     }
 
+    partial void OnMacroHotkeyModifiersChanged(HotkeyModifiers value)
+    {
+        ScheduleSettingsAutoSave();
+    }
+
     partial void OnMacroRecordHotkeyDisplayChanged(string value)
     {
         ScheduleSettingsAutoSave();
     }
 
     partial void OnMacroRecordHotkeyVirtualKeyChanged(int value)
+    {
+        ScheduleSettingsAutoSave();
+    }
+
+    partial void OnMacroRecordHotkeyModifiersChanged(HotkeyModifiers value)
     {
         ScheduleSettingsAutoSave();
     }
@@ -600,6 +634,29 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    partial void OnIsShortcutOverrideEnabledChanged(bool value)
+    {
+        hotkeySettings.OverrideApplicationShortcuts = value;
+
+        if (suppressThemeChange)
+        {
+            return;
+        }
+
+        SettingsStatusMessage = value
+            ? L(AppLanguageKeys.MainSettingsStatusShortcutOverrideOn)
+            : L(AppLanguageKeys.MainSettingsStatusShortcutOverrideOff);
+        HotkeysChanged?.Invoke(this, EventArgs.Empty);
+        ScheduleSettingsAutoSave();
+
+        if (initialized)
+        {
+            AddActivityLog(value
+                ? L(AppLanguageKeys.MainActivityShortcutOverrideEnabled)
+                : L(AppLanguageKeys.MainActivityShortcutOverrideDisabled));
+        }
+    }
+
     partial void OnIsSillyModeEnabledChanged(bool value)
     {
         if (suppressThemeChange)
@@ -610,6 +667,10 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(AppearanceHelperText));
         OnPropertyChanged(nameof(ClickerTabHeaderText));
         OnPropertyChanged(nameof(ClickerHotkeyLabelText));
+        OnPropertyChanged(nameof(HotkeyEditToolTip));
+        OnPropertyChanged(nameof(PinWindowHotkeyFieldLabelText));
+        OnPropertyChanged(nameof(HotkeyResetButtonText));
+        OnPropertyChanged(nameof(WaitingForKeyText));
         OnPropertyChanged(nameof(ClickerForceStopHelperText));
         OnPropertyChanged(nameof(ScreenshotTabHeaderText));
         OnPropertyChanged(nameof(MacroTabHeaderText));
@@ -630,10 +691,11 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(PinWindowStateText));
         OnPropertyChanged(nameof(PinWindowHotkeySummary));
         OnPropertyChanged(nameof(PinWindowActionButtonText));
-        OnPropertyChanged(nameof(PinWindowHotkeySettingsButtonText));
         OnPropertyChanged(nameof(CatTranslatorLabelText));
         OnPropertyChanged(nameof(RunAtStartupLabelText));
         OnPropertyChanged(nameof(AutoHideOnStartupLabelText));
+        OnPropertyChanged(nameof(ShortcutOverrideLabelText));
+        OnPropertyChanged(nameof(ShortcutOverrideHelperText));
         OnPropertyChanged(nameof(ResetAllSettingsButtonText));
         OnPropertyChanged(nameof(BugCheckingHeaderText));
         OnPropertyChanged(nameof(BugCheckingHelperText));

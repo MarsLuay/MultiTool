@@ -15,7 +15,10 @@ public interface IInstallerService
 
     Task<InstallerEnvironmentInfo> GetEnvironmentInfoAsync(CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<InstallerPackageStatus>> GetPackageStatusesAsync(IEnumerable<string> packageIds, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<InstallerPackageStatus>> GetPackageStatusesAsync(
+        IEnumerable<string> packageIds,
+        bool includeUpdateCheck = true,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<InstallerOperationResult>> RunPackageOperationAsync(string packageId, InstallerPackageAction action, CancellationToken cancellationToken = default);
 

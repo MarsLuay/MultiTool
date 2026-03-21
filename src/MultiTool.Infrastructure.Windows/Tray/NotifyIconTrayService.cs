@@ -167,6 +167,15 @@ public sealed class NotifyIconTrayService : ITrayIconService
 
     internal string CurrentTooltipText => currentTooltipText;
 
+    internal void StartInitialMetricsRefresh()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+
+        // Capture once at startup so the tray tooltip has real values before the
+        // user hovers the icon and opts into the periodic refresh window.
+        _ = Task.Run(() => RefreshMetricsAsync(CancellationToken.None));
+    }
+
     private Icon LoadIcon(string fileName)
     {
         var path = Path.Combine(iconDirectoryPath, fileName);
@@ -201,7 +210,9 @@ public sealed class NotifyIconTrayService : ITrayIconService
             metricsRefreshCancellationTokenSource?.Dispose();
             metricsRefreshCancellationTokenSource = new CancellationTokenSource();
             cancellationTokenSourceToStart = metricsRefreshCancellationTokenSource;
-            metricsRefreshTask = RunMetricsRefreshLoopAsync(cancellationTokenSourceToStart);
+            // Queue the loop onto the thread pool so a slow metrics provider cannot block
+            // the thread that triggered interest (for example the UI thread or tray callback).
+            metricsRefreshTask = Task.Run(() => RunMetricsRefreshLoopAsync(cancellationTokenSourceToStart));
         }
 
         _ = metricsRefreshTask;

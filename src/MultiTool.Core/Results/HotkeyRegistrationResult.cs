@@ -34,6 +34,9 @@ public sealed class HotkeyRegistrationResult
         var modifierText = Modifiers == HotkeyModifiers.None ? "None" : Modifiers.ToString();
         var status = Succeeded ? "registered" : "failed";
         var label = string.IsNullOrWhiteSpace(ActionLabel) ? Action.ToString() : ActionLabel;
-        return $"{label} hotkey {Binding.DisplayName} ({modifierText}) {status}.";
+        var bindingText = Binding.InputKind == HotkeyInputKind.Keyboard && Binding.Modifiers != Modifiers
+            ? $"{Binding.DisplayName} ({modifierText})"
+            : Binding.DisplayName;
+        return $"{label} hotkey {bindingText} {status}.";
     }
 }

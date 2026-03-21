@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -43,10 +42,6 @@ public partial class MainWindow : Window
     private readonly IScreenshotCaptureService screenshotCaptureService;
     private readonly IVideoRecordingIndicatorService videoRecordingIndicatorService;
     private readonly Random random = new();
-    private bool allowClickerHotkeyFocusFromClick;
-    private bool allowScreenshotHotkeyFocusFromClick;
-    private bool allowMacroHotkeyFocusFromClick;
-    private bool allowMacroRecordHotkeyFocusFromClick;
     private bool isClosingAfterAutoSave;
     private bool isTransitioningToTray;
     private System.Windows.Point? pendingMaximizedTitleBarDragPoint;
@@ -80,13 +75,14 @@ public partial class MainWindow : Window
 
         viewModel.HotkeysChanged += ViewModel_HotkeysChanged;
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        hotkeyService.LowLevelHotkeySuppressionEvaluator = ShouldSuppressHotkeyExecution;
         hotkeyService.HotkeyPressed += HotkeyService_HotkeyPressed;
         autoClickerController.RunningStateChanged += AutoClickerController_RunningStateChanged;
         screenshotCaptureService.VideoCaptureStateChanged += ScreenshotCaptureService_VideoCaptureStateChanged;
 
-        trayIconService.ShowRequested += (_, _) => Dispatcher.Invoke(ShowFromTray);
-        trayIconService.HideRequested += (_, _) => Dispatcher.Invoke(HideToTray);
-        trayIconService.ExitRequested += (_, _) => Dispatcher.Invoke(Close);
+        trayIconService.ShowRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Normal, ShowFromTray);
+        trayIconService.HideRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Normal, HideToTray);
+        trayIconService.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Normal, Close);
     }
 
     protected override void OnSourceInitialized(EventArgs e)

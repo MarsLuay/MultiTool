@@ -87,6 +87,7 @@ public partial class MainWindowViewModel
     [ObservableProperty]
     private string cleanupStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.InstallerStatusCleanupLoading);
 
+    private bool hasCompletedInstallerPresenceCheck;
     private bool hasCompletedInstallerStatusCheck;
 
     private void QueueInstallerInitialization()
@@ -390,7 +391,9 @@ public partial class MainWindowViewModel
             InstallerEnvironmentMessage = L(AppLanguageKeys.InstallerEnvironmentDefault);
             InstallerAppUpdateSummary = L(AppLanguageKeys.InstallerAppUpdateSummaryDefault);
             CleanupStatusMessage = L(AppLanguageKeys.InstallerStatusCleanupLoading);
-            await RefreshInstallerStatusCoreAsync(addLogEntry: false).ConfigureAwait(true);
+            await Task.Yield();
+            InitializeInstallerState();
+            await RefreshInstallerStatusCoreAsync(addLogEntry: false, includeUpdateCheck: false).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -1074,7 +1077,11 @@ public partial class MainWindowViewModel
         }
     }
 
-    private async Task RefreshInstallerStatusCoreAsync(bool addLogEntry, bool addDetailedUpdateLog = false, bool preserveBusyState = false)
+    private async Task RefreshInstallerStatusCoreAsync(
+        bool addLogEntry,
+        bool addDetailedUpdateLog = false,
+        bool preserveBusyState = false,
+        bool includeUpdateCheck = true)
     {
         var totalStopwatch = ShouldTrackTabPerformance(InstallerTabIndex) ? Stopwatch.StartNew() : null;
         if (!preserveBusyState)
@@ -1098,10 +1105,11 @@ public partial class MainWindowViewModel
 
             IsWingetAvailable = environment.IsAvailable;
             InstallerEnvironmentMessage = environment.Message;
-            hasCompletedInstallerStatusCheck = true;
 
             if (!environment.IsAvailable)
             {
+                hasCompletedInstallerPresenceCheck = true;
+
                 foreach (var package in InstallerPackages)
                 {
                     package.IsInstalled = false;
@@ -1138,7 +1146,8 @@ public partial class MainWindowViewModel
                 .ToArray();
             var statusesStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
             var statuses = await installerService.GetPackageStatusesAsync(
-                packageIds);
+                packageIds,
+                includeUpdateCheck: includeUpdateCheck);
             statusesStopwatch?.Stop();
             if (statusesStopwatch is not null)
             {
@@ -1163,10 +1172,14 @@ public partial class MainWindowViewModel
                     applyStatusesStopwatch.Elapsed,
                     $"InstallerPackages={InstallerPackages.Count}; CleanupPackages={CleanupPackages.Count}");
             }
+            hasCompletedInstallerPresenceCheck = true;
+            hasCompletedInstallerStatusCheck = includeUpdateCheck;
 
             var installedCount = InstallerPackages.Count(item => item.IsInstalled);
             var updateCount = InstallerPackages.Count(item => item.HasUpdateAvailable);
-            InstallerStatusMessage = F(AppLanguageKeys.InstallerStatusInstalledUpdatesFormat, installedCount, updateCount, PluralSuffix(updateCount));
+            InstallerStatusMessage = includeUpdateCheck
+                ? F(AppLanguageKeys.InstallerStatusInstalledUpdatesFormat, installedCount, updateCount, PluralSuffix(updateCount))
+                : F(AppLanguageKeys.InstallerStatusInstalledScanDeferredFormat, installedCount, PluralSuffix(installedCount));
             var installedCleanupCount = CleanupPackages.Count(item => item.IsInstalled);
             CleanupStatusMessage = F(AppLanguageKeys.CleanupStatusInstalledRemovableFormat, installedCleanupCount, PluralSuffix(installedCleanupCount));
 
@@ -1182,7 +1195,6 @@ public partial class MainWindowViewModel
         catch (Exception ex)
         {
             InstallerStatusMessage = F(AppLanguageKeys.InstallerRefreshFailedFormat, ex.Message);
-            hasCompletedInstallerStatusCheck = true;
 
             if (addLogEntry)
             {
@@ -1279,19 +1291,24 @@ public partial class MainWindowViewModel
         var selectedCount = InstallerPackages.Count(item => item.IsSelected);
         var installedCount = InstallerPackages.Count(item => item.IsInstalled);
         var updateCount = InstallerPackages.Count(item => item.HasUpdateAvailable);
+        if (!hasCompletedInstallerStatusCheck)
+        {
+            return F(AppLanguageKeys.InstallerSelectionSummaryPendingUpdatesFormat, selectedCount, installedCount);
+        }
+
         return F(AppLanguageKeys.InstallerSelectionSummaryFormat, selectedCount, installedCount, updateCount);
     }
 
     private string BuildInstallerUpdateSummary()
     {
+        if (!IsWingetAvailable && hasCompletedInstallerPresenceCheck)
+        {
+            return L(AppLanguageKeys.InstallerUpdateSummaryUnavailable);
+        }
+
         if (!hasCompletedInstallerStatusCheck)
         {
             return L(AppLanguageKeys.InstallerUpdateSummaryInitial);
-        }
-
-        if (!IsWingetAvailable)
-        {
-            return L(AppLanguageKeys.InstallerUpdateSummaryUnavailable);
         }
 
         var updates = InstallerPackages

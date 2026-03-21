@@ -44,6 +44,7 @@ public partial class MacroHotkeyAssignmentsWindowViewModel : ObservableObject
                     savedMacro.DisplayName,
                     savedMacro.FilePath,
                     existingAssignment.Hotkey.VirtualKey,
+                    existingAssignment.Hotkey.Modifiers,
                     string.IsNullOrWhiteSpace(existingAssignment.Hotkey.DisplayName)
                         ? L(AppLanguageKeys.MacroHotkeyAssignmentsClickToAssign)
                         : existingAssignment.Hotkey.DisplayName,
@@ -89,16 +90,16 @@ public partial class MacroHotkeyAssignmentsWindowViewModel : ObservableObject
     [ObservableProperty]
     private string statusMessage = string.Empty;
 
-    public void CaptureHotkey(MacroHotkeyAssignmentItemViewModel item, Key key)
+    public void CaptureHotkey(MacroHotkeyAssignmentItemViewModel item, Key key, ModifierKeys modifiers)
     {
         var capturedKey = key == Key.System ? Key.None : key;
-        var virtualKey = HotkeyDisplayNameFormatter.ToVirtualKey(capturedKey);
-        if (virtualKey <= 0)
+        var binding = HotkeyDisplayNameFormatter.CreateKeyboardBinding(capturedKey, modifiers);
+        if (binding.VirtualKey <= 0)
         {
             return;
         }
 
-        item.SetHotkey(virtualKey, HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey));
+        item.SetHotkey(binding.VirtualKey, binding.Modifiers, binding.DisplayName);
         StatusMessage = F(AppLanguageKeys.MacroHotkeyAssignmentsStatusAssignedFormat, item.MacroDisplayName, item.HotkeyDisplay);
     }
 

@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows.Threading;
+using System.Windows.Input;
+using MultiTool.App.Helpers;
 using MultiTool.App.Localization;
 using MultiTool.App.Models;
 using MultiTool.App.Services;
@@ -135,8 +137,6 @@ public partial class MainWindowViewModel
     public string PinWindowActionButtonText => IsTopMost
         ? L(AppLanguageKeys.ToolsPinWindowActionUnpin)
         : L(AppLanguageKeys.ToolsPinWindowActionPin);
-
-    public string PinWindowHotkeySettingsButtonText => L(AppLanguageKeys.ToolsPinWindowHotkeySettingsButton);
 
     [ObservableProperty]
     private string emptyDirectoryRootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -711,204 +711,23 @@ public partial class MainWindowViewModel
     }
 
     private void EmptyDirectoryItem_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(EmptyDirectoryItem.IsSelected))
-        {
-            OnPropertyChanged(nameof(HasSelectedEmptyDirectories));
-            OnPropertyChanged(nameof(EmptyDirectorySelectionSummary));
-            RefreshToolCommandStates();
-        }
-    }
+        => emptyDirectoryToolsCoordinator.HandleItemPropertyChanged(sender, e);
 
     [RelayCommand]
     private void BrowseEmptyDirectoryRoot()
-    {
-        var selectedPath = folderPickerService.PickFolder(EmptyDirectoryRootPath, L(AppLanguageKeys.ToolsFolderPickerSelectEmptyDirectoryRoot));
-        if (string.IsNullOrWhiteSpace(selectedPath))
-        {
-            EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusFolderSelectionCanceled);
-            AddToolLog(EmptyDirectoryStatusMessage);
-            return;
-        }
-
-        EmptyDirectoryRootPath = selectedPath;
-        EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryRootSetFormat, selectedPath);
-        AddToolLog(EmptyDirectoryStatusMessage);
-    }
+        => emptyDirectoryToolsCoordinator.BrowseRoot();
 
     private bool CanShowAssignedShortcutHotkeys => !IsToolBusy;
 
     [RelayCommand(CanExecute = nameof(CanShowAssignedShortcutHotkeys))]
     private async Task ShowAssignedShortcutHotkeysAsync()
-    {
-        if (lastShortcutHotkeyScanResult is not null)
-        {
-            RefreshShortcutHotkeyResultExpiration();
-            ShortcutHotkeyStatusMessage = BuildShortcutHotkeyViewerStatusMessage(
-                lastShortcutHotkeyScanResult,
-                AppLanguageKeys.ToolsStatusShortcutOpenedCachedViewerFormat);
-            AddToolLog(ShortcutHotkeyStatusMessage);
-            shortcutHotkeyDialogService.Show(
-                lastShortcutHotkeyScanResult,
-                isCachedResult: true,
-                RescanShortcutHotkeysFromExplorerAsync,
-                DisableShortcutHotkeysFromExplorerAsync);
-            return;
-        }
-
-        IsToolBusy = true;
-        ShortcutHotkeyStatusMessage = L(AppLanguageKeys.ToolsStatusShortcutScanRunning);
-        StartShortcutHotkeyScanProgress();
-        AddToolLog(ShortcutHotkeyStatusMessage);
-
-        try
-        {
-            var progress = new Progress<ShortcutHotkeyScanProgress>(UpdateShortcutHotkeyScanProgress);
-            var result = await shortcutHotkeyInventoryService.ScanAsync(progress).ConfigureAwait(true);
-            PersistShortcutHotkeyScanMaxFolderCount(ShortcutHotkeyScanProgressMaximum);
-            lastShortcutHotkeyScanResult = result;
-            RefreshShortcutHotkeyResultExpiration();
-
-            ShortcutHotkeyStatusMessage = CountDetectedShortcutEntries(result) == 0 && CountReferenceShortcutEntries(result) == 0
-                ? F(AppLanguageKeys.ToolsStatusShortcutScanNoShortcutsFormat, result.ScannedShortcutCount, PluralSuffix(result.ScannedShortcutCount), BuildShortcutHotkeyWarningSuffix(result))
-                : BuildShortcutHotkeyViewerStatusMessage(result, AppLanguageKeys.ToolsStatusShortcutScanOpenedViewerFormat);
-            AddToolLog(ShortcutHotkeyStatusMessage);
-            LogShortcutHotkeyWarnings(result);
-            shortcutHotkeyDialogService.Show(
-                result,
-                isCachedResult: false,
-                RescanShortcutHotkeysFromExplorerAsync,
-                DisableShortcutHotkeysFromExplorerAsync);
-        }
-        catch (Exception ex)
-        {
-            ShortcutHotkeyStatusMessage = F(AppLanguageKeys.ToolsStatusShortcutScanFailedFormat, ex.Message);
-            AddToolLog(ShortcutHotkeyStatusMessage);
-        }
-        finally
-        {
-            ResetShortcutHotkeyScanProgress();
-            IsToolBusy = false;
-        }
-    }
+        => await shortcutHotkeyToolsCoordinator.ShowAssignedHotkeysAsync().ConfigureAwait(true);
 
     private async Task<ShortcutHotkeyScanResult> RescanShortcutHotkeysFromExplorerAsync()
-    {
-        try
-        {
-            var result = await shortcutHotkeyInventoryService.ScanAsync().ConfigureAwait(true);
-            lastShortcutHotkeyScanResult = result;
-            RefreshShortcutHotkeyResultExpiration();
-            ShortcutHotkeyStatusMessage = BuildShortcutHotkeyViewerStatusMessage(result, AppLanguageKeys.ToolsStatusShortcutScanOpenedViewerFormat);
-            AddToolLog(ShortcutHotkeyStatusMessage);
-            LogShortcutHotkeyWarnings(result);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            ShortcutHotkeyStatusMessage = F(AppLanguageKeys.ToolsStatusShortcutScanFailedFormat, ex.Message);
-            AddToolLog(ShortcutHotkeyStatusMessage);
-            throw;
-        }
-    }
+        => await shortcutHotkeyToolsCoordinator.RescanFromExplorerAsync().ConfigureAwait(true);
 
     private async Task<ShortcutHotkeyDisableOperationResult> DisableShortcutHotkeysFromExplorerAsync(IReadOnlyList<ShortcutHotkeyInfo> shortcuts)
-    {
-        try
-        {
-            var disableResult = await shortcutHotkeyDisableService.DisableAsync(shortcuts).ConfigureAwait(true);
-            ShortcutHotkeyScanResult scanResult;
-
-            if (disableResult.DisabledCount > 0 || lastShortcutHotkeyScanResult is null)
-            {
-                scanResult = await shortcutHotkeyInventoryService.ScanAsync().ConfigureAwait(true);
-                lastShortcutHotkeyScanResult = scanResult;
-                RefreshShortcutHotkeyResultExpiration();
-            }
-            else
-            {
-                scanResult = lastShortcutHotkeyScanResult;
-            }
-
-            ShortcutHotkeyStatusMessage = BuildShortcutHotkeyDisableStatusMessage(disableResult);
-            AddToolLog(ShortcutHotkeyStatusMessage);
-            LogShortcutHotkeyDisableWarnings(disableResult);
-            return new ShortcutHotkeyDisableOperationResult(scanResult, disableResult);
-        }
-        catch (Exception ex)
-        {
-            ShortcutHotkeyStatusMessage = F(AppLanguageKeys.ToolsStatusShortcutDisableFailedFormat, ex.Message);
-            AddToolLog(ShortcutHotkeyStatusMessage);
-            throw;
-        }
-    }
-
-    private string BuildShortcutHotkeyViewerStatusMessage(ShortcutHotkeyScanResult result, string formatKey)
-    {
-        var detectedCount = CountDetectedShortcutEntries(result);
-        var referenceCount = CountReferenceShortcutEntries(result);
-        return F(
-            formatKey,
-            detectedCount,
-            PluralSuffix(detectedCount),
-            referenceCount,
-            referenceCount == 1 ? "y" : "ies",
-            BuildShortcutHotkeyWarningSuffix(result));
-    }
-
-    private string BuildShortcutHotkeyWarningSuffix(ShortcutHotkeyScanResult result) =>
-        result.Warnings.Count == 0
-            ? string.Empty
-            : F(AppLanguageKeys.ToolsStatusShortcutScanWarningsSuffixFormat, result.Warnings.Count, PluralSuffix(result.Warnings.Count));
-
-    private static int CountDetectedShortcutEntries(ShortcutHotkeyScanResult result) =>
-        result.Shortcuts.Count(static shortcut => !shortcut.IsReferenceShortcut);
-
-    private static int CountReferenceShortcutEntries(ShortcutHotkeyScanResult result) =>
-        result.Shortcuts.Count(static shortcut => shortcut.IsReferenceShortcut);
-
-    private void LogShortcutHotkeyWarnings(ShortcutHotkeyScanResult result)
-    {
-        foreach (var warning in result.Warnings.Take(10))
-        {
-            AddToolLog(warning);
-        }
-    }
-
-    private string BuildShortcutHotkeyDisableStatusMessage(ShortcutHotkeyDisableResult result)
-    {
-        var warningSuffix = result.Warnings.Count == 0
-            ? string.Empty
-            : F(AppLanguageKeys.ToolsStatusShortcutDisableWarningsSuffixFormat, result.Warnings.Count, PluralSuffix(result.Warnings.Count));
-
-        if (result.DisabledCount > 0)
-        {
-            var unsupportedSuffix = result.UnsupportedCount == 0
-                ? string.Empty
-                : F(AppLanguageKeys.ToolsStatusShortcutDisableSkippedUnsupportedSuffixFormat, result.UnsupportedCount, result.UnsupportedCount == 1 ? "y" : "ies");
-            return F(
-                AppLanguageKeys.ToolsStatusShortcutDisableCompletedFormat,
-                result.DisabledCount,
-                PluralSuffix(result.DisabledCount),
-                unsupportedSuffix,
-                warningSuffix);
-        }
-
-        if (result.SupportedCount > 0)
-        {
-            return F(AppLanguageKeys.ToolsStatusShortcutDisableNoChangesFormat, warningSuffix);
-        }
-
-        return F(AppLanguageKeys.ToolsStatusShortcutDisableUnsupportedFormat, warningSuffix);
-    }
-
-    private void LogShortcutHotkeyDisableWarnings(ShortcutHotkeyDisableResult result)
-    {
-        foreach (var warning in result.Warnings.Take(10))
-        {
-            AddToolLog(warning);
-        }
-    }
+        => await shortcutHotkeyToolsCoordinator.DisableFromExplorerAsync(shortcuts).ConfigureAwait(true);
 
     [RelayCommand]
     private void ToggleUsefulSites()
@@ -1051,6 +870,7 @@ public partial class MainWindowViewModel
     private bool CanApplyTelemetryReduction => !IsToolBusy;
 
     private bool CanToggleWindowPin => !IsToolBusy;
+    private bool CanClearPinWindowHotkey => CanToggleWindowPin && hotkeySettings.PinWindow.VirtualKey > 0;
 
     [RelayCommand(CanExecute = nameof(CanToggleWindowPin))]
     private void ToggleWindowPin()
@@ -1058,16 +878,28 @@ public partial class MainWindowViewModel
         ToggleWindowPinCore(L(AppLanguageKeys.ToolsPinWindowTriggerToolButton));
     }
 
-    [RelayCommand(CanExecute = nameof(CanToggleWindowPin))]
-    private async Task OpenPinWindowHotkeySettingsAsync()
+    public void CapturePinWindowHotkey(Key key, ModifierKeys modifiers)
     {
-        var updatedSettings = hotkeySettingsDialogService.Edit(hotkeySettings.Clone());
-        if (updatedSettings is null)
+        var capturedKey = key == Key.System ? Key.None : key;
+        var binding = HotkeyDisplayNameFormatter.CreateKeyboardBinding(capturedKey, modifiers);
+        if (binding.VirtualKey <= 0)
         {
-            PinWindowToolStatusMessage = L(AppLanguageKeys.ToolsStatusPinWindowHotkeyCanceled);
-            AddToolLog(PinWindowToolStatusMessage);
             return;
         }
+
+        ApplyPinWindowHotkeyBinding(binding);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanClearPinWindowHotkey))]
+    private void ClearPinWindowHotkey()
+    {
+        ApplyPinWindowHotkeyBinding(HotkeySettings.CreateUnassignedBinding());
+    }
+
+    private void ApplyPinWindowHotkeyBinding(HotkeyBinding binding)
+    {
+        var updatedSettings = hotkeySettings.Clone();
+        updatedSettings.PinWindow = binding.Clone();
 
         var validation = settingsValidator.ValidateHotkeys(updatedSettings);
         if (!validation.IsValid)
@@ -1077,21 +909,19 @@ public partial class MainWindowViewModel
             return;
         }
 
-        if (AreHotkeySettingsEquivalent(hotkeySettings, updatedSettings))
+        if (AreHotkeyBindingsEquivalent(hotkeySettings.PinWindow, updatedSettings.PinWindow))
         {
             PinWindowToolStatusMessage = L(AppLanguageKeys.ToolsStatusPinWindowHotkeyUnchanged);
             AddToolLog(PinWindowToolStatusMessage);
             return;
         }
 
-        hotkeySettings = updatedSettings.Clone();
+        hotkeySettings.PinWindow = updatedSettings.PinWindow.Clone();
         RefreshHotkeyLabels();
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
+        ScheduleSettingsAutoSave();
 
-        var saved = await SaveSettingsAsync(L(AppLanguageKeys.MainStatusSettingsAutoSaved), updateStatusOnSuccess: false, addActivityLogOnSuccess: false);
-        PinWindowToolStatusMessage = saved
-            ? F(AppLanguageKeys.ToolsStatusPinWindowHotkeyUpdatedFormat, PinWindowHotkeyLabel)
-            : F(AppLanguageKeys.ToolsStatusPinWindowHotkeyUpdatedSaveFailedFormat, PinWindowHotkeyLabel);
+        PinWindowToolStatusMessage = F(AppLanguageKeys.ToolsStatusPinWindowHotkeyUpdatedFormat, PinWindowHotkeyLabel);
         AddToolLog(PinWindowToolStatusMessage);
     }
 
@@ -1267,6 +1097,7 @@ public partial class MainWindowViewModel
 
     private static bool AreHotkeySettingsEquivalent(HotkeySettings left, HotkeySettings right) =>
         left.AllowModifierVariants == right.AllowModifierVariants
+        && left.OverrideApplicationShortcuts == right.OverrideApplicationShortcuts
         && AreHotkeyBindingsEquivalent(left.Toggle, right.Toggle)
         && AreHotkeyBindingsEquivalent(left.PinWindow, right.PinWindow);
 
@@ -1274,7 +1105,8 @@ public partial class MainWindowViewModel
         left.VirtualKey == right.VirtualKey
         && string.Equals(left.DisplayName, right.DisplayName, StringComparison.Ordinal)
         && left.InputKind == right.InputKind
-        && left.MouseButton == right.MouseButton;
+        && left.MouseButton == right.MouseButton
+        && left.Modifiers == right.Modifiers;
 
     [RelayCommand(CanExecute = nameof(CanApplySystemDarkMode))]
     private void ApplySystemDarkMode()
@@ -1329,25 +1161,7 @@ public partial class MainWindowViewModel
 
     [RelayCommand(CanExecute = nameof(CanOpenEmptyDirectoryRoot))]
     private void OpenEmptyDirectoryRoot()
-    {
-        try
-        {
-            Process.Start(
-                new ProcessStartInfo
-                {
-                    FileName = EmptyDirectoryRootPath,
-                    UseShellExecute = true,
-                });
-
-            EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusOpenedScanRoot);
-            AddToolLog(EmptyDirectoryStatusMessage);
-        }
-        catch (Exception ex)
-        {
-            EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusOpenScanRootFailedFormat, ex.Message);
-            AddToolLog(EmptyDirectoryStatusMessage);
-        }
-    }
+        => emptyDirectoryToolsCoordinator.OpenRoot();
 
     private bool CanScanEmptyDirectories => !IsToolBusy && !string.IsNullOrWhiteSpace(EmptyDirectoryRootPath);
 
@@ -1755,170 +1569,28 @@ public partial class MainWindowViewModel
 
     [RelayCommand(CanExecute = nameof(CanScanEmptyDirectories))]
     private async Task ScanEmptyDirectoriesAsync()
-    {
-        await ScanEmptyDirectoriesCoreAsync(addLogEntry: true, manageBusyState: true).ConfigureAwait(true);
-    }
+        => await emptyDirectoryToolsCoordinator.ScanAsync(addLogEntry: true, manageBusyState: true).ConfigureAwait(true);
 
     private bool CanSelectAllEmptyDirectories => !IsToolBusy && EmptyDirectoryCandidates.Any(item => !item.IsSelected);
 
     [RelayCommand(CanExecute = nameof(CanSelectAllEmptyDirectories))]
     private void SelectAllEmptyDirectories()
-    {
-        foreach (var item in EmptyDirectoryCandidates)
-        {
-            item.IsSelected = true;
-        }
-
-        EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectorySelectAll);
-        AddToolLog(EmptyDirectoryStatusMessage);
-    }
+        => emptyDirectoryToolsCoordinator.SelectAll();
 
     private bool CanClearEmptyDirectorySelection => !IsToolBusy && EmptyDirectoryCandidates.Any(item => item.IsSelected);
 
     [RelayCommand(CanExecute = nameof(CanClearEmptyDirectorySelection))]
     private void ClearEmptyDirectorySelection()
-    {
-        foreach (var item in EmptyDirectoryCandidates.Where(item => item.IsSelected))
-        {
-            item.IsSelected = false;
-        }
-
-        EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectorySelectionCleared);
-        AddToolLog(EmptyDirectoryStatusMessage);
-    }
+        => emptyDirectoryToolsCoordinator.ClearSelection();
 
     private bool CanDeleteSelectedEmptyDirectories => !IsToolBusy && EmptyDirectoryCandidates.Any(item => item.IsSelected);
 
     [RelayCommand(CanExecute = nameof(CanDeleteSelectedEmptyDirectories))]
     private async Task DeleteSelectedEmptyDirectoriesAsync()
-    {
-        var selectedPaths = EmptyDirectoryCandidates
-            .Where(item => item.IsSelected)
-            .Select(item => item.FullPath)
-            .ToArray();
-        if (selectedPaths.Length == 0)
-        {
-            EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectorySelectAtLeastOne);
-            AddToolLog(EmptyDirectoryStatusMessage);
-            return;
-        }
-
-        IsToolBusy = true;
-        EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryDeletingFormat, selectedPaths.Length, selectedPaths.Length == 1 ? "y" : "ies");
-        AddToolLog(EmptyDirectoryStatusMessage);
-
-        try
-        {
-            var results = await emptyDirectoryService.DeleteDirectoriesAsync(selectedPaths).ConfigureAwait(true);
-            foreach (var result in results)
-            {
-                AddToolLog($"{result.DirectoryPath}: {result.Message}");
-            }
-
-            var deletedCount = results.Count(result => result.Succeeded && result.Deleted);
-            var missingCount = results.Count(result => result.Succeeded && !result.Deleted);
-            var failedCount = results.Count(result => !result.Succeeded);
-
-            await ScanEmptyDirectoriesCoreAsync(addLogEntry: false, manageBusyState: false).ConfigureAwait(true);
-            EmptyDirectoryStatusMessage = F(
-                AppLanguageKeys.ToolsStatusEmptyDirectoryDeleteSummaryFormat,
-                deletedCount,
-                missingCount,
-                failedCount,
-                EmptyDirectoryCandidates.Count,
-                EmptyDirectoryCandidates.Count == 1 ? "y" : "ies");
-            AddToolLog(EmptyDirectoryStatusMessage);
-        }
-        catch (Exception ex)
-        {
-            EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryDeleteFailedFormat, ex.Message);
-            AddToolLog(EmptyDirectoryStatusMessage);
-        }
-        finally
-        {
-            IsToolBusy = false;
-        }
-    }
+        => await emptyDirectoryToolsCoordinator.DeleteSelectedAsync().ConfigureAwait(true);
 
     private async Task ScanEmptyDirectoriesCoreAsync(bool addLogEntry, bool manageBusyState)
-    {
-        var rootPath = EmptyDirectoryRootPath?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(rootPath))
-        {
-            EmptyDirectoryStatusMessage = L(AppLanguageKeys.ToolsStatusEmptyDirectoryChooseRootFirst);
-            if (addLogEntry)
-            {
-                AddToolLog(EmptyDirectoryStatusMessage);
-            }
-
-            return;
-        }
-
-        if (!Directory.Exists(rootPath))
-        {
-            EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryRootMissingFormat, rootPath);
-            if (addLogEntry)
-            {
-                AddToolLog(EmptyDirectoryStatusMessage);
-            }
-
-            return;
-        }
-
-        var fullRootPath = Path.GetFullPath(rootPath);
-        EmptyDirectoryRootPath = fullRootPath;
-        if (manageBusyState)
-        {
-            IsToolBusy = true;
-        }
-
-        EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryScanningFormat, fullRootPath);
-        StartEmptyDirectoryScanProgress(fullRootPath);
-        if (addLogEntry)
-        {
-            AddToolLog(EmptyDirectoryStatusMessage);
-        }
-
-        try
-        {
-            var progress = new Progress<EmptyDirectoryScanProgress>(UpdateEmptyDirectoryScanProgress);
-            var scanResult = await emptyDirectoryService.FindEmptyDirectoriesAsync(fullRootPath, progress).ConfigureAwait(true);
-            PersistEmptyDirectoryScanMaxFolderCount(fullRootPath, EmptyDirectoryScanProgressMaximum);
-            ReplaceEmptyDirectoryCandidates(fullRootPath, scanResult.Candidates);
-
-            var warningSuffix = scanResult.Warnings.Count == 0
-                ? string.Empty
-                : F(AppLanguageKeys.ToolsStatusEmptyDirectoryWarningsSuffixFormat, scanResult.Warnings.Count, PluralSuffix(scanResult.Warnings.Count));
-            EmptyDirectoryStatusMessage = scanResult.Candidates.Count == 0
-                ? F(AppLanguageKeys.ToolsStatusEmptyDirectoryNoneFoundFormat, warningSuffix)
-                : F(AppLanguageKeys.ToolsStatusEmptyDirectoryFoundFormat, scanResult.Candidates.Count, scanResult.Candidates.Count == 1 ? "y" : "ies", warningSuffix);
-
-            if (addLogEntry)
-            {
-                AddToolLog(EmptyDirectoryStatusMessage);
-                foreach (var warning in scanResult.Warnings.Take(10))
-                {
-                    AddToolLog(warning);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            EmptyDirectoryStatusMessage = F(AppLanguageKeys.ToolsStatusEmptyDirectoryScanFailedFormat, ex.Message);
-            if (addLogEntry)
-            {
-                AddToolLog(EmptyDirectoryStatusMessage);
-            }
-        }
-        finally
-        {
-            ResetEmptyDirectoryScanProgress();
-            if (manageBusyState)
-            {
-                IsToolBusy = false;
-            }
-        }
-    }
+        => await emptyDirectoryToolsCoordinator.ScanAsync(addLogEntry, manageBusyState).ConfigureAwait(true);
 
     private async Task ScanDriverUpdatesCoreAsync(bool addLogEntry, bool manageBusyState)
     {
@@ -2243,25 +1915,7 @@ public partial class MainWindowViewModel
     }
 
     private void ReplaceEmptyDirectoryCandidates(string rootPath, IReadOnlyList<MultiTool.Core.Models.EmptyDirectoryCandidate> candidates)
-    {
-        foreach (var item in EmptyDirectoryCandidates)
-        {
-            item.PropertyChanged -= EmptyDirectoryItem_OnPropertyChanged;
-        }
-
-        EmptyDirectoryCandidates.Clear();
-        foreach (var candidate in candidates)
-        {
-            var item = new EmptyDirectoryItem(rootPath, candidate);
-            item.PropertyChanged += EmptyDirectoryItem_OnPropertyChanged;
-            EmptyDirectoryCandidates.Add(item);
-        }
-
-        OnPropertyChanged(nameof(HasSelectedEmptyDirectories));
-        OnPropertyChanged(nameof(EmptyDirectorySelectionSummary));
-        RefreshEmptyDirectoryResultExpiration();
-        RefreshToolCommandStates();
-    }
+        => emptyDirectoryToolsCoordinator.ReplaceCandidates(rootPath, candidates);
 
     private void RefreshShortcutHotkeyResultExpiration()
     {
@@ -2619,7 +2273,7 @@ public partial class MainWindowViewModel
         ApplyTelemetryReductionCommand.NotifyCanExecuteChanged();
         RestoreTelemetryDefaultsCommand.NotifyCanExecuteChanged();
         ToggleWindowPinCommand.NotifyCanExecuteChanged();
-        OpenPinWindowHotkeySettingsCommand.NotifyCanExecuteChanged();
+        ClearPinWindowHotkeyCommand.NotifyCanExecuteChanged();
         RefreshOneDriveStatusCommand.NotifyCanExecuteChanged();
         RemoveOneDriveCommand.NotifyCanExecuteChanged();
         RefreshEdgeStatusCommand.NotifyCanExecuteChanged();

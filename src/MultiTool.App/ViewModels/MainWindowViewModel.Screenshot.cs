@@ -48,17 +48,18 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
 
-    public void CaptureScreenshotHotkey(Key key)
+    public void CaptureScreenshotHotkey(Key key, ModifierKeys modifiers)
     {
         var capturedKey = key == Key.System ? Key.None : key;
-        var virtualKey = HotkeyDisplayNameFormatter.ToVirtualKey(capturedKey);
-        if (virtualKey <= 0)
+        var binding = HotkeyDisplayNameFormatter.CreateKeyboardBinding(capturedKey, modifiers);
+        if (binding.VirtualKey <= 0)
         {
             return;
         }
 
-        ScreenshotHotkeyVirtualKey = virtualKey;
-        ScreenshotHotkeyDisplay = HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey);
+        ScreenshotHotkeyVirtualKey = binding.VirtualKey;
+        ScreenshotHotkeyModifiers = binding.Modifiers;
+        ScreenshotHotkeyDisplay = binding.DisplayName;
         ScreenshotStatusMessage = F(AppLanguageKeys.MainScreenshotStatusHotkeySetFormat, ScreenshotHotkeyDisplay);
         AddScreenshotLog(ScreenshotStatusMessage);
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
@@ -80,8 +81,12 @@ public partial class MainWindowViewModel : ObservableObject
 
     private bool RefreshLatestVideoFromCaptureService()
     {
+        return RefreshLatestVideo(screenshotCaptureService.LastSavedVideoPath);
+    }
+
+    private bool RefreshLatestVideo(string? filePath)
+    {
         var previousPath = latestVideoFilePath;
-        var filePath = screenshotCaptureService.LastSavedVideoPath;
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
         {
             return false;
@@ -265,6 +270,12 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        if (ShouldSuppressScreenshotHotkeyAfterVideoStop())
+        {
+            ResetScreenshotHotkeySequence();
+            return;
+        }
+
         if (TryHandleActiveScreenshotAreaSelectionHotkey())
         {
             ResetScreenshotHotkeySequence();
@@ -281,12 +292,24 @@ public partial class MainWindowViewModel : ObservableObject
             return false;
         }
 
-        await screenshotCaptureService.StopVideoCaptureAsync();
-        var videoWasSaved = RefreshLatestVideoFromCaptureService();
+        var savedVideoPath = await screenshotCaptureService.StopVideoCaptureAsync();
+        var videoWasSaved = RefreshLatestVideo(savedVideoPath) || RefreshLatestVideoFromCaptureService();
         ScreenshotStatusMessage = videoWasSaved
             ? F(AppLanguageKeys.MainScreenshotStatusSavedVideoFormat, LatestVideoCaption)
             : L(AppLanguageKeys.ScreenshotStatusRecordingStopped);
         AddScreenshotLog(ScreenshotStatusMessage);
+        suppressScreenshotHotkeyUntilUtc = DateTime.UtcNow + ScreenshotHotkeyStopSuppressionWindow;
+        return true;
+    }
+
+    private bool ShouldSuppressScreenshotHotkeyAfterVideoStop()
+    {
+        if (suppressScreenshotHotkeyUntilUtc <= DateTime.UtcNow)
+        {
+            return false;
+        }
+
+        AppLog.Info("Screenshot hotkey ignored because a video recording just stopped.");
         return true;
     }
 

@@ -12,6 +12,7 @@ public partial class MacroHotkeyAssignmentItemViewModel : ObservableObject
         string macroDisplayName,
         string macroFilePath,
         int hotkeyVirtualKey,
+        HotkeyModifiers hotkeyModifiers,
         string hotkeyDisplay,
         MacroHotkeyPlaybackMode playbackMode,
         bool isEnabled)
@@ -20,6 +21,7 @@ public partial class MacroHotkeyAssignmentItemViewModel : ObservableObject
         MacroDisplayName = macroDisplayName;
         MacroFilePath = macroFilePath;
         this.hotkeyVirtualKey = hotkeyVirtualKey;
+        this.hotkeyModifiers = hotkeyModifiers;
         this.hotkeyDisplay = hotkeyDisplay;
         this.playbackMode = playbackMode;
         this.isEnabled = isEnabled;
@@ -35,6 +37,9 @@ public partial class MacroHotkeyAssignmentItemViewModel : ObservableObject
     private int hotkeyVirtualKey;
 
     [ObservableProperty]
+    private HotkeyModifiers hotkeyModifiers;
+
+    [ObservableProperty]
     private string hotkeyDisplay = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroHotkeyAssignmentsClickToAssign);
 
     [ObservableProperty]
@@ -45,9 +50,10 @@ public partial class MacroHotkeyAssignmentItemViewModel : ObservableObject
 
     public bool HasHotkeyAssigned => HotkeyVirtualKey > 0;
 
-    public void SetHotkey(int virtualKey, string displayName)
+    public void SetHotkey(int virtualKey, HotkeyModifiers modifiers, string displayName)
     {
         HotkeyVirtualKey = virtualKey;
+        HotkeyModifiers = modifiers;
         HotkeyDisplay = displayName;
         IsEnabled = true;
     }
@@ -55,6 +61,7 @@ public partial class MacroHotkeyAssignmentItemViewModel : ObservableObject
     public void ClearHotkey()
     {
         HotkeyVirtualKey = 0;
+        HotkeyModifiers = HotkeyModifiers.None;
         HotkeyDisplay = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MacroHotkeyAssignmentsClickToAssign);
         IsEnabled = false;
     }
@@ -71,7 +78,12 @@ public partial class MacroHotkeyAssignmentItemViewModel : ObservableObject
             Id = string.IsNullOrWhiteSpace(AssignmentId) ? Guid.NewGuid().ToString("N") : AssignmentId,
             MacroDisplayName = MacroDisplayName,
             MacroFilePath = MacroFilePath,
-            Hotkey = new HotkeyBinding(HotkeyVirtualKey, HotkeyDisplay),
+            Hotkey = new HotkeyBinding(
+                HotkeyVirtualKey,
+                HotkeyDisplay,
+                HotkeyInputKind.Keyboard,
+                ClickMouseButton.Left,
+                HotkeyModifiers),
             PlaybackMode = PlaybackMode,
             IsEnabled = IsEnabled,
         };

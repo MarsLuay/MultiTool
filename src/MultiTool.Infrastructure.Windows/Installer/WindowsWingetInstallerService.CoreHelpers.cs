@@ -407,7 +407,9 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
             return expandedIds;
         }
 
-        var installedDependencyIds = (await GetPackageStatusesAsync(autoIncludedDependencyIds, cancellationToken).ConfigureAwait(false))
+        var installedDependencyIds = (await GetPackageStatusesAsync(
+            autoIncludedDependencyIds,
+            cancellationToken: cancellationToken).ConfigureAwait(false))
             .Where(static status => status.IsInstalled)
             .Select(static status => status.PackageId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);

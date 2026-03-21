@@ -86,18 +86,16 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
 
-    public void CaptureClickerHotkey(Key key)
+    public void CaptureClickerHotkey(Key key, ModifierKeys modifiers)
     {
         var capturedKey = key == Key.System ? Key.None : key;
-        var virtualKey = HotkeyDisplayNameFormatter.ToVirtualKey(capturedKey);
-        if (virtualKey <= 0)
+        var binding = HotkeyDisplayNameFormatter.CreateKeyboardBinding(capturedKey, modifiers);
+        if (binding.VirtualKey <= 0)
         {
             return;
         }
 
-        hotkeySettings.Toggle = new HotkeyBinding(
-            virtualKey,
-            HotkeyDisplayNameFormatter.FormatVirtualKey(virtualKey));
+        hotkeySettings.Toggle = binding;
         OnPropertyChanged(nameof(ClickerHotkeyDisplay));
         HotkeysChanged?.Invoke(this, EventArgs.Empty);
         ScheduleSettingsAutoSave();

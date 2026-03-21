@@ -1,4 +1,5 @@
 using MultiTool.Core.Models;
+using MultiTool.Core.Results;
 using MultiTool.Core.Services;
 using MultiTool.Infrastructure.Windows.Tools;
 using FluentAssertions;
@@ -174,6 +175,12 @@ public sealed class WindowsSearchReplacementServiceTests : IDisposable
 
     private sealed class StubInstallerService : IInstallerService
     {
+        public event EventHandler<InstallerOperationProgressChangedEventArgs>? OperationProgressChanged
+        {
+            add { }
+            remove { }
+        }
+
         public Func<IEnumerable<string>, CancellationToken, Task<IReadOnlyList<InstallerOperationResult>>>? InstallPackagesAsyncHandler { get; set; }
 
         public IReadOnlyList<InstallerCatalogItem> GetCatalog() => [];
@@ -197,7 +204,10 @@ public sealed class WindowsSearchReplacementServiceTests : IDisposable
         public Task<InstallerEnvironmentInfo> GetEnvironmentInfoAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new InstallerEnvironmentInfo(true, "1.0.0", "winget ready"));
 
-        public Task<IReadOnlyList<InstallerPackageStatus>> GetPackageStatusesAsync(IEnumerable<string> packageIds, CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<InstallerPackageStatus>> GetPackageStatusesAsync(
+            IEnumerable<string> packageIds,
+            bool includeUpdateCheck = true,
+            CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<InstallerPackageStatus>>([]);
 
         public Task<IReadOnlyList<InstallerOperationResult>> RunPackageOperationAsync(

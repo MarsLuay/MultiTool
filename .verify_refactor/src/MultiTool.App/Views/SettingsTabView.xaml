@@ -1,0 +1,80 @@
+<UserControl x:Class="MultiTool.App.Views.SettingsTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/MultiTool;component/Resources/MainWindowSharedResources.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+<ScrollViewer DataContext="{Binding Shell}" Margin="0,12,0,0"
+                        VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <GroupBox Header="{Binding AppearanceHeaderText}" Margin="0,0,0,12">
+                <StackPanel Margin="12">
+                  <CheckBox Content="{Binding DarkModeLabelText}"
+                            IsChecked="{Binding IsDarkMode}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding CtrlWheelResizeLabelText}"
+                            IsChecked="{Binding IsCtrlWheelResizeEnabled}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding AlwaysOnTopLabelText}"
+                            IsChecked="{Binding IsTopMost}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding CatTranslatorLabelText}"
+                            IsChecked="{Binding IsSillyModeEnabled}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding RunAtStartupLabelText}"
+                            IsChecked="{Binding IsRunAtStartupEnabled}" />
+                  <CheckBox Margin="0,8,0,0"
+                            Content="{Binding AutoHideOnStartupLabelText}"
+                            IsChecked="{Binding IsAutoHideOnStartupEnabled}" />
+                  <WrapPanel Margin="0,10,0,0"
+                             HorizontalAlignment="Right">
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding ResetAllSettingsCommand}"
+                        Content="{Binding ResetAllSettingsButtonText}" />
+                  </WrapPanel>
+                  <TextBlock Margin="0,8,0,0"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding AppearanceHelperText}"
+                             TextWrapping="Wrap" />
+                  <TextBlock Margin="0,8,0,0"
+                             Text="{Binding SettingsStatusMessage}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </GroupBox>
+
+              <GroupBox Header="{Binding BugCheckingHeaderText}">
+                <Grid Margin="12">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Row="0"
+                             Margin="0,0,0,10"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             Text="{Binding BugCheckingHelperText}"
+                             TextWrapping="Wrap" />
+
+                  <WrapPanel Grid.Row="1"
+                             Margin="0,0,0,12"
+                             HorizontalAlignment="Right">
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding CopyActivityLogCommand}"
+                        Content="{Binding CopyLogButtonText}" />
+                  </WrapPanel>
+
+                  <ListBox Grid.Row="2"
+                           MinHeight="220"
+                           ItemsSource="{Binding ActivityLogEntries}" />
+                </Grid>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+</UserControl>

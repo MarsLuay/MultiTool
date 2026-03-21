@@ -13,11 +13,16 @@ namespace MultiTool.Infrastructure.Windows.Hotkeys;
 public sealed class WindowsHotkeyService : IHotkeyService
 {
     private readonly Dictionary<int, RegisteredHotkeyAction> idToAction = new();
+    private readonly Dictionary<KeyboardHotkeyTrigger, RegisteredHotkeyAction> lowLevelKeyboardActions = new();
     private readonly Dictionary<ClickMouseButton, RegisteredHotkeyAction> mouseButtonActions = new();
+    private readonly HashSet<int> activeLowLevelKeyboardVirtualKeys = [];
+    private readonly User32.HookProc keyboardHookCallback;
     private readonly User32.HookProc mouseHookCallback;
+    private readonly int currentProcessId = Environment.ProcessId;
 
     private HwndSource? source;
     private nint handle;
+    private nint keyboardHookHandle;
     private nint mouseHookHandle;
     private bool disposed;
     private int nextHotkeyId = 9000;
@@ -25,12 +30,15 @@ public sealed class WindowsHotkeyService : IHotkeyService
 
     public WindowsHotkeyService()
     {
+        keyboardHookCallback = KeyboardHookProc;
         mouseHookCallback = MouseHookProc;
     }
 
     public event EventHandler<HotkeyPressedEventArgs>? HotkeyPressed;
 
     public bool IsAttached => handle != nint.Zero;
+
+    public Func<bool>? LowLevelHotkeySuppressionEvaluator { get; set; }
 
     public void Attach(nint windowHandle)
     {
@@ -72,34 +80,35 @@ public sealed class WindowsHotkeyService : IHotkeyService
         UnregisterAll();
 
         var results = new List<HotkeyRegistrationResult>();
+        var registeredKeyboardTriggers = new HashSet<KeyboardHotkeyTrigger>();
         if (settings.Toggle.InputKind == HotkeyInputKind.MouseButton)
         {
             results.Add(RegisterMouseBinding(HotkeyAction.Toggle, settings.Toggle));
         }
         else
         {
-            results.AddRange(RegisterKeyboardBinding(HotkeyAction.Toggle, settings.Toggle, GetToggleHotkeyModifiers(settings)));
-            results.AddRange(RegisterKeyboardBinding(HotkeyAction.ForceStop, settings.Toggle, [HotkeyModifiers.Shift], actionLabel: "Force stop clicker"));
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.Toggle, settings.Toggle, GetToggleHotkeyModifiers(settings), settings, registeredKeyboardTriggers));
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.ForceStop, settings.Toggle, GetForceStopHotkeyModifiers(settings), settings, registeredKeyboardTriggers, actionLabel: "Force stop clicker"));
         }
 
         if (HasConfiguredKeyboardBinding(settings.PinWindow))
         {
-            results.AddRange(RegisterKeyboardBinding(HotkeyAction.WindowPinToggle, settings.PinWindow, [HotkeyModifiers.None], actionLabel: "Pin window"));
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.WindowPinToggle, settings.PinWindow, [settings.PinWindow.Modifiers], settings, registeredKeyboardTriggers, actionLabel: "Pin window"));
         }
 
         if (screenshotSettings.CaptureHotkey.InputKind == HotkeyInputKind.Keyboard)
         {
-            results.AddRange(RegisterKeyboardBinding(HotkeyAction.ScreenshotCapture, screenshotSettings.CaptureHotkey, [HotkeyModifiers.None]));
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.ScreenshotCapture, screenshotSettings.CaptureHotkey, [screenshotSettings.CaptureHotkey.Modifiers], settings, registeredKeyboardTriggers));
         }
 
         if (macroSettings.PlayHotkey.InputKind == HotkeyInputKind.Keyboard)
         {
-            results.AddRange(RegisterKeyboardBinding(HotkeyAction.MacroPlay, macroSettings.PlayHotkey, [HotkeyModifiers.None], actionLabel: "Macro play"));
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.MacroPlay, macroSettings.PlayHotkey, [macroSettings.PlayHotkey.Modifiers], settings, registeredKeyboardTriggers, actionLabel: "Macro play"));
         }
 
         if (macroSettings.RecordHotkey.InputKind == HotkeyInputKind.Keyboard)
         {
-            results.AddRange(RegisterKeyboardBinding(HotkeyAction.MacroRecordToggle, macroSettings.RecordHotkey, [HotkeyModifiers.None], actionLabel: "Macro record"));
+            results.AddRange(RegisterKeyboardBinding(HotkeyAction.MacroRecordToggle, macroSettings.RecordHotkey, [macroSettings.RecordHotkey.Modifiers], settings, registeredKeyboardTriggers, actionLabel: "Macro record"));
         }
 
         foreach (var assignment in macroSettings.AssignedHotkeys.Where(assignment => assignment.IsEnabled && assignment.Hotkey.InputKind == HotkeyInputKind.Keyboard))
@@ -108,7 +117,9 @@ public sealed class WindowsHotkeyService : IHotkeyService
                 RegisterKeyboardBinding(
                     HotkeyAction.MacroAssigned,
                     assignment.Hotkey,
-                    [HotkeyModifiers.None],
+                    [assignment.Hotkey.Modifiers],
+                    settings,
+                    registeredKeyboardTriggers,
                     payload: assignment.Id,
                     actionLabel: $"Saved macro '{assignment.MacroDisplayName}'"));
         }
@@ -124,8 +135,11 @@ public sealed class WindowsHotkeyService : IHotkeyService
         }
 
         idToAction.Clear();
+        lowLevelKeyboardActions.Clear();
         mouseButtonActions.Clear();
+        activeLowLevelKeyboardVirtualKeys.Clear();
         nextHotkeyId = 9000;
+        UninstallKeyboardHook();
         UninstallMouseHook();
     }
 
@@ -150,16 +164,28 @@ public sealed class WindowsHotkeyService : IHotkeyService
         HotkeyAction action,
         HotkeyBinding binding,
         IEnumerable<HotkeyModifiers> modifiers,
+        HotkeySettings settings,
+        HashSet<KeyboardHotkeyTrigger> registeredKeyboardTriggers,
         string? payload = null,
         string? actionLabel = null)
     {
-        foreach (var modifier in modifiers)
+        foreach (var modifier in modifiers.Distinct())
         {
-            var hotkeyId = nextHotkeyId++;
-            var succeeded = User32.RegisterHotKey(handle, hotkeyId, (uint)modifier, (uint)binding.VirtualKey);
-            if (succeeded)
+            var trigger = new KeyboardHotkeyTrigger(binding.VirtualKey, modifier);
+            if (!registeredKeyboardTriggers.Add(trigger))
             {
-                idToAction[hotkeyId] = new RegisteredHotkeyAction(action, payload);
+                yield return new HotkeyRegistrationResult(action, binding.Clone(), modifier, false, actionLabel);
+                continue;
+            }
+
+            var registeredAction = new RegisteredHotkeyAction(action, payload);
+            var succeeded = ShouldUseLowLevelOverride(settings, binding, modifier)
+                ? RegisterLowLevelKeyboardBinding(trigger, registeredAction)
+                : RegisterWindowsHotKeyBinding(trigger, registeredAction);
+
+            if (!succeeded)
+            {
+                registeredKeyboardTriggers.Remove(trigger);
             }
 
             yield return new HotkeyRegistrationResult(action, binding.Clone(), modifier, succeeded, actionLabel);
@@ -245,6 +271,105 @@ public sealed class WindowsHotkeyService : IHotkeyService
         return User32.CallNextHookEx(mouseHookHandle, nCode, wParam, lParam);
     }
 
+    private bool RegisterWindowsHotKeyBinding(KeyboardHotkeyTrigger trigger, RegisteredHotkeyAction action)
+    {
+        var hotkeyId = nextHotkeyId++;
+        var registrationModifiers = (uint)trigger.Modifiers | User32.ModNoRepeat;
+        var succeeded = User32.RegisterHotKey(handle, hotkeyId, registrationModifiers, (uint)trigger.VirtualKey);
+        if (succeeded)
+        {
+            idToAction[hotkeyId] = action;
+        }
+
+        return succeeded;
+    }
+
+    private bool RegisterLowLevelKeyboardBinding(KeyboardHotkeyTrigger trigger, RegisteredHotkeyAction action)
+    {
+        if (!InstallKeyboardHook())
+        {
+            return false;
+        }
+
+        lowLevelKeyboardActions[trigger] = action;
+        return true;
+    }
+
+    private bool InstallKeyboardHook()
+    {
+        if (keyboardHookHandle != nint.Zero)
+        {
+            return true;
+        }
+
+        var moduleName = Process.GetCurrentProcess().MainModule?.ModuleName;
+        var moduleHandle = Kernel32.GetModuleHandle(moduleName);
+        keyboardHookHandle = User32.SetWindowsHookEx(User32.WhKeyboardLl, keyboardHookCallback, moduleHandle, 0);
+        return keyboardHookHandle != nint.Zero;
+    }
+
+    private void UninstallKeyboardHook()
+    {
+        if (keyboardHookHandle == nint.Zero)
+        {
+            return;
+        }
+
+        User32.UnhookWindowsHookEx(keyboardHookHandle);
+        keyboardHookHandle = nint.Zero;
+    }
+
+    private nint KeyboardHookProc(int nCode, nint wParam, nint lParam)
+    {
+        if (nCode < 0 || lowLevelKeyboardActions.Count == 0)
+        {
+            return User32.CallNextHookEx(keyboardHookHandle, nCode, wParam, lParam);
+        }
+
+        var message = wParam.ToInt32();
+        var isKeyDown = message is User32.WmKeyDown or User32.WmSysKeyDown;
+        var isKeyUp = message is User32.WmKeyUp or User32.WmSysKeyUp;
+        if (!isKeyDown && !isKeyUp)
+        {
+            return User32.CallNextHookEx(keyboardHookHandle, nCode, wParam, lParam);
+        }
+
+        var hookStruct = Marshal.PtrToStructure<User32.KBDLLHOOKSTRUCT>(lParam);
+        if ((hookStruct.flags & User32.LlkhfInjected) != 0)
+        {
+            return User32.CallNextHookEx(keyboardHookHandle, nCode, wParam, lParam);
+        }
+
+        var virtualKey = (int)hookStruct.vkCode;
+
+        if (isKeyUp)
+        {
+            return activeLowLevelKeyboardVirtualKeys.Remove(virtualKey)
+                ? 1
+                : User32.CallNextHookEx(keyboardHookHandle, nCode, wParam, lParam);
+        }
+
+        if (activeLowLevelKeyboardVirtualKeys.Contains(virtualKey))
+        {
+            return 1;
+        }
+
+        var trigger = new KeyboardHotkeyTrigger(virtualKey, GetActiveKeyboardModifiers());
+        if (!lowLevelKeyboardActions.TryGetValue(trigger, out var action))
+        {
+            return User32.CallNextHookEx(keyboardHookHandle, nCode, wParam, lParam);
+        }
+
+        if (ShouldSuppressLowLevelHotkeyExecution())
+        {
+            return User32.CallNextHookEx(keyboardHookHandle, nCode, wParam, lParam);
+        }
+
+        activeLowLevelKeyboardVirtualKeys.Add(virtualKey);
+        HotkeyPressed?.Invoke(this, new HotkeyPressedEventArgs(action.Action, action.Payload));
+        return 1;
+    }
+
     private static ClickMouseButton? TranslateMouseButton(nint wParam, nint lParam)
     {
         return wParam.ToInt32() switch
@@ -273,9 +398,24 @@ public sealed class WindowsHotkeyService : IHotkeyService
         binding.InputKind == HotkeyInputKind.Keyboard && binding.VirtualKey > 0;
 
     internal static IReadOnlyList<HotkeyModifiers> GetToggleHotkeyModifiers(HotkeySettings settings) =>
-        settings.AllowModifierVariants
+        settings.Toggle.Modifiers != HotkeyModifiers.None
+            ? [settings.Toggle.Modifiers]
+            : settings.AllowModifierVariants
             ? [HotkeyModifiers.None, HotkeyModifiers.Alt, HotkeyModifiers.Control]
             : [HotkeyModifiers.None];
+
+    internal static IReadOnlyList<HotkeyModifiers> GetForceStopHotkeyModifiers(HotkeySettings settings) =>
+        GetToggleHotkeyModifiers(settings)
+            .Select(static modifier => modifier | HotkeyModifiers.Shift)
+            .Where(modifier => modifier != settings.Toggle.Modifiers)
+            .Distinct()
+            .ToArray();
+
+    internal static bool ShouldUseLowLevelOverride(HotkeySettings settings, HotkeyBinding binding, HotkeyModifiers modifier) =>
+        settings.OverrideApplicationShortcuts
+        && binding.InputKind == HotkeyInputKind.Keyboard
+        && binding.Modifiers != HotkeyModifiers.None
+        && modifier != HotkeyModifiers.None;
 
     private bool ShouldSuppressForExternalTextInput()
     {
@@ -323,5 +463,78 @@ public sealed class WindowsHotkeyService : IHotkeyService
                || className.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase);
     }
 
+    private bool ShouldSuppressLowLevelHotkeyExecution()
+    {
+        if (LowLevelHotkeySuppressionEvaluator?.Invoke() == true)
+        {
+            return true;
+        }
+
+        return ShouldSuppressForCurrentProcessTextInput();
+    }
+
+    private bool ShouldSuppressForCurrentProcessTextInput()
+    {
+        var foregroundWindow = User32.GetForegroundWindow();
+        if (foregroundWindow == nint.Zero)
+        {
+            return false;
+        }
+
+        User32.GetWindowThreadProcessId(foregroundWindow, out var processId);
+        if (processId != currentProcessId)
+        {
+            return false;
+        }
+
+        var foregroundThreadId = User32.GetWindowThreadProcessId(foregroundWindow, out _);
+        if (foregroundThreadId == 0)
+        {
+            return false;
+        }
+
+        var guiThreadInfo = new User32.GUITHREADINFO
+        {
+            cbSize = Marshal.SizeOf<User32.GUITHREADINFO>(),
+        };
+
+        if (!User32.GetGUIThreadInfo(foregroundThreadId, ref guiThreadInfo))
+        {
+            return false;
+        }
+
+        return guiThreadInfo.hwndCaret != nint.Zero && (guiThreadInfo.flags & User32.GuiCaretBlinking) != 0;
+    }
+
+    private static HotkeyModifiers GetActiveKeyboardModifiers()
+    {
+        var modifiers = HotkeyModifiers.None;
+        if (IsModifierPressed(User32.VkLControl) || IsModifierPressed(User32.VkRControl))
+        {
+            modifiers |= HotkeyModifiers.Control;
+        }
+
+        if (IsModifierPressed(User32.VkLMenu) || IsModifierPressed(User32.VkRMenu))
+        {
+            modifiers |= HotkeyModifiers.Alt;
+        }
+
+        if (IsModifierPressed(User32.VkLShift) || IsModifierPressed(User32.VkRShift))
+        {
+            modifiers |= HotkeyModifiers.Shift;
+        }
+
+        if (IsModifierPressed(User32.VkLWin) || IsModifierPressed(User32.VkRWin))
+        {
+            modifiers |= HotkeyModifiers.Windows;
+        }
+
+        return modifiers;
+    }
+
+    private static bool IsModifierPressed(int virtualKey) => (User32.GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+
     private readonly record struct RegisteredHotkeyAction(HotkeyAction Action, string? Payload);
+
+    private readonly record struct KeyboardHotkeyTrigger(int VirtualKey, HotkeyModifiers Modifiers);
 }

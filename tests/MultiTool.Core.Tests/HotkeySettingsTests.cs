@@ -11,5 +11,6 @@ public sealed class HotkeySettingsTests
         var settings = new HotkeySettings();
 
         settings.AllowModifierVariants.Should().BeTrue();
+        settings.OverrideApplicationShortcuts.Should().BeFalse();
     }
 }

@@ -74,7 +74,6 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IHotkeyService, WindowsHotkeyService>();
                         services.AddSingleton<ITrayIconService, NotifyIconTrayService>();
 
-                        services.AddSingleton<IHotkeySettingsDialogService, HotkeySettingsDialogService>();
                         services.AddSingleton<IMacroHotkeyAssignmentsDialogService, MacroHotkeyAssignmentsDialogService>();
                         services.AddSingleton<ICoordinateCaptureDialogService, CoordinateCaptureDialogService>();
                         services.AddSingleton<IFolderPickerService, FolderPickerService>();

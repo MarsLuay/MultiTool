@@ -44,7 +44,14 @@ public partial class MacroHotkeyAssignmentsWindow : Window
             return;
         }
 
-        viewModel.CaptureHotkey(item, e.Key);
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (HotkeyCaptureHelpers.IsModifierKey(key))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        viewModel.CaptureHotkey(item, key, Keyboard.Modifiers);
         ClearCaptureFocus();
         e.Handled = true;
     }

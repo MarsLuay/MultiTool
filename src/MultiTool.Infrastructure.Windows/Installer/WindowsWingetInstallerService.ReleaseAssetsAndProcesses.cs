@@ -19,8 +19,9 @@ namespace MultiTool.Infrastructure.Windows.Installer;
 public sealed partial class WindowsWingetInstallerService : IInstallerService
 {
     private static readonly Regex WingetPercentRegex = new(@"(?<!\d)(?<percent>\d{1,3})\s*%", RegexOptions.Compiled);
+    private static readonly Regex WingetAnsiEscapeRegex = new(@"\x1B\[[0-?]*[ -/]*[@-~]", RegexOptions.Compiled);
     private static readonly Regex WingetSizeProgressRegex = new(
-        @"(?<current>\d+(?:[.,]\d+)?)\s*(?<currentUnit>KB|MB|GB)\s*/\s*(?<total>\d+(?:[.,]\d+)?)\s*(?<totalUnit>KB|MB|GB)",
+        @"(?<current>\d+(?:[.,]\d+)?)\s*(?<currentUnit>B|KB|MB|GB|TB|KIB|MIB|GIB|TIB)\s*/\s*(?<total>\d+(?:[.,]\d+)?)\s*(?<totalUnit>B|KB|MB|GB|TB|KIB|MIB|GIB|TIB)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static HttpClient CreateHttpClient()
@@ -485,7 +486,11 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         CancellationToken cancellationToken)
     {
         var progressParser = new WingetProgressParser(statusText => ReportOperationProgress(package, action, statusText), percent => ReportOperationProgress(package, action, $"Downloading {percent}%...", percent));
-        return await RunProcessAsync(startInfo, cancellationToken, progressParser.HandleSegment, progressParser.HandleSegment).ConfigureAwait(false);
+        return await (progressCommandRunner ?? RunProcessAsync)(
+            startInfo,
+            cancellationToken,
+            progressParser.HandleSegment,
+            progressParser.HandleSegment).ConfigureAwait(false);
     }
 
     private static Task<InstallerCommandResult> RunProcessAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken) =>
@@ -588,7 +593,7 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
         public void HandleSegment(string segment)
         {
-            var line = segment.Trim();
+            var line = SanitizeSegment(segment);
             if (string.IsNullOrWhiteSpace(line))
             {
                 return;
@@ -666,14 +671,45 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
             var multiplier = unitText.ToUpperInvariant() switch
             {
+                "B" => 1d,
                 "KB" => 1024d,
+                "KIB" => 1024d,
                 "MB" => 1024d * 1024d,
+                "MIB" => 1024d * 1024d,
                 "GB" => 1024d * 1024d * 1024d,
+                "GIB" => 1024d * 1024d * 1024d,
+                "TB" => 1024d * 1024d * 1024d * 1024d,
+                "TIB" => 1024d * 1024d * 1024d * 1024d,
                 _ => 1d,
             };
 
             bytes = value * multiplier;
             return true;
+        }
+
+        private static string SanitizeSegment(string segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+            {
+                return string.Empty;
+            }
+
+            var withoutAnsi = WingetAnsiEscapeRegex.Replace(segment, string.Empty);
+            if (withoutAnsi.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder(withoutAnsi.Length);
+            foreach (var character in withoutAnsi)
+            {
+                if (!char.IsControl(character) || character is ' ' or '\t')
+                {
+                    builder.Append(character);
+                }
+            }
+
+            return builder.ToString().Trim();
         }
     }
 }

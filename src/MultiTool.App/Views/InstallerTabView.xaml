@@ -1,0 +1,544 @@
+<UserControl x:Class="MultiTool.App.Views.InstallerTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/MultiTool;component/Resources/MainWindowSharedResources.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+<ScrollViewer DataContext="{Binding Shell}" VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="0,12,0,0">
+            <GroupBox Header="Package Picker" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding InstallerPackagePickerDescriptionText}"
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,12,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Margin="0,0,8,0"
+                             VerticalAlignment="Center"
+                             Text="{Binding InstallerSearchLabelText}" />
+                  <TextBox Grid.Column="1"
+                           Text="{Binding InstallerSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding InstallerSelectionSummary}" />
+
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource AccentBrush}"
+                           Text="{Binding InstallerUpdateSummary}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding InstallerAppUpdateSummary}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding InstallerEnvironmentMessage}"
+                           TextWrapping="Wrap" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectRecommendedInstallerPackagesCommand}"
+                          Content="My Picks" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectDeveloperInstallerPackagesCommand}"
+                          Content="Dev Stack" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ClearInstallerSelectionCommand}"
+                          Content="Clear" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding CheckAllInstallerUpdatesCommand}"
+                          Content="Check All Updates" />
+                </WrapPanel>
+
+                <WrapPanel Margin="0,0,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding InstallSelectedPackagesCommand}"
+                          Content="Install Selected" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding UpgradeSelectedPackagesCommand}"
+                          Content="Update Selected" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding UpgradeAllInstalledPackagesCommand}"
+                          Content="Update All Ready" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource ControlBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsInstallerProgressVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding InstallerProgressText}"
+                               TextWrapping="Wrap" />
+                    <ProgressBar Margin="0,8,0,0"
+                                 Height="16"
+                                 Minimum="0"
+                                 IsIndeterminate="{Binding IsInstallerProgressIndeterminate}"
+                                 Maximum="{Binding InstallerProgressMaximum}"
+                                 Value="{Binding InstallerProgressValue}" />
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasInstallerOperations}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+
+                  <StackPanel>
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Left"
+                                 FontWeight="SemiBold"
+                                 Text="{Binding InstallerOperationQueueSummary}" />
+                      <Button DockPanel.Dock="Right"
+                              Margin="8,0,0,0"
+                              Padding="10,4"
+                              Command="{Binding ClearCompletedInstallerOperationsCommand}"
+                              Content="Clear Finished" />
+                    </DockPanel>
+
+                    <ListBox Margin="0,10,0,0"
+                             MaxHeight="180"
+                             ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                             ItemsSource="{Binding InstallerOperations}"
+                             Style="{StaticResource VirtualizedCardListStyle}">
+                      <ListBox.ItemTemplate>
+                          <DataTemplate>
+                            <Border Margin="0,0,0,8"
+                                    Padding="8"
+                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                              <StackPanel>
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding HeaderText}"
+                                           TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding StatusText}"
+                                           TextWrapping="Wrap">
+                                  <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                      <Style.Triggers>
+                                        <DataTrigger Binding="{Binding State}" Value="Queued">
+                                          <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="Running">
+                                          <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                        </DataTrigger>
+                                      </Style.Triggers>
+                                    </Style>
+                                  </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           Text="{Binding GuidanceText}"
+                                           TextWrapping="Wrap">
+                                  <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                      <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GuidanceText}" Value="">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding GuidanceText}" Value="{x:Null}">
+                                          <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                      </Style.Triggers>
+                                    </Style>
+                                  </TextBlock.Style>
+                                </TextBlock>
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ListBox MaxHeight="340"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding InstallerPackagesView}"
+                           Style="{StaticResource VirtualizedCardListStyle}"
+                           VirtualizingPanel.IsVirtualizing="True"
+                           VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                           VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.GroupStyle>
+                      <GroupStyle>
+                        <GroupStyle.Panel>
+                          <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                          </ItemsPanelTemplate>
+                        </GroupStyle.Panel>
+                        <GroupStyle.HeaderTemplate>
+                          <DataTemplate>
+                            <Border Margin="0,0,0,10"
+                                    Padding="10,8"
+                                    Background="{DynamicResource SurfaceAltBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                              <Grid>
+                                <Grid.ColumnDefinitions>
+                                  <ColumnDefinition Width="*" />
+                                  <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding Name}" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="8,0,0,0"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           Text="{Binding ItemCount, StringFormat={}{0} packages}" />
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                      </GroupStyle>
+                    </ListBox.GroupStyle>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Border Margin="0,0,0,10"
+                                Padding="10"
+                                Background="{DynamicResource ControlBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                          <Border.Style>
+                            <Style TargetType="Border">
+                              <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                              <Setter Property="BorderThickness" Value="1" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                  <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                  <Setter Property="BorderThickness" Value="2" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Border.Style>
+
+                          <StackPanel>
+                            <CheckBox IsChecked="{Binding IsSelected}">
+                              <TextBlock FontWeight="SemiBold"
+                                         Text="{Binding DisplayName}" />
+                            </CheckBox>
+
+                            <TextBlock Margin="0,6,0,0"
+                                       Text="{Binding Description}"
+                                       TextWrapping="Wrap" />
+
+                            <Expander Margin="0,8,0,0"
+                                      Header="Firefox Add-ons">
+                              <Expander.Style>
+                                <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasOptions}" Value="True">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </Expander.Style>
+
+                              <StackPanel Margin="0,8,0,0">
+                                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                                           Text="These use Firefox's supported policies system. MultiTool will apply them automatically, try to restart Firefox if it is already open, and may show a Windows admin prompt when Firefox policies need elevated write access."
+                                           TextWrapping="Wrap" />
+
+                                <ItemsControl Margin="0,6,0,0"
+                                              ItemsSource="{Binding Options}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                      <StackPanel Margin="0,6,0,0">
+                                        <CheckBox IsChecked="{Binding IsSelected}">
+                                          <TextBlock FontWeight="SemiBold"
+                                                     Text="{Binding DisplayName}" />
+                                        </CheckBox>
+
+                                        <TextBlock Margin="20,4,0,0"
+                                                   Foreground="{DynamicResource MutedTextBrush}"
+                                                   Text="{Binding Description}"
+                                                   TextWrapping="Wrap" />
+                                      </StackPanel>
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </StackPanel>
+                            </Expander>
+
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="{Binding PackageHintText}"
+                                       TextWrapping="Wrap" />
+
+                            <TextBlock Margin="0,6,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       FontSize="11"
+                                       Text="{Binding CapabilitySummaryText}"
+                                       TextWrapping="Wrap" />
+
+                            <Expander Margin="0,8,0,0"
+                                      Header="Quick Actions">
+                              <Expander.Style>
+                                <Style TargetType="Expander" BasedOn="{StaticResource InstallerInlineExpanderStyle}">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding HasAdvancedActions}" Value="True">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </Expander.Style>
+
+                              <StackPanel Margin="0,8,0,0">
+                                <TextBlock Margin="0,0,0,8"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           FontSize="11"
+                                           Text="Use the quickest path below for this app."
+                                           TextWrapping="Wrap" />
+
+                                <StackPanel>
+                                  <Button Command="{Binding DataContext.QueuePrimaryInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          CommandParameter="{Binding}"
+                                          Content="{Binding PrimaryActionText}">
+                                    <Button.Style>
+                                      <Style TargetType="Button" BasedOn="{StaticResource InstallerActionPrimaryButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding CanQueuePrimaryAction}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </Button.Style>
+                                  </Button>
+                                  <Button Command="{Binding DataContext.QueueInteractiveInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          CommandParameter="{Binding}"
+                                          Content="{Binding InteractiveActionText}">
+                                    <Button.Style>
+                                      <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding CanQueueInteractiveAction}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </Button.Style>
+                                  </Button>
+                                  <Button Command="{Binding DataContext.QueueReinstallInstallerPackageActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          CommandParameter="{Binding}"
+                                          Content="Reinstall">
+                                    <Button.Style>
+                                      <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding CanQueueReinstallAction}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </Button.Style>
+                                  </Button>
+                                  <Button Command="{Binding DataContext.OpenInstallerPackagePageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          CommandParameter="{Binding}"
+                                          Content="{Binding PageActionText}">
+                                    <Button.Style>
+                                      <Style TargetType="Button" BasedOn="{StaticResource InstallerActionButtonStyle}">
+                                        <Setter Property="Margin" Value="0" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding CanOpenRelevantPage}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </Button.Style>
+                                  </Button>
+                                </StackPanel>
+                              </StackPanel>
+                            </Expander>
+
+                            <TextBlock Margin="0,8,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding StatusText}">
+                              <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                  <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsInstalled}" Value="True">
+                                      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding HasUpdateAvailable}" Value="True">
+                                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </TextBlock.Style>
+                            </TextBlock>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding InstallerStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Cleanup Picks" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="This list is intentionally conservative. It only targets apps Windows and winget currently expose as removable, and Edge only works on systems where Microsoft allows it, such as current EEA installs."
+                           TextWrapping="Wrap" />
+
+                <TextBlock Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding CleanupSelectionSummary}" />
+
+                <WrapPanel Margin="0,12,0,0"
+                           HorizontalAlignment="Right">
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding SelectRecommendedCleanupPackagesCommand}"
+                          Content="Recommend Cleanup" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding ClearCleanupSelectionCommand}"
+                          Content="Clear" />
+                  <Button Margin="4"
+                          Padding="12,6"
+                          Command="{Binding UninstallSelectedCleanupPackagesCommand}"
+                          Content="Remove Selected" />
+                </WrapPanel>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <ListBox MaxHeight="220"
+                           ItemContainerStyle="{StaticResource VirtualizedCardListItemStyle}"
+                           ItemsSource="{Binding CleanupPackages}"
+                           Style="{StaticResource VirtualizedCardListStyle}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,10"
+                                  Padding="10"
+                                  Background="{DynamicResource ControlBackgroundBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <StackPanel>
+                              <CheckBox IsChecked="{Binding IsSelected}">
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="{Binding DisplayName}" />
+                              </CheckBox>
+
+                              <TextBlock Margin="0,6,0,0"
+                                         Text="{Binding Description}"
+                                         TextWrapping="Wrap" />
+
+                              <TextBlock Margin="0,8,0,0"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Text="{Binding PackageHintText}"
+                                         TextWrapping="Wrap" />
+
+                              <TextBlock Margin="0,8,0,0"
+                                         FontWeight="SemiBold"
+                                         Text="{Binding StatusText}">
+                                <TextBlock.Style>
+                                  <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                    <Style.Triggers>
+                                      <DataTrigger Binding="{Binding IsInstalled}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                      </DataTrigger>
+                                    </Style.Triggers>
+                                  </Style>
+                                </TextBlock.Style>
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding CleanupStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+          </StackPanel>
+        </ScrollViewer>
+</UserControl>

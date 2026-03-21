@@ -22,6 +22,15 @@ public sealed class HotkeyBinding
         MouseButton = mouseButton;
     }
 
+    public HotkeyBinding(int virtualKey, string displayName, HotkeyInputKind inputKind, ClickMouseButton mouseButton, HotkeyModifiers modifiers)
+    {
+        VirtualKey = virtualKey;
+        DisplayName = displayName;
+        InputKind = inputKind;
+        MouseButton = mouseButton;
+        Modifiers = modifiers;
+    }
+
     public int VirtualKey { get; set; }
 
     public string DisplayName { get; set; } = string.Empty;
@@ -30,5 +39,7 @@ public sealed class HotkeyBinding
 
     public ClickMouseButton MouseButton { get; set; } = ClickMouseButton.Left;
 
-    public HotkeyBinding Clone() => new(VirtualKey, DisplayName, InputKind, MouseButton);
+    public HotkeyModifiers Modifiers { get; set; }
+
+    public HotkeyBinding Clone() => new(VirtualKey, DisplayName, InputKind, MouseButton, Modifiers);
 }

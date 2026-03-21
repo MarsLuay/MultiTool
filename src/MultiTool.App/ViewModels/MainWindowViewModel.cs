@@ -43,7 +43,6 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IMacroEditorDialogService macroEditorDialogService;
     private readonly IMacroNamePromptService macroNamePromptService;
     private readonly IMacroFileDialogService macroFileDialogService;
-    private readonly IHotkeySettingsDialogService hotkeySettingsDialogService;
     private readonly IMacroHotkeyAssignmentsDialogService macroHotkeyAssignmentsDialogService;
     private readonly ICoordinateCaptureDialogService coordinateCaptureDialogService;
     private readonly IAboutWindowService aboutWindowService;
@@ -72,6 +71,8 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IFnCtrlSwapService fnCtrlSwapService;
     private readonly IShortcutHotkeyDialogService shortcutHotkeyDialogService;
     private readonly AppLaunchOptions appLaunchOptions;
+    private readonly ShortcutHotkeyToolsCoordinator shortcutHotkeyToolsCoordinator;
+    private readonly EmptyDirectoryToolsCoordinator emptyDirectoryToolsCoordinator;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private readonly SynchronizationContext? synchronizationContext;
     private readonly Dispatcher? dispatcher;
@@ -106,10 +107,12 @@ public partial class MainWindowViewModel : ObservableObject
     private CancellationTokenSource? activeScreenshotAreaSelectionCancellationTokenSource;
     private ScreenshotMode? activeScreenshotAreaSelectionMode;
     private bool promoteActiveAreaSelectionToVideo;
+    private DateTime suppressScreenshotHotkeyUntilUtc;
     private bool isMainWindowActive;
     private readonly TimeSpan toolScanResultRetentionWindow;
 
     private static readonly TimeSpan ScreenshotHotkeySequenceWindow = TimeSpan.FromMilliseconds(350);
+    private static readonly TimeSpan ScreenshotHotkeyStopSuppressionWindow = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan DefaultToolScanResultRetentionWindow = TimeSpan.FromMinutes(10);
 
     public MainWindowViewModel(
@@ -124,7 +127,6 @@ public partial class MainWindowViewModel : ObservableObject
         IMacroEditorDialogService macroEditorDialogService,
         IMacroNamePromptService macroNamePromptService,
         IMacroFileDialogService macroFileDialogService,
-        IHotkeySettingsDialogService hotkeySettingsDialogService,
         IMacroHotkeyAssignmentsDialogService macroHotkeyAssignmentsDialogService,
         ICoordinateCaptureDialogService coordinateCaptureDialogService,
         IAboutWindowService aboutWindowService,
@@ -166,7 +168,6 @@ public partial class MainWindowViewModel : ObservableObject
         this.macroEditorDialogService = macroEditorDialogService;
         this.macroNamePromptService = macroNamePromptService;
         this.macroFileDialogService = macroFileDialogService;
-        this.hotkeySettingsDialogService = hotkeySettingsDialogService;
         this.macroHotkeyAssignmentsDialogService = macroHotkeyAssignmentsDialogService;
         this.coordinateCaptureDialogService = coordinateCaptureDialogService;
         this.aboutWindowService = aboutWindowService;
@@ -199,6 +200,14 @@ public partial class MainWindowViewModel : ObservableObject
         this.toolScanResultRetentionWindow = toolScanResultRetentionWindow ?? DefaultToolScanResultRetentionWindow;
         synchronizationContext = SynchronizationContext.Current;
         dispatcher = Dispatcher.FromThread(Thread.CurrentThread);
+        shortcutHotkeyToolsCoordinator = new ShortcutHotkeyToolsCoordinator(this);
+        emptyDirectoryToolsCoordinator = new EmptyDirectoryToolsCoordinator(this);
+        ClickerTab = new ClickerTabViewModel(this);
+        ScreenshotTab = new ScreenshotTabViewModel(this);
+        MacroTab = new MacroTabViewModel(this);
+        InstallerTab = new InstallerTabViewModel(this);
+        ToolsTab = new ToolsTabViewModel(this);
+        SettingsTab = new SettingsTabViewModel(this);
         this.windows11EeaMediaService.StatusChanged += Windows11EeaMediaService_OnStatusChanged;
 
         MouseButtons =
@@ -230,6 +239,18 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     public event EventHandler? HotkeysChanged;
+
+    public ClickerTabViewModel ClickerTab { get; }
+
+    public ScreenshotTabViewModel ScreenshotTab { get; }
+
+    public MacroTabViewModel MacroTab { get; }
+
+    public InstallerTabViewModel InstallerTab { get; }
+
+    public ToolsTabViewModel ToolsTab { get; }
+
+    public SettingsTabViewModel SettingsTab { get; }
 
     public IReadOnlyList<ClickMouseButton> MouseButtons { get; }
 
@@ -285,6 +306,8 @@ public partial class MainWindowViewModel : ObservableObject
             : L(AppLanguageKeys.MainAdminBannerNotAdmin);
 
     public string HotkeyEditToolTip => L(AppLanguageKeys.HotkeyEditToolTip);
+    public string PinWindowHotkeyFieldLabelText => L(AppLanguageKeys.HotkeySettingsPinWindowLabel);
+    public string HotkeyResetButtonText => L(AppLanguageKeys.HotkeySettingsResetButton);
     public string IntervalLabelText => L(AppLanguageKeys.MainIntervalLabel);
     public string HoursLabelText => L(AppLanguageKeys.MainHoursLabel);
     public string MinutesLabelText => L(AppLanguageKeys.MainMinutesLabel);
@@ -419,6 +442,9 @@ public partial class MainWindowViewModel : ObservableObject
     private int screenshotHotkeyVirtualKey = ScreenshotSettings.DefaultCaptureVirtualKey;
 
     [ObservableProperty]
+    private HotkeyModifiers screenshotHotkeyModifiers;
+
+    [ObservableProperty]
     private string screenshotStatusMessage = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.MainScreenshotStatusReady);
 
     [ObservableProperty]
@@ -441,10 +467,16 @@ public partial class MainWindowViewModel : ObservableObject
     private int macroHotkeyVirtualKey = MacroSettings.DefaultPlayVirtualKey;
 
     [ObservableProperty]
+    private HotkeyModifiers macroHotkeyModifiers;
+
+    [ObservableProperty]
     private string macroRecordHotkeyDisplay = MacroSettings.DefaultRecordDisplayName;
 
     [ObservableProperty]
     private int macroRecordHotkeyVirtualKey = MacroSettings.DefaultRecordVirtualKey;
+
+    [ObservableProperty]
+    private HotkeyModifiers macroRecordHotkeyModifiers;
 
     [ObservableProperty]
     private int macroPlaybackCount = 1;
@@ -484,6 +516,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isAutoHideOnStartupEnabled;
+
+    [ObservableProperty]
+    private bool isShortcutOverrideEnabled;
 
     [ObservableProperty]
     private bool isSillyModeEnabled;
@@ -549,6 +584,10 @@ public partial class MainWindowViewModel : ObservableObject
     public string RunAtStartupLabelText => L(AppLanguageKeys.RunAtStartupLabel);
 
     public string AutoHideOnStartupLabelText => L(AppLanguageKeys.AutoHideOnStartupLabel);
+
+    public string ShortcutOverrideLabelText => L(AppLanguageKeys.ShortcutOverrideLabel);
+
+    public string ShortcutOverrideHelperText => L(AppLanguageKeys.ShortcutOverrideHelperText);
 
     public string ResetAllSettingsButtonText => L(AppLanguageKeys.ResetAllSettingsButton);
 

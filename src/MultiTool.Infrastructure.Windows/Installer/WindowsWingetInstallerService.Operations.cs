@@ -253,7 +253,9 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
             ];
         }
 
-        var status = (await GetPackageStatusesAsync([package.PackageId], cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+        var status = (await GetPackageStatusesAsync(
+            [package.PackageId],
+            cancellationToken: cancellationToken).ConfigureAwait(false)).FirstOrDefault();
         if (status?.IsInstalled == true)
         {
             return
@@ -466,7 +468,9 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
                 await delayAsync(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
             }
 
-            var status = (await GetPackageStatusesAsync([SpotifyPackageId], cancellationToken).ConfigureAwait(false))
+            var status = (await GetPackageStatusesAsync(
+                [SpotifyPackageId],
+                cancellationToken: cancellationToken).ConfigureAwait(false))
                 .FirstOrDefault();
 
             if (status is null || !status.IsInstalled)

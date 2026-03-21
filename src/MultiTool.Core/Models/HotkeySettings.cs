@@ -16,6 +16,8 @@ public sealed class HotkeySettings
 
     public bool AllowModifierVariants { get; set; } = true;
 
+    public bool OverrideApplicationShortcuts { get; set; }
+
     public static HotkeyBinding CreateDefaultToggleBinding() => new(DefaultToggleVirtualKey, DefaultToggleDisplayName);
 
     public static HotkeyBinding CreateUnassignedBinding() => new(0, UnassignedDisplayName);
@@ -26,5 +28,6 @@ public sealed class HotkeySettings
             Toggle = Toggle.Clone(),
             PinWindow = PinWindow.Clone(),
             AllowModifierVariants = AllowModifierVariants,
+            OverrideApplicationShortcuts = OverrideApplicationShortcuts,
         };
 }

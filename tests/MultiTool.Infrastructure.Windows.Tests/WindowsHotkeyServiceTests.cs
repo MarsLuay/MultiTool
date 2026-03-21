@@ -30,4 +30,44 @@ public sealed class WindowsHotkeyServiceTests
 
         modifiers.Should().Equal(HotkeyModifiers.None);
     }
+
+    [Fact]
+    public void GetToggleHotkeyModifiers_ShouldUseExplicitModifiers_WhenBindingHasThem()
+    {
+        var modifiers = WindowsHotkeyService.GetToggleHotkeyModifiers(
+            new HotkeySettings
+            {
+                Toggle = new HotkeyBinding(0x43, "Ctrl + C", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control),
+                AllowModifierVariants = true,
+            });
+
+        modifiers.Should().Equal(HotkeyModifiers.Control);
+    }
+
+    [Fact]
+    public void GetForceStopHotkeyModifiers_ShouldAppendShiftToExplicitModifierCombo()
+    {
+        var modifiers = WindowsHotkeyService.GetForceStopHotkeyModifiers(
+            new HotkeySettings
+            {
+                Toggle = new HotkeyBinding(0x43, "Ctrl + C", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control),
+            });
+
+        modifiers.Should().Equal(HotkeyModifiers.Control | HotkeyModifiers.Shift);
+    }
+
+    [Fact]
+    public void ShouldUseLowLevelOverride_ShouldOnlyApplyToExplicitModifierBindings()
+    {
+        var binding = new HotkeyBinding(0x43, "Ctrl + C", HotkeyInputKind.Keyboard, ClickMouseButton.Left, HotkeyModifiers.Control);
+        var plainBinding = new HotkeyBinding(0x43, "C");
+        var settings = new HotkeySettings
+        {
+            OverrideApplicationShortcuts = true,
+        };
+
+        WindowsHotkeyService.ShouldUseLowLevelOverride(settings, binding, HotkeyModifiers.Control).Should().BeTrue();
+        WindowsHotkeyService.ShouldUseLowLevelOverride(settings, plainBinding, HotkeyModifiers.Control).Should().BeFalse();
+        WindowsHotkeyService.ShouldUseLowLevelOverride(settings, binding, HotkeyModifiers.None).Should().BeFalse();
+    }
 }

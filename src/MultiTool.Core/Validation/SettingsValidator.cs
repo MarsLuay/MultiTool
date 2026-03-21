@@ -1,3 +1,4 @@
+using MultiTool.Core.Enums;
 using MultiTool.Core.Models;
 using MultiTool.Core.Results;
 
@@ -111,7 +112,7 @@ public sealed class SettingsValidator
     public ValidationResult ValidateMacro(MacroSettings settings)
     {
         var issues = new List<ValidationIssue>();
-        var enabledAssignmentHotkeys = new Dictionary<int, string>();
+        var enabledAssignmentHotkeys = new Dictionary<(int VirtualKey, HotkeyModifiers Modifiers), string>();
         var assignedMacroPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (!HasValidHotkeyBinding(settings.PlayHotkey))
@@ -136,20 +137,19 @@ public sealed class SettingsValidator
 
         if (settings.PlayHotkey.InputKind == Enums.HotkeyInputKind.Keyboard
             && settings.RecordHotkey.InputKind == Enums.HotkeyInputKind.Keyboard
-            && settings.PlayHotkey.VirtualKey == settings.RecordHotkey.VirtualKey
-            && settings.PlayHotkey.VirtualKey > 0)
+            && AreEquivalentKeyboardHotkeys(settings.PlayHotkey, settings.RecordHotkey))
         {
             issues.Add(new ValidationIssue(nameof(settings.RecordHotkey), "Macro play and record hotkeys must be different."));
         }
 
         if (settings.PlayHotkey.InputKind == Enums.HotkeyInputKind.Keyboard && settings.PlayHotkey.VirtualKey > 0)
         {
-            enabledAssignmentHotkeys[settings.PlayHotkey.VirtualKey] = "the current macro play hotkey";
+            enabledAssignmentHotkeys[GetKeyboardHotkeyKey(settings.PlayHotkey)] = "the current macro play hotkey";
         }
 
         if (settings.RecordHotkey.InputKind == Enums.HotkeyInputKind.Keyboard && settings.RecordHotkey.VirtualKey > 0)
         {
-            enabledAssignmentHotkeys[settings.RecordHotkey.VirtualKey] = "the current macro record hotkey";
+            enabledAssignmentHotkeys[GetKeyboardHotkeyKey(settings.RecordHotkey)] = "the current macro record hotkey";
         }
 
         foreach (var assignment in settings.AssignedHotkeys)
@@ -187,7 +187,8 @@ public sealed class SettingsValidator
                 continue;
             }
 
-            if (enabledAssignmentHotkeys.TryGetValue(assignment.Hotkey.VirtualKey, out var existingDescription))
+            var assignmentHotkeyKey = GetKeyboardHotkeyKey(assignment.Hotkey);
+            if (enabledAssignmentHotkeys.TryGetValue(assignmentHotkeyKey, out var existingDescription))
             {
                 issues.Add(
                     new ValidationIssue(
@@ -196,7 +197,7 @@ public sealed class SettingsValidator
                 continue;
             }
 
-            enabledAssignmentHotkeys[assignment.Hotkey.VirtualKey] = $"saved macro '{assignment.MacroDisplayName}'";
+            enabledAssignmentHotkeys[assignmentHotkeyKey] = $"saved macro '{assignment.MacroDisplayName}'";
         }
 
         return new ValidationResult(issues);
@@ -236,4 +237,12 @@ public sealed class SettingsValidator
 
     private static bool HasConfiguredOptionalKeyboardHotkey(HotkeyBinding binding) =>
         binding.InputKind == Enums.HotkeyInputKind.Keyboard && binding.VirtualKey > 0;
+
+    private static bool AreEquivalentKeyboardHotkeys(HotkeyBinding left, HotkeyBinding right) =>
+        left.VirtualKey > 0
+        && left.VirtualKey == right.VirtualKey
+        && left.Modifiers == right.Modifiers;
+
+    private static (int VirtualKey, HotkeyModifiers Modifiers) GetKeyboardHotkeyKey(HotkeyBinding binding) =>
+        (binding.VirtualKey, binding.Modifiers);
 }
