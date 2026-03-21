@@ -3,8 +3,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Windows.Threading;
 using MultiTool.App.Localization;
 using MultiTool.App.Models;
+using MultiTool.App.Services;
 using MultiTool.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -258,6 +260,20 @@ public partial class MainWindowViewModel
     private int lastIpv4SocketTcpListenerCount;
     private int lastIpv4SocketUdpListenerCount;
 
+    private void MeasureToolsInitializationStep(string phase, Action action, string? details = null)
+    {
+        if (!ShouldTrackTabPerformance(ToolsTabIndex))
+        {
+            action();
+            return;
+        }
+
+        var stepStopwatch = Stopwatch.StartNew();
+        action();
+        stepStopwatch.Stop();
+        LogTabPerformance(ToolsTabIndex, phase, stepStopwatch.Elapsed, details);
+    }
+
     private void InitializeToolsState()
     {
         if (isToolsStateInitialized)
@@ -265,53 +281,192 @@ public partial class MainWindowViewModel
             return;
         }
 
+        var totalStopwatch = ShouldTrackTabPerformance(ToolsTabIndex) ? Stopwatch.StartNew() : null;
         isToolsStateInitialized = true;
 
         if (MouseSensitivityLevels.Count == 0)
         {
-            foreach (var level in mouseSensitivityService.GetSupportedLevels().OrderBy(static level => level))
-            {
-                MouseSensitivityLevels.Add(level);
-            }
+            MeasureToolsInitializationStep(
+                "InitializeToolsState.LoadMouseSensitivityLevels",
+                () =>
+                {
+                    foreach (var level in mouseSensitivityService.GetSupportedLevels().OrderBy(static level => level))
+                    {
+                        MouseSensitivityLevels.Add(level);
+                    }
+                },
+                $"LevelCount={MouseSensitivityLevels.Count}");
         }
 
         if (UsefulSites.Count == 0)
         {
-            foreach (var site in DefaultUsefulSites)
-            {
-                UsefulSites.Add(site);
-            }
+            MeasureToolsInitializationStep(
+                "InitializeToolsState.LoadUsefulSites",
+                () =>
+                {
+                    foreach (var site in DefaultUsefulSites)
+                    {
+                        UsefulSites.Add(site);
+                    }
+                },
+                $"SiteCount={UsefulSites.Count}");
         }
 
-        RefreshMouseSensitivityStatusCore(addLogEntry: false);
-        OnPropertyChanged(nameof(HasDisplayRefreshRecommendations));
-        OnPropertyChanged(nameof(MouseSensitivitySummary));
-        OnPropertyChanged(nameof(MouseSensitivitySelectedLevelLabel));
-        OnPropertyChanged(nameof(MouseSensitivitySelectionGuidance));
-        OnPropertyChanged(nameof(DisplayRefreshSummary));
-        OnPropertyChanged(nameof(HardwareGraphicsSummary));
-        OnPropertyChanged(nameof(HardwareStorageSummary));
-        OnPropertyChanged(nameof(HardwarePartitionSummary));
-        OnPropertyChanged(nameof(HardwareSensorSummary));
-        OnPropertyChanged(nameof(HardwarePciSummary));
-        OnPropertyChanged(nameof(HardwareRaidSummary));
-        OnPropertyChanged(nameof(HasSelectedDriverUpdates));
-        OnPropertyChanged(nameof(DriverHardwareSummary));
-        OnPropertyChanged(nameof(DriverUpdateSelectionSummary));
-        OnPropertyChanged(nameof(HasSelectedEmptyDirectories));
-        OnPropertyChanged(nameof(EmptyDirectorySelectionSummary));
-        OnPropertyChanged(nameof(ShortcutHotkeyScanProgressSummary));
-        OnPropertyChanged(nameof(EmptyDirectoryScanProgressSummary));
-        OnPropertyChanged(nameof(UsefulSitesToggleText));
-        OnPropertyChanged(nameof(HasIpv4SocketEntries));
-        OnPropertyChanged(nameof(Ipv4SocketSummary));
-        RefreshOneDriveStatusCore(addLogEntry: false);
-        RefreshEdgeStatusCore(addLogEntry: false);
-        RefreshFnCtrlSwapStatusCore(addLogEntry: false);
-        RefreshSearchReplacementStatusCore(addLogEntry: false);
-        RefreshSearchReindexStatusCore(addLogEntry: false);
-        RefreshTelemetryStatusCore(addLogEntry: false);
-        RefreshPinWindowStatusCore(addLogEntry: false);
+        MeasureToolsInitializationStep(
+            "InitializeToolsState.RaiseInitialSummaries",
+            () =>
+            {
+                OnPropertyChanged(nameof(HasDisplayRefreshRecommendations));
+                OnPropertyChanged(nameof(MouseSensitivitySummary));
+                OnPropertyChanged(nameof(MouseSensitivitySelectedLevelLabel));
+                OnPropertyChanged(nameof(MouseSensitivitySelectionGuidance));
+                OnPropertyChanged(nameof(DisplayRefreshSummary));
+                OnPropertyChanged(nameof(HardwareGraphicsSummary));
+                OnPropertyChanged(nameof(HardwareStorageSummary));
+                OnPropertyChanged(nameof(HardwarePartitionSummary));
+                OnPropertyChanged(nameof(HardwareSensorSummary));
+                OnPropertyChanged(nameof(HardwarePciSummary));
+                OnPropertyChanged(nameof(HardwareRaidSummary));
+                OnPropertyChanged(nameof(HasSelectedDriverUpdates));
+                OnPropertyChanged(nameof(DriverHardwareSummary));
+                OnPropertyChanged(nameof(DriverUpdateSelectionSummary));
+                OnPropertyChanged(nameof(HasSelectedEmptyDirectories));
+                OnPropertyChanged(nameof(EmptyDirectorySelectionSummary));
+                OnPropertyChanged(nameof(ShortcutHotkeyScanProgressSummary));
+                OnPropertyChanged(nameof(EmptyDirectoryScanProgressSummary));
+                OnPropertyChanged(nameof(UsefulSitesToggleText));
+                OnPropertyChanged(nameof(HasIpv4SocketEntries));
+                OnPropertyChanged(nameof(Ipv4SocketSummary));
+            },
+            "PropertyCount=20");
+        MeasureToolsInitializationStep("InitializeToolsState.RefreshPinWindowStatus", () => RefreshPinWindowStatusCore(addLogEntry: false));
+        _ = InitializeDeferredToolStatusesAsync();
+
+        if (totalStopwatch is not null)
+        {
+            totalStopwatch.Stop();
+            LogTabPerformance(
+                ToolsTabIndex,
+                nameof(InitializeToolsState),
+                totalStopwatch.Elapsed,
+                $"MouseSensitivityLevels={MouseSensitivityLevels.Count}; UsefulSites={UsefulSites.Count}; DeferredStatusesQueued=True");
+        }
+    }
+
+    private async Task InitializeDeferredToolStatusesAsync()
+    {
+        try
+        {
+            await WaitForUiIdleAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error(ex, "Failed to wait for the tools tab to become idle before initializing status indicators.");
+            return;
+        }
+
+        var totalStopwatch = ShouldTrackTabPerformance(ToolsTabIndex) ? Stopwatch.StartNew() : null;
+
+        try
+        {
+            await RefreshToolInitializationStatusAsync(
+                "InitializeToolsState.RefreshMouseSensitivityStatus",
+                () => mouseSensitivityService.GetStatus(),
+                status =>
+                {
+                    CurrentMouseSensitivityLevel = status.CurrentLevel;
+                    SelectedMouseSensitivityLevel = status.CurrentLevel;
+                    MouseSensitivityStatusMessage = status.Message;
+                },
+                ex => MouseSensitivityStatusMessage = F(AppLanguageKeys.ToolsErrorReadMouseSensitivityFormat, ex.Message)).ConfigureAwait(true);
+
+            await RefreshToolInitializationStatusAsync(
+                "InitializeToolsState.RefreshOneDriveStatus",
+                () => oneDriveRemovalService.GetStatus(),
+                status => OneDriveToolStatusMessage = status.Message,
+                ex => OneDriveToolStatusMessage = F(AppLanguageKeys.ToolsErrorCheckOneDriveFormat, ex.Message)).ConfigureAwait(true);
+
+            await RefreshToolInitializationStatusAsync(
+                "InitializeToolsState.RefreshEdgeStatus",
+                () => edgeRemovalService.GetStatus(),
+                status => EdgeToolStatusMessage = status.Message,
+                ex => EdgeToolStatusMessage = F(AppLanguageKeys.ToolsErrorCheckEdgeFormat, ex.Message)).ConfigureAwait(true);
+
+            await RefreshToolInitializationStatusAsync(
+                "InitializeToolsState.RefreshFnCtrlSwapStatus",
+                () => fnCtrlSwapService.GetStatus(),
+                status =>
+                {
+                    IsFnCtrlSwapSupported = status.IsSupported;
+                    FnCtrlSwapStatusMessage = status.Message;
+                },
+                ex =>
+                {
+                    IsFnCtrlSwapSupported = false;
+                    FnCtrlSwapStatusMessage = F(AppLanguageKeys.ToolsErrorCheckFnCtrlSwapFormat, ex.Message);
+                }).ConfigureAwait(true);
+
+            await RefreshToolInitializationStatusAsync(
+                "InitializeToolsState.RefreshSearchReplacementStatus",
+                () => windowsSearchReplacementService.GetStatus(),
+                status => SearchReplacementStatusMessage = status.Message,
+                ex => SearchReplacementStatusMessage = F(AppLanguageKeys.ToolsErrorCheckSearchReplacementFormat, ex.Message)).ConfigureAwait(true);
+
+            await RefreshToolInitializationStatusAsync(
+                "InitializeToolsState.RefreshSearchReindexStatus",
+                () => windowsSearchReindexService.GetStatus(),
+                status => SearchReindexStatusMessage = status.Message,
+                ex => SearchReindexStatusMessage = F(AppLanguageKeys.ToolsErrorCheckSearchReindexFormat, ex.Message)).ConfigureAwait(true);
+
+            await RefreshToolInitializationStatusAsync(
+                "InitializeToolsState.RefreshTelemetryStatus",
+                () => windowsTelemetryService.GetStatus(),
+                status => TelemetryToolStatusMessage = status.Message,
+                ex => TelemetryToolStatusMessage = F(AppLanguageKeys.ToolsErrorCheckTelemetryFormat, ex.Message)).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error(ex, "Failed to initialize tools tab status indicators.");
+        }
+        finally
+        {
+            if (totalStopwatch is not null)
+            {
+                totalStopwatch.Stop();
+                LogTabPerformance(
+                    ToolsTabIndex,
+                    "InitializeToolsState.DeferredStatuses",
+                    totalStopwatch.Elapsed,
+                    $"FnCtrlSwapSupported={IsFnCtrlSwapSupported}; MouseSensitivityLevel={CurrentMouseSensitivityLevel}");
+            }
+        }
+    }
+
+    private async Task RefreshToolInitializationStatusAsync<TStatus>(
+        string phase,
+        Func<TStatus> readStatus,
+        Action<TStatus> applyStatus,
+        Action<Exception> applyError)
+    {
+        var stepStopwatch = ShouldTrackTabPerformance(ToolsTabIndex) ? Stopwatch.StartNew() : null;
+
+        try
+        {
+            var status = await Task.Run(readStatus).ConfigureAwait(false);
+            await RunOnSynchronizationContextAsync(() => applyStatus(status)).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await RunOnSynchronizationContextAsync(() => applyError(ex)).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (stepStopwatch is not null)
+            {
+                stepStopwatch.Stop();
+                LogTabPerformance(ToolsTabIndex, phase, stepStopwatch.Elapsed);
+            }
+        }
     }
 
     partial void OnEmptyDirectoryRootPathChanged(string value)
@@ -2397,6 +2552,18 @@ public partial class MainWindowViewModel
         {
             Debug.WriteLine($"Tool scan result expiration failed for {slot}: {ex}");
         }
+    }
+
+    private Task WaitForUiIdleAsync() => RunOnDispatcherAsync(DispatcherPriority.ApplicationIdle, static () => { });
+
+    private Task RunOnDispatcherAsync(DispatcherPriority priority, Action action)
+    {
+        if (dispatcher is not null)
+        {
+            return dispatcher.InvokeAsync(action, priority).Task;
+        }
+
+        return RunOnSynchronizationContextAsync(action);
     }
 
     private Task RunOnSynchronizationContextAsync(Action action)

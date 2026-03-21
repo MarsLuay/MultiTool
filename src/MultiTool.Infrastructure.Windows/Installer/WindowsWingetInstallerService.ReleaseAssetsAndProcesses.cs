@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -7,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using MultiTool.Core.Models;
 using MultiTool.Core.Services;
@@ -16,6 +18,11 @@ namespace MultiTool.Infrastructure.Windows.Installer;
 
 public sealed partial class WindowsWingetInstallerService : IInstallerService
 {
+    private static readonly Regex WingetPercentRegex = new(@"(?<!\d)(?<percent>\d{1,3})\s*%", RegexOptions.Compiled);
+    private static readonly Regex WingetSizeProgressRegex = new(
+        @"(?<current>\d+(?:[.,]\d+)?)\s*(?<currentUnit>KB|MB|GB)\s*/\s*(?<total>\d+(?:[.,]\d+)?)\s*(?<totalUnit>KB|MB|GB)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static HttpClient CreateHttpClient()
     {
         var client = new HttpClient();
@@ -183,6 +190,60 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         await using var sourceStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using var destinationStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
         await sourceStream.CopyToAsync(destinationStream, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task DownloadFileWithProgressAsync(
+        string url,
+        string destinationPath,
+        InstallerCatalogItem package,
+        InstallerPackageAction action,
+        CancellationToken cancellationToken)
+    {
+        var destinationDirectory = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrWhiteSpace(destinationDirectory))
+        {
+            Directory.CreateDirectory(destinationDirectory);
+        }
+
+        using var response = await SharedHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var totalBytes = response.Content.Headers.ContentLength;
+        await using var sourceStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await using var destinationStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+        var buffer = new byte[81_920];
+        long totalRead = 0;
+        int? lastReportedPercent = null;
+
+        while (true)
+        {
+            var bytesRead = await sourceStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (bytesRead == 0)
+            {
+                break;
+            }
+
+            await destinationStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+            totalRead += bytesRead;
+
+            if (totalBytes is null or <= 0)
+            {
+                continue;
+            }
+
+            var percent = (int)Math.Round(totalRead * 100d / totalBytes.Value, MidpointRounding.AwayFromZero);
+            percent = Math.Clamp(percent, 0, 100);
+            if (lastReportedPercent == percent)
+            {
+                continue;
+            }
+
+            lastReportedPercent = percent;
+            ReportOperationProgress(package, action, $"Downloading {percent}%...", percent);
+        }
+
+        ReportOperationProgress(package, action, "Downloading 100%...", 100);
     }
 
     private static Task LaunchGuidedInstallerAsync(string target, CancellationToken cancellationToken)
@@ -417,7 +478,24 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
     private static Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken) =>
         Task.Delay(delay, cancellationToken);
 
-    private static async Task<InstallerCommandResult> RunProcessAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
+    private async Task<InstallerCommandResult> RunWingetWithProgressAsync(
+        ProcessStartInfo startInfo,
+        InstallerCatalogItem package,
+        InstallerPackageAction action,
+        CancellationToken cancellationToken)
+    {
+        var progressParser = new WingetProgressParser(statusText => ReportOperationProgress(package, action, statusText), percent => ReportOperationProgress(package, action, $"Downloading {percent}%...", percent));
+        return await RunProcessAsync(startInfo, cancellationToken, progressParser.HandleSegment, progressParser.HandleSegment).ConfigureAwait(false);
+    }
+
+    private static Task<InstallerCommandResult> RunProcessAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken) =>
+        RunProcessAsync(startInfo, cancellationToken, null, null);
+
+    private static async Task<InstallerCommandResult> RunProcessAsync(
+        ProcessStartInfo startInfo,
+        CancellationToken cancellationToken,
+        Action<string>? outputSegmentHandler,
+        Action<string>? errorSegmentHandler)
     {
         using var process = new Process
         {
@@ -427,39 +505,14 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
         var standardOutput = new StringBuilder();
         var standardError = new StringBuilder();
-        var outputCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var errorCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        process.OutputDataReceived += (_, args) =>
-        {
-            if (args.Data is null)
-            {
-                outputCompletion.TrySetResult();
-                return;
-            }
-
-            standardOutput.AppendLine(args.Data);
-        };
-
-        process.ErrorDataReceived += (_, args) =>
-        {
-            if (args.Data is null)
-            {
-                errorCompletion.TrySetResult();
-                return;
-            }
-
-            standardError.AppendLine(args.Data);
-        };
-
         process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+        var outputTask = ReadProcessStreamAsync(process.StandardOutput, standardOutput, outputSegmentHandler, cancellationToken);
+        var errorTask = ReadProcessStreamAsync(process.StandardError, standardError, errorSegmentHandler, cancellationToken);
 
         try
         {
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-            await Task.WhenAll(outputCompletion.Task, errorCompletion.Task).ConfigureAwait(false);
+            await Task.WhenAll(outputTask, errorTask).ConfigureAwait(false);
         }
         catch
         {
@@ -472,5 +525,155 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         }
 
         return new InstallerCommandResult(process.ExitCode, standardOutput.ToString(), standardError.ToString());
+    }
+
+    private static async Task ReadProcessStreamAsync(
+        StreamReader reader,
+        StringBuilder destination,
+        Action<string>? segmentHandler,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new char[256];
+        var currentSegment = new StringBuilder();
+
+        while (true)
+        {
+            var readCount = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+            if (readCount == 0)
+            {
+                break;
+            }
+
+            for (var index = 0; index < readCount; index++)
+            {
+                var character = buffer[index];
+                destination.Append(character);
+
+                if (character is '\r' or '\n')
+                {
+                    FlushCurrentSegment(currentSegment, segmentHandler);
+                    continue;
+                }
+
+                currentSegment.Append(character);
+            }
+        }
+
+        FlushCurrentSegment(currentSegment, segmentHandler);
+    }
+
+    private static void FlushCurrentSegment(StringBuilder currentSegment, Action<string>? segmentHandler)
+    {
+        if (currentSegment.Length == 0)
+        {
+            return;
+        }
+
+        segmentHandler?.Invoke(currentSegment.ToString());
+        currentSegment.Clear();
+    }
+
+    private sealed class WingetProgressParser
+    {
+        private readonly Action<string> statusReporter;
+        private readonly Action<int> percentReporter;
+        private int? lastPercent;
+        private string? lastStatusText;
+
+        public WingetProgressParser(Action<string> statusReporter, Action<int> percentReporter)
+        {
+            this.statusReporter = statusReporter;
+            this.percentReporter = percentReporter;
+        }
+
+        public void HandleSegment(string segment)
+        {
+            var line = segment.Trim();
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                return;
+            }
+
+            if (TryParseWingetProgressPercent(line, out var percent))
+            {
+                if (lastPercent == percent)
+                {
+                    return;
+                }
+
+                lastPercent = percent;
+                percentReporter(percent);
+                return;
+            }
+
+            string? statusText = null;
+            if (line.Contains("Downloading", StringComparison.OrdinalIgnoreCase))
+            {
+                statusText = "Downloading...";
+            }
+            else if (line.Contains("Successfully verified installer hash", StringComparison.OrdinalIgnoreCase))
+            {
+                statusText = "Verified installer hash.";
+            }
+            else if (line.Contains("Starting package install", StringComparison.OrdinalIgnoreCase)
+                     || line.Contains("Installing package", StringComparison.OrdinalIgnoreCase)
+                     || line.Contains("Starting package upgrade", StringComparison.OrdinalIgnoreCase)
+                     || line.Contains("Starting package uninstall", StringComparison.OrdinalIgnoreCase))
+            {
+                statusText = "Running installer...";
+            }
+
+            if (string.IsNullOrWhiteSpace(statusText) || string.Equals(lastStatusText, statusText, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            lastStatusText = statusText;
+            statusReporter(statusText);
+        }
+
+        private static bool TryParseWingetProgressPercent(string line, out int percent)
+        {
+            var percentMatch = WingetPercentRegex.Match(line);
+            if (percentMatch.Success
+                && int.TryParse(percentMatch.Groups["percent"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out percent))
+            {
+                percent = Math.Clamp(percent, 0, 100);
+                return true;
+            }
+
+            var sizeMatch = WingetSizeProgressRegex.Match(line);
+            if (sizeMatch.Success
+                && TryParseSize(sizeMatch.Groups["current"].Value, sizeMatch.Groups["currentUnit"].Value, out var currentBytes)
+                && TryParseSize(sizeMatch.Groups["total"].Value, sizeMatch.Groups["totalUnit"].Value, out var totalBytes)
+                && totalBytes > 0)
+            {
+                percent = Math.Clamp((int)Math.Round(currentBytes * 100d / totalBytes, MidpointRounding.AwayFromZero), 0, 100);
+                return true;
+            }
+
+            percent = 0;
+            return false;
+        }
+
+        private static bool TryParseSize(string numberText, string unitText, out double bytes)
+        {
+            if (!double.TryParse(numberText.Replace(',', '.'), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var value))
+            {
+                bytes = 0;
+                return false;
+            }
+
+            var multiplier = unitText.ToUpperInvariant() switch
+            {
+                "KB" => 1024d,
+                "MB" => 1024d * 1024d,
+                "GB" => 1024d * 1024d * 1024d,
+                _ => 1d,
+            };
+
+            bytes = value * multiplier;
+            return true;
+        }
     }
 }

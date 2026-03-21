@@ -1,12 +1,15 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows.Data;
+using System.Windows.Threading;
 using MultiTool.App.Localization;
 using MultiTool.App.Models;
 using MultiTool.App.Services;
 using MultiTool.Core.Models;
+using MultiTool.Core.Results;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -20,6 +23,9 @@ public partial class MainWindowViewModel
 
     private int nextInstallerOperationSequenceNumber = 1;
     private bool isInstallerQueueProcessing;
+    private InstallerOperationItem? activeInstallerProgressOperation;
+    private int activeInstallerProgressCurrentIndex;
+    private int activeInstallerProgressTotalCount;
 
     public ObservableCollection<InstallerPackageItem> InstallerPackages { get; } = [];
 
@@ -64,6 +70,9 @@ public partial class MainWindowViewModel
     private bool isInstallerProgressVisible;
 
     [ObservableProperty]
+    private bool isInstallerProgressIndeterminate;
+
+    [ObservableProperty]
     private int installerProgressValue;
 
     [ObservableProperty]
@@ -80,10 +89,68 @@ public partial class MainWindowViewModel
 
     private bool hasCompletedInstallerStatusCheck;
 
+    private void QueueInstallerInitialization()
+    {
+        if (isInstallerStateInitialized || isInstallerInitializationStarted || isInstallerInitializationQueued)
+        {
+            return;
+        }
+
+        isInstallerInitializationQueued = true;
+        _ = QueueInstallerInitializationAsync();
+    }
+
+    private async Task QueueInstallerInitializationAsync()
+    {
+        var totalStopwatch = ShouldTrackTabPerformance(InstallerTabIndex) ? Stopwatch.StartNew() : null;
+
+        try
+        {
+            await RunOnDispatcherAsync(DispatcherPriority.ApplicationIdle, EnsureInstallerInitialized).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await RunOnSynchronizationContextAsync(
+                () =>
+                {
+                    InstallerStatusMessage = F(AppLanguageKeys.InstallerSetupFailedFormat, ex.Message);
+                    AddInstallerLog(InstallerStatusMessage);
+                }).ConfigureAwait(false);
+        }
+        finally
+        {
+            await RunOnSynchronizationContextAsync(() => isInstallerInitializationQueued = false).ConfigureAwait(false);
+
+            if (totalStopwatch is not null)
+            {
+                totalStopwatch.Stop();
+                LogTabPerformance(
+                    InstallerTabIndex,
+                    nameof(QueueInstallerInitialization),
+                    totalStopwatch.Elapsed,
+                    $"StateInitialized={isInstallerStateInitialized}; InitializationStarted={isInstallerInitializationStarted}");
+            }
+        }
+    }
+
     private void EnsureInstallerInitialized()
     {
+        var totalStopwatch = ShouldTrackTabPerformance(InstallerTabIndex) ? Stopwatch.StartNew() : null;
+        var wasStateInitialized = isInstallerStateInitialized;
+        var wasInitializationStarted = isInstallerInitializationStarted;
+
         InitializeInstallerState();
         StartInstallerInitialization();
+
+        if (totalStopwatch is not null)
+        {
+            totalStopwatch.Stop();
+            LogTabPerformance(
+                InstallerTabIndex,
+                nameof(EnsureInstallerInitialized),
+                totalStopwatch.Elapsed,
+                $"StateInitializedBefore={wasStateInitialized}; InitializationStartedBefore={wasInitializationStarted}; Packages={InstallerPackages.Count}; CleanupPackages={CleanupPackages.Count}");
+        }
     }
 
     private void InitializeInstallerState()
@@ -93,10 +160,28 @@ public partial class MainWindowViewModel
             return;
         }
 
+        var totalStopwatch = ShouldTrackTabPerformance(InstallerTabIndex) ? Stopwatch.StartNew() : null;
         isInstallerStateInitialized = true;
         InstallerOperations.CollectionChanged += InstallerOperations_OnCollectionChanged;
 
-        foreach (var package in installerService.GetCatalog().OrderBy(item => item.Category).ThenBy(item => item.DisplayName))
+        var installerCatalogLoadStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
+        var installerCatalog = installerService.GetCatalog().OrderBy(item => item.Category).ThenBy(item => item.DisplayName).ToArray();
+        installerCatalogLoadStopwatch?.Stop();
+        if (installerCatalogLoadStopwatch is not null)
+        {
+            LogTabPerformance(InstallerTabIndex, "InitializeInstallerState.GetCatalog", installerCatalogLoadStopwatch.Elapsed, $"CatalogCount={installerCatalog.Length}");
+        }
+
+        var firefoxCatalogLoadStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
+        var firefoxOptions = firefoxExtensionService.GetCatalog().ToArray();
+        firefoxCatalogLoadStopwatch?.Stop();
+        if (firefoxCatalogLoadStopwatch is not null)
+        {
+            LogTabPerformance(InstallerTabIndex, "InitializeInstallerState.GetFirefoxOptions", firefoxCatalogLoadStopwatch.Elapsed, $"OptionCount={firefoxOptions.Length}");
+        }
+
+        var packageBuildStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
+        foreach (var package in installerCatalog)
         {
             var packageItem = new InstallerPackageItem(package, installerService.GetPackageCapabilities(package.PackageId))
             {
@@ -105,7 +190,7 @@ public partial class MainWindowViewModel
 
             if (string.Equals(package.PackageId, FirefoxPackageId, StringComparison.OrdinalIgnoreCase))
             {
-                foreach (var option in firefoxExtensionService.GetCatalog())
+                foreach (var option in firefoxOptions)
                 {
                     var optionItem = new InstallerPackageOptionItem(option);
                     optionItem.PropertyChanged += InstallerPackageOptionItem_OnPropertyChanged;
@@ -116,8 +201,22 @@ public partial class MainWindowViewModel
             packageItem.PropertyChanged += InstallerPackageItem_OnPropertyChanged;
             InstallerPackages.Add(packageItem);
         }
+        packageBuildStopwatch?.Stop();
+        if (packageBuildStopwatch is not null)
+        {
+            LogTabPerformance(InstallerTabIndex, "InitializeInstallerState.BuildInstallerPackages", packageBuildStopwatch.Elapsed, $"PackageCount={InstallerPackages.Count}");
+        }
 
-        foreach (var package in installerService.GetCleanupCatalog().OrderBy(item => item.DisplayName))
+        var cleanupCatalogLoadStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
+        var cleanupCatalog = installerService.GetCleanupCatalog().OrderBy(item => item.DisplayName).ToArray();
+        cleanupCatalogLoadStopwatch?.Stop();
+        if (cleanupCatalogLoadStopwatch is not null)
+        {
+            LogTabPerformance(InstallerTabIndex, "InitializeInstallerState.GetCleanupCatalog", cleanupCatalogLoadStopwatch.Elapsed, $"CatalogCount={cleanupCatalog.Length}");
+        }
+
+        var cleanupBuildStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
+        foreach (var package in cleanupCatalog)
         {
             var packageItem = new InstallerPackageItem(package, installerService.GetPackageCapabilities(package.PackageId))
             {
@@ -127,7 +226,13 @@ public partial class MainWindowViewModel
             packageItem.PropertyChanged += InstallerPackageItem_OnPropertyChanged;
             CleanupPackages.Add(packageItem);
         }
+        cleanupBuildStopwatch?.Stop();
+        if (cleanupBuildStopwatch is not null)
+        {
+            LogTabPerformance(InstallerTabIndex, "InitializeInstallerState.BuildCleanupPackages", cleanupBuildStopwatch.Elapsed, $"CleanupPackageCount={CleanupPackages.Count}");
+        }
 
+        var viewConfigurationStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
         InstallerPackagesView = CollectionViewSource.GetDefaultView(InstallerPackages);
         InstallerPackagesView.Filter = FilterInstallerPackage;
         if (InstallerPackagesView is ListCollectionView installerPackagesCollectionView)
@@ -138,11 +243,32 @@ public partial class MainWindowViewModel
             installerPackagesCollectionView.GroupDescriptions.Clear();
             installerPackagesCollectionView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(InstallerPackageItem.Category)));
         }
+        viewConfigurationStopwatch?.Stop();
+        if (viewConfigurationStopwatch is not null)
+        {
+            LogTabPerformance(InstallerTabIndex, "InitializeInstallerState.ConfigureCollectionView", viewConfigurationStopwatch.Elapsed);
+        }
 
+        var applySettingsStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
         ApplyInstallerSettings(deferredInstallerSettings);
         OnPropertyChanged(nameof(InstallerSelectionSummary));
         OnPropertyChanged(nameof(InstallerUpdateSummary));
         OnPropertyChanged(nameof(CleanupSelectionSummary));
+        applySettingsStopwatch?.Stop();
+        if (applySettingsStopwatch is not null)
+        {
+            LogTabPerformance(InstallerTabIndex, "InitializeInstallerState.ApplyInitialSettings", applySettingsStopwatch.Elapsed);
+        }
+
+        if (totalStopwatch is not null)
+        {
+            totalStopwatch.Stop();
+            LogTabPerformance(
+                InstallerTabIndex,
+                nameof(InitializeInstallerState),
+                totalStopwatch.Elapsed,
+                $"Packages={InstallerPackages.Count}; CleanupPackages={CleanupPackages.Count}; FirefoxOptions={firefoxOptions.Length}");
+        }
     }
 
     private void InstallerOperations_OnCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -256,6 +382,8 @@ public partial class MainWindowViewModel
 
     private async Task InitializeInstallerAsync()
     {
+        var totalStopwatch = ShouldTrackTabPerformance(InstallerTabIndex) ? Stopwatch.StartNew() : null;
+
         try
         {
             InstallerStatusMessage = L(AppLanguageKeys.InstallerStatusPreparingCatalog);
@@ -268,6 +396,18 @@ public partial class MainWindowViewModel
         {
             InstallerStatusMessage = F(AppLanguageKeys.InstallerSetupFailedFormat, ex.Message);
             AddInstallerLog(InstallerStatusMessage);
+        }
+        finally
+        {
+            if (totalStopwatch is not null)
+            {
+                totalStopwatch.Stop();
+                LogTabPerformance(
+                    InstallerTabIndex,
+                    nameof(InitializeInstallerAsync),
+                    totalStopwatch.Elapsed,
+                    $"WingetAvailable={IsWingetAvailable}; CompletedStatusCheck={hasCompletedInstallerStatusCheck}");
+            }
         }
     }
 
@@ -312,6 +452,25 @@ public partial class MainWindowViewModel
     partial void OnIsWingetAvailableChanged(bool value)
     {
         RefreshInstallerCommandStates();
+    }
+
+    private void InstallerService_OperationProgressChanged(object? sender, InstallerOperationProgressChangedEventArgs e)
+    {
+        _ = RunOnSynchronizationContextAsync(() => ApplyInstallerOperationProgress(e));
+    }
+
+    private void ApplyInstallerOperationProgress(InstallerOperationProgressChangedEventArgs e)
+    {
+        if (activeInstallerProgressOperation is null
+            || !string.Equals(activeInstallerProgressOperation.PackageId, e.PackageId, StringComparison.OrdinalIgnoreCase)
+            || activeInstallerProgressOperation.State != InstallerOperationQueueState.Running)
+        {
+            return;
+        }
+
+        UpdateInstallerProgressDisplay(activeInstallerProgressOperation, e.StatusText, e.Percent);
+        activeInstallerProgressOperation.StatusText = e.StatusText;
+        activeInstallerProgressOperation.Package.StatusText = e.StatusText;
     }
 
     [RelayCommand(CanExecute = nameof(CanRefreshInstallerStatus))]
@@ -917,6 +1076,7 @@ public partial class MainWindowViewModel
 
     private async Task RefreshInstallerStatusCoreAsync(bool addLogEntry, bool addDetailedUpdateLog = false, bool preserveBusyState = false)
     {
+        var totalStopwatch = ShouldTrackTabPerformance(InstallerTabIndex) ? Stopwatch.StartNew() : null;
         if (!preserveBusyState)
         {
             IsInstallerBusy = true;
@@ -924,7 +1084,18 @@ public partial class MainWindowViewModel
 
         try
         {
+            var environmentStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
             var environment = await installerService.GetEnvironmentInfoAsync();
+            environmentStopwatch?.Stop();
+            if (environmentStopwatch is not null)
+            {
+                LogTabPerformance(
+                    InstallerTabIndex,
+                    "RefreshInstallerStatusCore.GetEnvironmentInfoAsync",
+                    environmentStopwatch.Elapsed,
+                    $"IsAvailable={environment.IsAvailable}");
+            }
+
             IsWingetAvailable = environment.IsAvailable;
             InstallerEnvironmentMessage = environment.Message;
             hasCompletedInstallerStatusCheck = true;
@@ -960,15 +1131,38 @@ public partial class MainWindowViewModel
                 return;
             }
 
+            var packageIds = InstallerPackages
+                .Select(item => item.PackageId)
+                .Concat(CleanupPackages.Select(item => item.PackageId))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var statusesStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
             var statuses = await installerService.GetPackageStatusesAsync(
-                InstallerPackages
-                    .Select(item => item.PackageId)
-                    .Concat(CleanupPackages.Select(item => item.PackageId))
-                    .Distinct(StringComparer.OrdinalIgnoreCase));
+                packageIds);
+            statusesStopwatch?.Stop();
+            if (statusesStopwatch is not null)
+            {
+                LogTabPerformance(
+                    InstallerTabIndex,
+                    "RefreshInstallerStatusCore.GetPackageStatusesAsync",
+                    statusesStopwatch.Elapsed,
+                    $"PackageIdCount={packageIds.Length}; StatusCount={statuses.Count}");
+            }
+
+            var applyStatusesStopwatch = totalStopwatch is not null ? Stopwatch.StartNew() : null;
             var statusLookup = statuses.ToDictionary(item => item.PackageId, StringComparer.OrdinalIgnoreCase);
 
             ApplyStatuses(InstallerPackages, statusLookup);
             ApplyStatuses(CleanupPackages, statusLookup);
+            applyStatusesStopwatch?.Stop();
+            if (applyStatusesStopwatch is not null)
+            {
+                LogTabPerformance(
+                    InstallerTabIndex,
+                    "RefreshInstallerStatusCore.ApplyStatuses",
+                    applyStatusesStopwatch.Elapsed,
+                    $"InstallerPackages={InstallerPackages.Count}; CleanupPackages={CleanupPackages.Count}");
+            }
 
             var installedCount = InstallerPackages.Count(item => item.IsInstalled);
             var updateCount = InstallerPackages.Count(item => item.HasUpdateAvailable);
@@ -1004,6 +1198,16 @@ public partial class MainWindowViewModel
             {
                 IsInstallerBusy = false;
             }
+
+            if (totalStopwatch is not null)
+            {
+                totalStopwatch.Stop();
+                LogTabPerformance(
+                    InstallerTabIndex,
+                    nameof(RefreshInstallerStatusCoreAsync),
+                    totalStopwatch.Elapsed,
+                    $"WingetAvailable={IsWingetAvailable}; InstallerPackages={InstallerPackages.Count}; CleanupPackages={CleanupPackages.Count}");
+            }
         }
     }
 
@@ -1028,24 +1232,31 @@ public partial class MainWindowViewModel
         var trackedOperations = InstallerOperations.ToArray();
         var totalCount = trackedOperations.Length;
         var completedCount = trackedOperations.Count(item => item.IsCompleted);
-
-        InstallerProgressMaximum = Math.Max(totalCount, 1);
-        InstallerProgressValue = completedCount;
-        InstallerProgressText = F(
-            AppLanguageKeys.InstallerProgressTextFormat,
-            BuildInstallerOperationActionLabel(operation.Action),
-            operation.DisplayName,
-            Math.Min(completedCount + 1, Math.Max(totalCount, 1)),
-            Math.Max(totalCount, 1));
-        IsInstallerProgressVisible = true;
+        activeInstallerProgressOperation = operation;
+        activeInstallerProgressCurrentIndex = Math.Min(completedCount + 1, Math.Max(totalCount, 1));
+        activeInstallerProgressTotalCount = Math.Max(totalCount, 1);
+        UpdateInstallerProgressDisplay(operation, detailText: null, percent: null);
     }
 
     private void ResetInstallerProgress()
     {
+        activeInstallerProgressOperation = null;
+        activeInstallerProgressCurrentIndex = 0;
+        activeInstallerProgressTotalCount = 0;
         IsInstallerProgressVisible = false;
+        IsInstallerProgressIndeterminate = false;
         InstallerProgressValue = 0;
-        InstallerProgressMaximum = 1;
+        InstallerProgressMaximum = 100;
         InstallerProgressText = string.Empty;
+    }
+
+    private void UpdateInstallerProgressDisplay(InstallerOperationItem operation, string? detailText, int? percent)
+    {
+        InstallerProgressText = BuildInstallerProgressText(operation, detailText);
+        InstallerProgressMaximum = 100;
+        InstallerProgressValue = percent is null ? 0 : Math.Clamp(percent.Value, 0, 100);
+        IsInstallerProgressIndeterminate = percent is null;
+        IsInstallerProgressVisible = true;
     }
 
     private bool FilterInstallerPackage(object item)
@@ -1169,6 +1380,20 @@ public partial class MainWindowViewModel
             InstallerPackageAction.Reinstall => L(AppLanguageKeys.InstallerActiveReinstalling),
             _ => L(AppLanguageKeys.InstallerActiveWorking),
         };
+
+    private string BuildInstallerProgressText(InstallerOperationItem operation, string? detailText)
+    {
+        var baseText = F(
+            AppLanguageKeys.InstallerProgressTextFormat,
+            BuildInstallerOperationActionLabel(operation.Action),
+            operation.DisplayName,
+            activeInstallerProgressCurrentIndex,
+            Math.Max(activeInstallerProgressTotalCount, 1));
+
+        return string.IsNullOrWhiteSpace(detailText)
+            ? baseText
+            : $"{baseText} {detailText}";
+    }
 
     private static string BuildInstallerOperationDeduplicationKey(string packageId, InstallerPackageAction action) =>
         action switch

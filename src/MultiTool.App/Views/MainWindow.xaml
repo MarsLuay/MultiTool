@@ -397,7 +397,9 @@
 
       <Grid Grid.Row="2"
             Margin="16,12,16,16">
-        <TabControl SelectedIndex="{Binding SelectedMainTabIndex, Mode=TwoWay}">
+        <TabControl x:Name="MainTabControl"
+                    SelectedIndex="{Binding SelectedMainTabIndex, Mode=TwoWay}"
+                    SelectionChanged="MainTabControl_OnSelectionChanged">
           <TabControl.LayoutTransform>
             <ScaleTransform x:Name="MainContentScaleTransform"
                             ScaleX="1"
@@ -1266,6 +1268,7 @@
                     <ProgressBar Margin="0,8,0,0"
                                  Height="16"
                                  Minimum="0"
+                                 IsIndeterminate="{Binding IsInstallerProgressIndeterminate}"
                                  Maximum="{Binding InstallerProgressMaximum}"
                                  Value="{Binding InstallerProgressValue}" />
                   </StackPanel>

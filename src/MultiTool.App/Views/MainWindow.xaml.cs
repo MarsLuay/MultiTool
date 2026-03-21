@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -51,6 +52,7 @@ public partial class MainWindow : Window
     private System.Windows.Point? pendingMaximizedTitleBarDragPoint;
     private DispatcherTimer? confettiTimer;
     private DateTime confettiStartedAtUtc;
+    private int nextTabPerformanceTraceId;
 
     public MainWindow(
         MainWindowViewModel viewModel,
@@ -166,6 +168,35 @@ public partial class MainWindow : Window
     private void ViewModel_HotkeysChanged(object? sender, EventArgs e)
     {
         RegisterHotkeys();
+    }
+
+    private void MainTabControl_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, MainTabControl))
+        {
+            return;
+        }
+
+        var selectedIndex = MainTabControl.SelectedIndex;
+        if (!viewModel.ShouldTrackTabPerformance(selectedIndex))
+        {
+            return;
+        }
+
+        var traceId = ++nextTabPerformanceTraceId;
+        var tabName = viewModel.DescribeMainTab(selectedIndex);
+        AppLog.Info($"TabPerf | Trace={traceId} | Tab={tabName} ({selectedIndex}) | Phase=SelectionChanged");
+
+        var renderStopwatch = Stopwatch.StartNew();
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(
+                () =>
+                {
+                    renderStopwatch.Stop();
+                    AppLog.Info(
+                        $"TabPerf | Trace={traceId} | Tab={tabName} ({selectedIndex}) | Phase=DispatcherApplicationIdle | Elapsed={renderStopwatch.Elapsed.TotalMilliseconds:0.0} ms");
+                }));
     }
 
     private void AutoClickerController_RunningStateChanged(object? sender, RunningStateChangedEventArgs e)

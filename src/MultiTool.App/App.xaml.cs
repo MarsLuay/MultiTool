@@ -37,10 +37,7 @@ public partial class App : System.Windows.Application
         {
             AppLog.Info("Startup begin.");
             base.OnStartup(e);
-            var launchOptions = new AppLaunchOptions
-            {
-                IsStartupLaunch = e.Args.Any(argument => string.Equals(argument, "--startup-launch", StringComparison.OrdinalIgnoreCase)),
-            };
+            var launchOptions = AppLaunchOptions.FromArgs(e.Args);
 
             host = Host.CreateDefaultBuilder()
                 .ConfigureServices(
@@ -92,6 +89,7 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IClipboardTextService, ClipboardTextService>();
                         services.AddSingleton<IVideoRecordingIndicatorService, VideoRecordingIndicatorService>();
                         services.AddSingleton<IRunAtStartupService, WindowsRunAtStartupService>();
+                        services.AddHostedService<MemoryDiagnosticsService>();
 
                         services.AddSingleton<IMacroFileStore, JsonMacroFileStore>();
                         services.AddSingleton<MainWindowViewModel>();

@@ -8,7 +8,7 @@ namespace MultiTool.Infrastructure.Windows.Tests;
 public sealed class NotifyIconTrayServiceTests
 {
     [Fact]
-    public async Task RegisterMetricsRefreshInterest_ShouldCaptureMetricsAndStopAfterIdleWindow()
+    public async Task RegisterMetricsRefreshInterest_ShouldCaptureMetricsAndKeepRefreshingUntilDisposed()
     {
         var metricsService = new FakeSystemTrayMetricsService();
         var service = new NotifyIconTrayService(
@@ -19,12 +19,14 @@ public sealed class NotifyIconTrayServiceTests
 
         service.RegisterMetricsRefreshInterest();
         await WaitForConditionAsync(() => metricsService.CaptureCallCount >= 1);
+        await WaitForConditionAsync(() => metricsService.CaptureCallCount >= 2);
 
         service.IsMetricsRefreshLoopActive.Should().BeTrue();
         service.CurrentTooltipText.Should().Contain("CPU 17%");
+        metricsService.CaptureCallCount.Should().BeGreaterThanOrEqualTo(2);
 
+        service.Dispose();
         await WaitForConditionAsync(() => !service.IsMetricsRefreshLoopActive);
-        metricsService.CaptureCallCount.Should().BeGreaterThanOrEqualTo(1);
     }
 
     [Fact]

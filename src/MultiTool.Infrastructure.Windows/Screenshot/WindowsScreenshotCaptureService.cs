@@ -3,10 +3,11 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 using System.Windows.Interop;
-using System.Windows.Media.Imaging;
 using MultiTool.Core.Models;
 using MultiTool.Core.Results;
 using MultiTool.Core.Services;
@@ -18,6 +19,8 @@ public sealed class WindowsScreenshotCaptureService : IScreenshotCaptureService,
 {
     private readonly object syncRoot = new();
     private readonly SemaphoreSlim videoLock = new(1, 1);
+    private const int ClipboardRetryCount = 10;
+    private static readonly TimeSpan ClipboardRetryDelay = TimeSpan.FromMilliseconds(25);
     private Process? videoCaptureProcess;
     private string? currentVideoPath;
     private ScreenRectangle? currentVideoArea;
@@ -301,22 +304,78 @@ public sealed class WindowsScreenshotCaptureService : IScreenshotCaptureService,
 
     private static void CopyToClipboard(Bitmap bitmap)
     {
+        if (System.Windows.Application.Current is { } application && !application.Dispatcher.CheckAccess())
+        {
+            application.Dispatcher.Invoke(() => CopyToClipboard(bitmap));
+            return;
+        }
+
         var handle = bitmap.GetHbitmap();
 
         try
         {
-            var source = Imaging.CreateBitmapSourceFromHBitmap(
-                handle,
-                nint.Zero,
-                System.Windows.Int32Rect.Empty,
-                BitmapSizeOptions.FromEmptyOptions());
-            source.Freeze();
-
-            System.Windows.Application.Current.Dispatcher.Invoke(() => System.Windows.Clipboard.SetImage(source));
+            SetBitmapClipboardData(handle);
+            handle = nint.Zero;
         }
         finally
         {
-            Gdi32.DeleteObject(handle);
+            if (handle != nint.Zero)
+            {
+                Gdi32.DeleteObject(handle);
+            }
         }
+    }
+
+    private static void SetBitmapClipboardData(nint bitmapHandle)
+    {
+        var ownerHandle = GetClipboardOwnerHandle();
+        var lastError = 0;
+
+        for (var attempt = 0; attempt < ClipboardRetryCount; attempt++)
+        {
+            if (!User32.OpenClipboard(ownerHandle))
+            {
+                lastError = Marshal.GetLastWin32Error();
+                Thread.Sleep(ClipboardRetryDelay);
+                continue;
+            }
+
+            try
+            {
+                if (!User32.EmptyClipboard())
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "The clipboard could not be cleared before copying the screenshot.");
+                }
+
+                if (User32.SetClipboardData(User32.CfBitmap, bitmapHandle) == nint.Zero)
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "The screenshot could not be copied to the clipboard.");
+                }
+
+                return;
+            }
+            finally
+            {
+                User32.CloseClipboard();
+            }
+        }
+
+        throw new Win32Exception(lastError, "The clipboard is busy.");
+    }
+
+    private static nint GetClipboardOwnerHandle()
+    {
+        var mainWindow = System.Windows.Application.Current?.MainWindow;
+        if (mainWindow is not null)
+        {
+            var handle = new WindowInteropHelper(mainWindow).Handle;
+            if (handle != nint.Zero)
+            {
+                return handle;
+            }
+        }
+
+        var processHandle = Process.GetCurrentProcess().MainWindowHandle;
+        return processHandle != nint.Zero ? processHandle : nint.Zero;
     }
 }

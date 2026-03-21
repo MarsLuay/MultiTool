@@ -16,9 +16,8 @@ namespace MultiTool.Infrastructure.Windows.Installer;
 
 public sealed partial class WindowsWingetInstallerService : IInstallerService
 {
-    private async Task<InstallerCommandResult> RunWingetAsync(string arguments, CancellationToken cancellationToken)
-    {
-        var startInfo = new ProcessStartInfo
+    private static ProcessStartInfo BuildWingetStartInfo(string arguments) =>
+        new()
         {
             FileName = "winget",
             Arguments = arguments,
@@ -30,7 +29,9 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
             StandardErrorEncoding = Encoding.UTF8,
         };
 
-        return await commandRunner(startInfo, cancellationToken).ConfigureAwait(false);
+    private async Task<InstallerCommandResult> RunWingetAsync(string arguments, CancellationToken cancellationToken)
+    {
+        return await commandRunner(BuildWingetStartInfo(arguments), cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<InstallerOperationResult> LaunchGuidedPackageAsync(

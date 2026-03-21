@@ -1,9 +1,12 @@
 using MultiTool.Core.Models;
+using MultiTool.Core.Results;
 
 namespace MultiTool.Core.Services;
 
 public interface IInstallerService
 {
+    event EventHandler<InstallerOperationProgressChangedEventArgs>? OperationProgressChanged;
+
     IReadOnlyList<InstallerCatalogItem> GetCatalog();
 
     IReadOnlyList<InstallerCatalogItem> GetCleanupCatalog();

@@ -4,6 +4,8 @@ This folder contains the remaining repo-level helper scripts for rebuilding, dep
 
 Most people should start with the root-level `run-to-start.bat`. That wrapper still handles the common "set up what is missing, rebuild, then launch" flow for local source usage. The scripts in this folder are the lower-level steps behind that flow.
 
+If you want a local debug-style launch with memory diagnostics enabled, use the root-level `run-dev.bat`. That script rebuilds the app, then launches `MultiTool.exe --log-memory --trace-tabs` so process-memory snapshots and tab-performance timings are written into the normal `Logs` folder.
+
 ## What Each Script Is For
 
 ### `install-runtime-dependencies.bat`

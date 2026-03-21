@@ -5,6 +5,7 @@ using System.Security.Principal;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using MultiTool.App.Helpers;
 using MultiTool.App.Localization;
 using MultiTool.App.Models;
@@ -73,6 +74,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly AppLaunchOptions appLaunchOptions;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private readonly SynchronizationContext? synchronizationContext;
+    private readonly Dispatcher? dispatcher;
     private const int ScreenshotTabIndex = 1;
     private readonly Dictionary<ToolScanResultCacheSlot, CancellationTokenSource> toolScanResultExpirationTokenSources = [];
     private const int InstallerTabIndex = 3;
@@ -83,6 +85,7 @@ public partial class MainWindowViewModel : ObservableObject
     private Task? mainMacroPlaybackTask;
     private CancellationTokenSource? pendingAutoSaveCancellationTokenSource;
     private bool initialized;
+    private bool isInstallerInitializationQueued;
     private bool isInstallerStateInitialized;
     private bool isInstallerInitializationStarted;
     private bool isToolsStateInitialized;
@@ -172,6 +175,7 @@ public partial class MainWindowViewModel : ObservableObject
         this.runAtStartupService = runAtStartupService;
         this.macroLibraryService = macroLibraryService;
         this.installerService = installerService;
+        this.installerService.OperationProgressChanged += InstallerService_OperationProgressChanged;
         this.appUpdateService = appUpdateService;
         this.browserLauncherService = browserLauncherService;
         this.firefoxExtensionService = firefoxExtensionService;
@@ -194,6 +198,7 @@ public partial class MainWindowViewModel : ObservableObject
         this.appLaunchOptions = appLaunchOptions;
         this.toolScanResultRetentionWindow = toolScanResultRetentionWindow ?? DefaultToolScanResultRetentionWindow;
         synchronizationContext = SynchronizationContext.Current;
+        dispatcher = Dispatcher.FromThread(Thread.CurrentThread);
         this.windows11EeaMediaService.StatusChanged += Windows11EeaMediaService_OnStatusChanged;
 
         MouseButtons =
@@ -490,6 +495,7 @@ public partial class MainWindowViewModel : ObservableObject
     private bool isRunningAsAdministrator;
 
     public bool ShouldAutoHideOnStartup => appLaunchOptions.IsStartupLaunch && IsAutoHideOnStartupEnabled;
+    public bool IsTabPerformanceLoggingEnabled => appLaunchOptions.IsTabPerformanceLoggingEnabled;
 
     private AppLanguage CurrentLanguage => IsSillyModeEnabled ? AppLanguage.CatSpeak : AppLanguage.English;
 
@@ -562,18 +568,57 @@ public partial class MainWindowViewModel : ObservableObject
         isMainWindowActive = isActive;
     }
 
+    internal bool ShouldTrackTabPerformance(int tabIndex) =>
+        appLaunchOptions.IsTabPerformanceLoggingEnabled
+        && tabIndex is InstallerTabIndex or ToolsTabIndex;
+
+    internal string DescribeMainTab(int tabIndex) =>
+        tabIndex switch
+        {
+            0 => "Clicker",
+            ScreenshotTabIndex => "Screenshot",
+            2 => "Macro",
+            InstallerTabIndex => "Install",
+            ToolsTabIndex => "Tools",
+            5 => "Settings",
+            _ => $"Tab {tabIndex}",
+        };
+
+    private void LogTabPerformance(int tabIndex, string phase, TimeSpan elapsed, string? details = null)
+    {
+        if (!ShouldTrackTabPerformance(tabIndex))
+        {
+            return;
+        }
+
+        var detailsSuffix = string.IsNullOrWhiteSpace(details) ? string.Empty : $" | {details}";
+        AppLog.Info(
+            $"TabPerf | Tab={DescribeMainTab(tabIndex)} ({tabIndex}) | Phase={phase} | Elapsed={elapsed.TotalMilliseconds:0.0} ms{detailsSuffix}");
+    }
+
     partial void OnSelectedMainTabIndexChanged(int value)
     {
+        var selectionStopwatch = ShouldTrackTabPerformance(value) ? Stopwatch.StartNew() : null;
         HandleScreenshotTabSelectionChanged(value);
 
         switch (value)
         {
             case InstallerTabIndex:
-                EnsureInstallerInitialized();
+                QueueInstallerInitialization();
                 break;
             case ToolsTabIndex:
                 InitializeToolsState();
                 break;
+        }
+
+        if (selectionStopwatch is not null)
+        {
+            selectionStopwatch.Stop();
+            LogTabPerformance(
+                value,
+                "SelectedMainTabIndexChanged",
+                selectionStopwatch.Elapsed,
+                $"InstallerInitialized={isInstallerStateInitialized}; InstallerQueued={isInstallerInitializationQueued}; ToolsInitialized={isToolsStateInitialized}");
         }
     }
 

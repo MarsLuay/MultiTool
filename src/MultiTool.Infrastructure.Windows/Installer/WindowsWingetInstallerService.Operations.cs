@@ -113,13 +113,21 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var result = await RunWingetAsync(BuildPackageCommand("install", package), cancellationToken).ConfigureAwait(false);
+        var result = await RunWingetPackageCommandAsync(
+            BuildPackageCommand("install", package),
+            package,
+            InstallerPackageAction.Install,
+            cancellationToken).ConfigureAwait(false);
         return InterpretInstallResult(package, result);
     }
 
     private async Task<InstallerOperationResult> InstallSpotifyAsync(InstallerCatalogItem package, CancellationToken cancellationToken)
     {
-        var wingetResult = await RunWingetAsync(BuildPackageCommand("install", package), cancellationToken).ConfigureAwait(false);
+        var wingetResult = await RunWingetPackageCommandAsync(
+            BuildPackageCommand("install", package),
+            package,
+            InstallerPackageAction.Install,
+            cancellationToken).ConfigureAwait(false);
         var interpretedResult = InterpretInstallResult(package, wingetResult);
         if (interpretedResult.Succeeded)
         {
@@ -190,13 +198,21 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var result = await RunWingetAsync(BuildPackageCommand("upgrade", package), cancellationToken).ConfigureAwait(false);
+        var result = await RunWingetPackageCommandAsync(
+            BuildPackageCommand("upgrade", package),
+            package,
+            InstallerPackageAction.Update,
+            cancellationToken).ConfigureAwait(false);
         return InterpretUpgradeResult(package, result);
     }
 
     private async Task<InstallerOperationResult> UpgradeSpotifyAsync(InstallerCatalogItem package, CancellationToken cancellationToken)
     {
-        var wingetResult = await RunWingetAsync(BuildPackageCommand("upgrade", package), cancellationToken).ConfigureAwait(false);
+        var wingetResult = await RunWingetPackageCommandAsync(
+            BuildPackageCommand("upgrade", package),
+            package,
+            InstallerPackageAction.Update,
+            cancellationToken).ConfigureAwait(false);
         var interpretedResult = InterpretUpgradeResult(package, wingetResult);
         if (interpretedResult.Succeeded)
         {
@@ -208,7 +224,11 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
     private async Task<InstallerOperationResult> UninstallPackageAsync(InstallerCatalogItem package, CancellationToken cancellationToken)
     {
-        var result = await RunWingetAsync(BuildPackageCommand("uninstall", package), cancellationToken).ConfigureAwait(false);
+        var result = await RunWingetPackageCommandAsync(
+            BuildPackageCommand("uninstall", package),
+            package,
+            InstallerPackageAction.Uninstall,
+            cancellationToken).ConfigureAwait(false);
         return InterpretUninstallResult(package, result);
     }
 
@@ -251,13 +271,15 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
             ];
         }
 
-        var result = await RunWingetAsync(
+        var result = await RunWingetPackageCommandAsync(
             BuildPackageCommand(
                 "install",
                 package,
                 interactive: true,
                 force: false,
                 noUpgrade: false),
+            package,
+            InstallerPackageAction.InstallInteractive,
             cancellationToken).ConfigureAwait(false);
 
         return
@@ -287,13 +309,15 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
             ];
         }
 
-        var result = await RunWingetAsync(
+        var result = await RunWingetPackageCommandAsync(
             BuildPackageCommand(
                 "upgrade",
                 package,
                 interactive: true,
                 force: false,
                 noUpgrade: false),
+            package,
+            InstallerPackageAction.UpdateInteractive,
             cancellationToken).ConfigureAwait(false);
 
         return
@@ -323,13 +347,15 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
             ];
         }
 
-        var result = await RunWingetAsync(
+        var result = await RunWingetPackageCommandAsync(
             BuildPackageCommand(
                 "install",
                 package,
                 interactive: false,
                 force: true,
                 noUpgrade: true),
+            package,
+            InstallerPackageAction.Reinstall,
             cancellationToken).ConfigureAwait(false);
 
         var interpretedResult = InterpretInstallResult(package, result);
@@ -361,7 +387,12 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
         try
         {
-            await fileDownloader(SpotifyFallbackInstallerUrl, installerPath, cancellationToken).ConfigureAwait(false);
+            await DownloadInstallerFileAsync(
+                package,
+                isUpgrade ? InstallerPackageAction.Update : InstallerPackageAction.Install,
+                SpotifyFallbackInstallerUrl,
+                installerPath,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
 using MultiTool.Core.Models;
+using MultiTool.Core.Results;
 using MultiTool.Core.Services;
 using Microsoft.Win32;
 
@@ -273,6 +274,10 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
     private readonly InstallerExecutableLauncher installerExecutableLauncher;
     private readonly Func<TimeSpan, CancellationToken, Task> delayAsync;
     private readonly Func<string, InstallerPackageStatus?> localPackageStatusResolver;
+    private readonly bool supportsLiveWingetProgress;
+    private readonly bool supportsLiveFileDownloadProgress;
+
+    public event EventHandler<InstallerOperationProgressChangedEventArgs>? OperationProgressChanged;
 
     public WindowsWingetInstallerService()
         : this(
@@ -346,6 +351,8 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
         this.installerExecutableLauncher = installerExecutableLauncher ?? LaunchInstallerExecutableAsync;
         this.delayAsync = delayAsync ?? DelayAsync;
         this.localPackageStatusResolver = localPackageStatusResolver ?? TryGetLocalPackageStatus;
+        supportsLiveWingetProgress = IsDefaultCommandRunner(this.commandRunner);
+        supportsLiveFileDownloadProgress = IsDefaultFileDownloader(this.fileDownloader);
         catalogById = Catalog
             .Concat(CleanupCatalog)
             .GroupBy(item => item.PackageId, StringComparer.OrdinalIgnoreCase)
@@ -569,5 +576,78 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
             UninstallPackageAsync,
             InstallerPackageAction.Uninstall,
             cancellationToken);
+
+    private static bool IsDefaultCommandRunner(InstallerCommandRunner runner) =>
+        runner.Target is null
+        && runner.Method == ((InstallerCommandRunner)RunProcessAsync).Method;
+
+    private static bool IsDefaultFileDownloader(InstallerFileDownloader downloader) =>
+        downloader.Target is null
+        && downloader.Method == ((InstallerFileDownloader)DownloadFileAsync).Method;
+
+    private void ReportOperationProgress(
+        InstallerCatalogItem package,
+        InstallerPackageAction action,
+        string statusText,
+        int? percent = null)
+    {
+        var normalizedPercent = percent.HasValue
+            ? Math.Clamp(percent.Value, 0, 100)
+            : null;
+        OperationProgressChanged?.Invoke(
+            this,
+            new InstallerOperationProgressChangedEventArgs(
+                package.PackageId,
+                package.DisplayName,
+                action,
+                statusText,
+                normalizedPercent));
+    }
+
+    private static string BuildActiveProgressStatusText(InstallerPackageAction action) =>
+        action switch
+        {
+            InstallerPackageAction.Install => "Installing...",
+            InstallerPackageAction.Update => "Updating...",
+            InstallerPackageAction.Uninstall => "Removing...",
+            InstallerPackageAction.InstallInteractive => "Running interactive install...",
+            InstallerPackageAction.UpdateInteractive => "Running interactive update...",
+            InstallerPackageAction.Reinstall => "Reinstalling...",
+            _ => "Working...",
+        };
+
+    private async Task<InstallerCommandResult> RunWingetPackageCommandAsync(
+        string arguments,
+        InstallerCatalogItem package,
+        InstallerPackageAction action,
+        CancellationToken cancellationToken)
+    {
+        ReportOperationProgress(package, action, BuildActiveProgressStatusText(action));
+        var startInfo = BuildWingetStartInfo(arguments);
+        if (!supportsLiveWingetProgress)
+        {
+            return await commandRunner(startInfo, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await RunWingetWithProgressAsync(startInfo, package, action, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task DownloadInstallerFileAsync(
+        InstallerCatalogItem package,
+        InstallerPackageAction action,
+        string url,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        ReportOperationProgress(package, action, "Downloading...");
+        if (!supportsLiveFileDownloadProgress)
+        {
+            await fileDownloader(url, destinationPath, cancellationToken).ConfigureAwait(false);
+            ReportOperationProgress(package, action, "Downloading 100%...", 100);
+            return;
+        }
+
+        await DownloadFileWithProgressAsync(url, destinationPath, package, action, cancellationToken).ConfigureAwait(false);
+    }
 
 }

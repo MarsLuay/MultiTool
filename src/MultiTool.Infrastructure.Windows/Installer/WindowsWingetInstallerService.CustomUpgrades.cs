@@ -307,7 +307,12 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
         try
         {
-            await fileDownloader(releaseAsset.DownloadUrl, archivePath, cancellationToken).ConfigureAwait(false);
+            await DownloadInstallerFileAsync(
+                package,
+                InstallerPackageAction.Update,
+                releaseAsset.DownloadUrl,
+                archivePath,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -320,6 +325,7 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
                 ex.ToString());
         }
 
+        ReportOperationProgress(package, InstallerPackageAction.Update, "Extracting downloaded files...");
         try
         {
             ZipFile.ExtractToDirectory(archivePath, installDirectory, overwriteFiles: true);
@@ -450,7 +456,12 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
         try
         {
-            await fileDownloader(releaseAsset.DownloadUrl, archivePath, cancellationToken).ConfigureAwait(false);
+            await DownloadInstallerFileAsync(
+                package,
+                InstallerPackageAction.Update,
+                releaseAsset.DownloadUrl,
+                archivePath,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -463,6 +474,7 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
                 ex.ToString());
         }
 
+        ReportOperationProgress(package, InstallerPackageAction.Update, "Extracting downloaded files...");
         try
         {
             ZipFile.ExtractToDirectory(archivePath, installDirectory, overwriteFiles: true);
@@ -588,7 +600,12 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
         try
         {
-            await fileDownloader(installerAsset.DownloadUrl, installerPath, cancellationToken).ConfigureAwait(false);
+            await DownloadInstallerFileAsync(
+                package,
+                InstallerPackageAction.Update,
+                installerAsset.DownloadUrl,
+                installerPath,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -601,6 +618,7 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
                 ex.ToString());
         }
 
+        ReportOperationProgress(package, InstallerPackageAction.Update, "Launching installer...");
         var installResult = await RunMacriumReflectInstallerSilentlyAsync(installerPath, workingDirectory, cancellationToken).ConfigureAwait(false);
         if (!installResult.Succeeded)
         {
@@ -704,7 +722,12 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
 
         try
         {
-            await fileDownloader(releaseAsset.DownloadUrl, archivePath, cancellationToken).ConfigureAwait(false);
+            await DownloadInstallerFileAsync(
+                package,
+                InstallerPackageAction.Update,
+                releaseAsset.DownloadUrl,
+                archivePath,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -717,6 +740,7 @@ public sealed partial class WindowsWingetInstallerService : IInstallerService
                 ex.ToString());
         }
 
+        ReportOperationProgress(package, InstallerPackageAction.Update, "Extracting downloaded files...");
         var extractResult = await commandRunner(
             CreateCommandProcessStartInfo(
                 sevenZipReady.ExecutablePath,

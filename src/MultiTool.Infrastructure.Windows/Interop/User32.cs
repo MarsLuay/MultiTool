@@ -5,6 +5,7 @@ namespace MultiTool.Infrastructure.Windows.Interop;
 
 internal static class User32
 {
+    internal const uint CfBitmap = 2;
     internal const int WhKeyboardLl = 13;
     internal const int WhMouseLl = 14;
     internal const int WmKeyDown = 0x0100;
@@ -60,6 +61,21 @@ internal static class User32
 
     [DllImport("user32.dll")]
     internal static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool OpenClipboard(nint hWndNewOwner);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool CloseClipboard();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EmptyClipboard();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern nint SetClipboardData(uint uFormat, nint hMem);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
