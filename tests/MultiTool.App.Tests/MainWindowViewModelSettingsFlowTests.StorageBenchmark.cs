@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MultiTool.App.Localization;
 using MultiTool.App.ViewModels;
 using MultiTool.Core.Defaults;
 using MultiTool.Core.Models;
@@ -109,6 +110,123 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
                 context.StorageBenchmarkService.RunCallCount.Should().Be(1);
                 context.ViewModel.StorageBenchmarkResults.Should().HaveCount(4);
                 context.ViewModel.StorageBenchmarkStatusMessage.Should().Contain("Loaded cached SSD benchmark results");
+            });
+    }
+
+    [Fact]
+    public async Task RunSelectedStorageBenchmarkAsync_ShouldPopulateBeginnerFriendlySummary()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                var target = new StorageBenchmarkTargetInfo(
+                    @"\\.\PHYSICALDRIVE0|C:",
+                    "Samsung SSD 990 PRO  |  C: (Windows)  |  1.8 TB  |  NVMe / SSD",
+                    "Samsung SSD 990 PRO",
+                    "1.8 TB",
+                    "NVMe",
+                    "SSD",
+                    "5B2QJXD7",
+                    @"C:\",
+                    "Windows",
+                    "NTFS",
+                    "621.4 GB");
+
+                context.StorageBenchmarkService.AvailableTargets = [target];
+                context.StorageBenchmarkService.ReportsByTargetId[target.TargetId] =
+                    new StorageBenchmarkReport(
+                        target,
+                        "Seq read 2,800 MB/s  |  Seq write 1,900 MB/s  |  Random read 820 MB/s  |  Random write 280 MB/s",
+                        "Good match for the detected CPU and memory tier. Storage performance should keep up well with the rest of this PC.",
+                        "Intel Core i7  |  32 GB RAM  |  NVIDIA RTX 4070",
+                        DateTimeOffset.Parse("2026-03-20T21:30:00-07:00"),
+                        [
+                            new StorageBenchmarkModeResult("Sequential Read", 2800, 45875, 65536, "Large file reads."),
+                            new StorageBenchmarkModeResult("Sequential Write", 1900, 31129, 65536, "Large file writes."),
+                            new StorageBenchmarkModeResult("Random Read", 820, 52480, 16384, "Small-file reads."),
+                            new StorageBenchmarkModeResult("Random Write", 280, 17920, 16384, "Small-file writes."),
+                        ],
+                        []);
+
+                await context.ViewModel.InitializeAsync();
+                context.ViewModel.SelectedMainTabIndex = 4;
+                await context.ViewModel.LoadStorageBenchmarkTargetsCommand.ExecuteAsync(null);
+
+                context.ViewModel.StorageBenchmarkAssessmentHeadline.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineInitial));
+                context.ViewModel.StorageBenchmarkQuickSummary.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryInitial));
+                context.ViewModel.StorageBenchmarkWorkloadSummary.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummaryInitial));
+
+                await context.ViewModel.RunSelectedStorageBenchmarkCommand.ExecuteAsync(null);
+
+                context.ViewModel.StorageBenchmarkAssessmentTone.Should().Be("Strong");
+                context.ViewModel.StorageBenchmarkAssessmentHeadline.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineStrong));
+                context.ViewModel.StorageBenchmarkQuickSummary.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryStrong));
+                context.ViewModel.StorageBenchmarkWorkloadSummary.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummaryBalanced));
+            });
+    }
+
+    [Fact]
+    public async Task LoadStorageBenchmarkTargetsAsync_ShouldPreferCDriveAndSortByDriveLetter()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                var dTarget = new StorageBenchmarkTargetInfo(
+                    @"\\.\PHYSICALDRIVE1|D:",
+                    "Games SSD  |  D: (Games)  |  931.5 GB  |  NVMe / SSD",
+                    "Games SSD",
+                    "931.5 GB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    @"D:\",
+                    "Games",
+                    "NTFS",
+                    "403.9 GB");
+                var cTarget = new StorageBenchmarkTargetInfo(
+                    @"\\.\PHYSICALDRIVE0|C:",
+                    "System SSD  |  C: (Windows)  |  1.8 TB  |  NVMe / SSD",
+                    "System SSD",
+                    "1.8 TB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    @"C:\",
+                    "Windows",
+                    "NTFS",
+                    "621.4 GB");
+                var eTarget = new StorageBenchmarkTargetInfo(
+                    @"\\.\PHYSICALDRIVE2|E:",
+                    "Media SSD  |  E: (Media)  |  2 TB  |  NVMe / SSD",
+                    "Media SSD",
+                    "2 TB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    @"E:\",
+                    "Media",
+                    "NTFS",
+                    "1 TB");
+
+                context.StorageBenchmarkService.AvailableTargets = [dTarget, eTarget, cTarget];
+
+                await context.ViewModel.InitializeAsync();
+                context.ViewModel.SelectedMainTabIndex = 4;
+
+                await context.ViewModel.LoadStorageBenchmarkTargetsCommand.ExecuteAsync(null);
+
+                context.ViewModel.StorageBenchmarkTargets.Select(static target => target.VolumeRootPath)
+                    .Should()
+                    .ContainInOrder(@"C:\", @"D:\", @"E:\");
+                context.ViewModel.SelectedStorageBenchmarkTarget.Should().Be(cTarget);
             });
     }
 

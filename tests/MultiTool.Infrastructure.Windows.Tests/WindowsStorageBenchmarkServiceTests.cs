@@ -42,6 +42,67 @@ public sealed class WindowsStorageBenchmarkServiceTests
     }
 
     [Fact]
+    public async Task GetAvailableTargetsAsync_ShouldPreferCDriveThenAlphabeticalDriveLetters()
+    {
+        var service = new WindowsStorageBenchmarkService(
+            _ =>
+            [
+                new StorageBenchmarkTargetSnapshot(
+                    @"\\.\PHYSICALDRIVE1|D:",
+                    1,
+                    "Games SSD",
+                    "931.5 GB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    "DDD1",
+                    @"D:\",
+                    "Games",
+                    "NTFS",
+                    "300 GB",
+                    300UL * 1024UL * 1024UL * 1024UL,
+                    931UL * 1024UL * 1024UL * 1024UL),
+                new StorageBenchmarkTargetSnapshot(
+                    @"\\.\PHYSICALDRIVE2|E:",
+                    2,
+                    "Media SSD",
+                    "2 TB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    "EEE1",
+                    @"E:\",
+                    "Media",
+                    "NTFS",
+                    "1 TB",
+                    1_000UL * 1024UL * 1024UL * 1024UL,
+                    2_000UL * 1024UL * 1024UL * 1024UL),
+                new StorageBenchmarkTargetSnapshot(
+                    @"\\.\PHYSICALDRIVE0|C:",
+                    0,
+                    "System SSD",
+                    "1.8 TB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    "CCC1",
+                    @"C:\",
+                    "Windows",
+                    "NTFS",
+                    "600 GB",
+                    600UL * 1024UL * 1024UL * 1024UL,
+                    2_000UL * 1024UL * 1024UL * 1024UL),
+            ],
+            executionReader: null,
+            winSatExecutablePath: "winsat.exe");
+
+        var result = await service.GetAvailableTargetsAsync();
+
+        result.Select(static target => target.VolumeRootPath).Should().ContainInOrder(@"C:\", @"D:\", @"E:\");
+        result[0].Model.Should().Be("System SSD");
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldBuildFourModesAndBalanceAssessment()
     {
         var target = new StorageBenchmarkTargetSnapshot(

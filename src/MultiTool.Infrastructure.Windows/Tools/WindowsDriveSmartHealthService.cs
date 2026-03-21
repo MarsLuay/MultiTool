@@ -58,7 +58,7 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
     private readonly DriveSmartScanReader scanReader;
 
     public WindowsDriveSmartHealthService()
-        : this(ReadDiskInventory, ReadDriveScan)
+        : this(ReadDiskInventory, static deviceId => ReadDriveScan(deviceId, WindowsDriveSmartPassthroughReader.TryRead))
     {
     }
 
@@ -92,7 +92,9 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
 
     private static IReadOnlyList<DriveSmartTargetInfo> BuildAvailableDrives(IReadOnlyList<DriveSmartDiskSnapshot> diskSnapshots) =>
         diskSnapshots
-            .OrderBy(static disk => disk.Index)
+            .OrderBy(GetDriveLetterSortRank)
+            .ThenBy(static disk => NormalizeVolumeRoot(disk.PrimaryVolumeRootPath), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static disk => disk.Index)
             .ThenBy(static disk => disk.Model, StringComparer.OrdinalIgnoreCase)
             .Select(static disk => BuildTargetInfo(disk, physicalDisk: null))
             .ToArray();
@@ -100,6 +102,11 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
     private static DriveSmartHealthReport BuildReport(DriveSmartScanSnapshot snapshot)
     {
         var attributeEvaluations = BuildSmartAttributes(snapshot.SmartData?.VendorSpecific, snapshot.SmartThresholds?.VendorSpecific);
+        if (attributeEvaluations.Count == 0 && snapshot.DirectReadResult is not null)
+        {
+            attributeEvaluations = snapshot.DirectReadResult.Attributes;
+        }
+
         var attributes = attributeEvaluations
             .Select(static attribute => new DriveSmartAttributeInfo(attribute.Byte, attribute.Status, attribute.Description, attribute.RawData))
             .ToArray();
@@ -133,6 +140,7 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
             new[]
             {
                 model,
+                disk.VolumePathsSummary,
                 $"Disk {disk.Index}",
                 string.IsNullOrWhiteSpace(size) ? string.Empty : size,
                 $"{interfaceType} / {mediaType}",
@@ -146,7 +154,9 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
             interfaceType,
             mediaType,
             FirstNonEmpty(physicalDisk?.FirmwareVersion, disk.FirmwareRevision, "Unavailable"),
-            FirstNonEmpty(disk.SerialNumber, physicalDisk?.SerialNumber, "Unavailable"));
+            FirstNonEmpty(disk.SerialNumber, physicalDisk?.SerialNumber, "Unavailable"),
+            disk.PrimaryVolumeRootPath,
+            disk.VolumePathsSummary);
     }
 
     private static string BuildOverallHealth(DriveSmartScanSnapshot snapshot, IReadOnlyList<DriveSmartAttributeEvaluation> attributes)
@@ -481,8 +491,9 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
         return 0;
     }
 
-    private static IReadOnlyList<DriveSmartDiskSnapshot> ReadDiskInventory(ICollection<string> warnings) =>
-        TryReadMany(
+    private static IReadOnlyList<DriveSmartDiskSnapshot> ReadDiskInventory(ICollection<string> warnings)
+    {
+        var disks = TryReadMany(
             DefaultManagementScope,
             "SELECT Index, DeviceID, Model, Size, InterfaceType, MediaType, Status, SerialNumber, FirmwareRevision, PNPDeviceID FROM Win32_DiskDrive WHERE DeviceID IS NOT NULL OR Model IS NOT NULL",
             item => new DriveSmartDiskSnapshot(
@@ -497,12 +508,81 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
                 GetString(item, "FirmwareRevision"),
                 GetString(item, "PNPDeviceID")),
             warnings,
-            "SMART drive inventory")
-        .OrderBy(static disk => disk.Index)
-        .ThenBy(static disk => disk.Model, StringComparer.OrdinalIgnoreCase)
-        .ToArray();
+            "SMART drive inventory");
 
-    private static DriveSmartScanSnapshot ReadDriveScan(string deviceId)
+        var partitions = TryReadMany(
+            DefaultManagementScope,
+            "SELECT DiskIndex, DeviceID FROM Win32_DiskPartition",
+            item => new DriveSmartPartitionSnapshot(
+                GetInt(item, "DiskIndex"),
+                GetString(item, "DeviceID")),
+            warnings,
+            "SMART partition inventory");
+
+        var logicalDisks = TryReadMany(
+            DefaultManagementScope,
+            "SELECT DeviceID, DriveType FROM Win32_LogicalDisk WHERE DeviceID IS NOT NULL AND DriveType = 3",
+            item => new DriveSmartLogicalDiskSnapshot(
+                GetString(item, "DeviceID"),
+                GetInt(item, "DriveType")),
+            warnings,
+            "SMART logical disk inventory");
+
+        var partitionLinks = TryReadMany(
+            DefaultManagementScope,
+            "SELECT Antecedent, Dependent FROM Win32_LogicalDiskToPartition",
+            item => new DriveSmartPartitionLinkSnapshot(
+                ParseEmbeddedPropertyValue(GetString(item, "Antecedent"), "DeviceID"),
+                ParseEmbeddedPropertyValue(GetString(item, "Dependent"), "DeviceID")),
+            warnings,
+            "SMART partition map");
+
+        var logicalDiskLookup = logicalDisks
+            .Where(static disk => !string.IsNullOrWhiteSpace(disk.DeviceId))
+            .ToDictionary(static disk => disk.DeviceId, StringComparer.OrdinalIgnoreCase);
+        var partitionVolumeLookup = partitionLinks
+            .Where(static link => !string.IsNullOrWhiteSpace(link.PartitionDeviceId) && !string.IsNullOrWhiteSpace(link.LogicalDiskId))
+            .GroupBy(static link => link.PartitionDeviceId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group.Select(static link => link.LogicalDiskId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+
+        return disks
+            .Select(
+                disk =>
+                {
+                    var partitionIds = partitions
+                        .Where(partition => partition.DiskIndex == disk.Index && !string.IsNullOrWhiteSpace(partition.DeviceId))
+                        .Select(static partition => partition.DeviceId)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+                    var volumeRoots = partitionIds
+                        .SelectMany(partitionId => partitionVolumeLookup.TryGetValue(partitionId, out var logicalDiskIds) ? logicalDiskIds : [])
+                        .Where(logicalDiskLookup.ContainsKey)
+                        .Select(EnsureVolumeRootPath)
+                        .Where(static root => !string.IsNullOrWhiteSpace(root))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(GetVolumeRootSortRank)
+                        .ThenBy(static root => NormalizeVolumeRoot(root), StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+
+                    return disk with
+                    {
+                        PrimaryVolumeRootPath = volumeRoots.FirstOrDefault() ?? string.Empty,
+                        VolumePathsSummary = string.Join(", ", volumeRoots.Select(static root => root.TrimEnd('\\'))),
+                    };
+                })
+            .OrderBy(GetDriveLetterSortRank)
+            .ThenBy(static disk => NormalizeVolumeRoot(disk.PrimaryVolumeRootPath), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static disk => disk.Index)
+            .ThenBy(static disk => disk.Model, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static DriveSmartScanSnapshot ReadDriveScan(
+        string deviceId,
+        Func<DriveSmartDiskSnapshot, DriveSmartPhysicalDiskSnapshot?, ICollection<string>, DriveSmartDirectReadResult?>? directReadFallbackReader = null)
     {
         List<string> warnings = [];
         var diskSnapshots = ReadDiskInventory(warnings);
@@ -557,13 +637,35 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
             warnings,
             "SMART thresholds");
 
+        var matchedPhysicalDisk = MatchPhysicalDisk(drive, physicalDisks);
+        var matchedSmartStatus = MatchSmartStatus(drive, smartStatuses);
+        var matchedSmartData = MatchSmartData(drive, smartData);
+        var matchedSmartThresholds = MatchSmartThresholds(drive, smartThresholds);
+        DriveSmartDirectReadResult? directReadResult = null;
+
+        if ((matchedSmartData?.VendorSpecific is null || matchedSmartData.VendorSpecific.Length < 14)
+            && directReadFallbackReader is not null)
+        {
+            directReadResult = directReadFallbackReader(drive, matchedPhysicalDisk, warnings);
+            if (directReadResult?.SmartData is not null && (matchedSmartData?.VendorSpecific is null || matchedSmartData.VendorSpecific.Length < 14))
+            {
+                matchedSmartData = directReadResult.SmartData;
+            }
+
+            if (directReadResult?.SmartThresholds is not null && (matchedSmartThresholds?.VendorSpecific is null || matchedSmartThresholds.VendorSpecific.Length < 14))
+            {
+                matchedSmartThresholds = directReadResult.SmartThresholds;
+            }
+        }
+
         return new DriveSmartScanSnapshot(
             drive,
-            MatchPhysicalDisk(drive, physicalDisks),
-            MatchSmartStatus(drive, smartStatuses),
-            MatchSmartData(drive, smartData),
-            MatchSmartThresholds(drive, smartThresholds),
-            warnings);
+            matchedPhysicalDisk,
+            matchedSmartStatus,
+            matchedSmartData,
+            matchedSmartThresholds,
+            warnings,
+            directReadResult);
     }
 
     private static DriveSmartPhysicalDiskSnapshot? MatchPhysicalDisk(DriveSmartDiskSnapshot snapshot, IReadOnlyList<DriveSmartPhysicalDiskSnapshot> physicalDisks)
@@ -843,6 +945,75 @@ public sealed class WindowsDriveSmartHealthService : IDriveSmartHealthService
         return new string(value.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
     }
 
+    private static string ParseEmbeddedPropertyValue(string path, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(propertyName))
+        {
+            return string.Empty;
+        }
+
+        var marker = propertyName + "=\"";
+        var startIndex = path.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (startIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        startIndex += marker.Length;
+        var endIndex = path.IndexOf('"', startIndex);
+        if (endIndex <= startIndex)
+        {
+            return string.Empty;
+        }
+
+        return path[startIndex..endIndex].Replace(@"\\", @"\");
+    }
+
+    private static string EnsureVolumeRootPath(string deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            return string.Empty;
+        }
+
+        return deviceId.EndsWith(@"\", StringComparison.Ordinal)
+            ? deviceId
+            : deviceId + @"\";
+    }
+
+    private static int GetDriveLetterSortRank(DriveSmartDiskSnapshot disk) =>
+        GetVolumeRootSortRank(disk.PrimaryVolumeRootPath);
+
+    private static int GetVolumeRootSortRank(string volumeRootPath)
+    {
+        var normalized = NormalizeVolumeRoot(volumeRootPath);
+        if (normalized.Length >= 2 && normalized[1] == ':')
+        {
+            var driveLetter = char.ToUpperInvariant(normalized[0]);
+            if (driveLetter == 'C')
+            {
+                return 0;
+            }
+
+            if (driveLetter is >= 'D' and <= 'Z')
+            {
+                return 1 + (driveLetter - 'D');
+            }
+
+            if (driveLetter is >= 'A' and <= 'B')
+            {
+                return 100 + (driveLetter - 'A');
+            }
+        }
+
+        return 1000;
+    }
+
+    private static string NormalizeVolumeRoot(string? volumeRootPath) =>
+        string.IsNullOrWhiteSpace(volumeRootPath)
+            ? string.Empty
+            : volumeRootPath.Trim().TrimEnd('\\').ToUpperInvariant();
+
     private static string FormatBytes(ulong bytes)
     {
         if (bytes == 0)
@@ -873,7 +1044,21 @@ internal sealed record DriveSmartDiskSnapshot(
     string Status,
     string SerialNumber,
     string FirmwareRevision,
-    string PnpDeviceId);
+    string PnpDeviceId,
+    string PrimaryVolumeRootPath = "",
+    string VolumePathsSummary = "");
+
+internal sealed record DriveSmartPartitionSnapshot(
+    int DiskIndex,
+    string DeviceId);
+
+internal sealed record DriveSmartLogicalDiskSnapshot(
+    string DeviceId,
+    int DriveType);
+
+internal sealed record DriveSmartPartitionLinkSnapshot(
+    string PartitionDeviceId,
+    string LogicalDiskId);
 
 internal sealed record DriveSmartPhysicalDiskSnapshot(
     string FriendlyName,
@@ -920,4 +1105,5 @@ internal sealed record DriveSmartScanSnapshot(
     DriveSmartStatusSnapshot? SmartStatus,
     DriveSmartDataSnapshot? SmartData,
     DriveSmartThresholdSnapshot? SmartThresholds,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    DriveSmartDirectReadResult? DirectReadResult = null);

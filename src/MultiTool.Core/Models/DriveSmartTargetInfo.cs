@@ -8,4 +8,6 @@ public sealed record DriveSmartTargetInfo(
     string InterfaceType,
     string MediaType,
     string FirmwareVersion,
-    string SerialNumber);
+    string SerialNumber,
+    string PrimaryVolumeRootPath = "",
+    string VolumePathsSummary = "");

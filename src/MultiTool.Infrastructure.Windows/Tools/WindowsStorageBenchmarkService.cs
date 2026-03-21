@@ -223,8 +223,9 @@ public sealed class WindowsStorageBenchmarkService : IStorageBenchmarkService
 
     private static IReadOnlyList<StorageBenchmarkTargetInfo> BuildAvailableTargets(IReadOnlyList<StorageBenchmarkTargetSnapshot> targets) =>
         targets
-            .OrderBy(static target => target.DiskIndex)
-            .ThenBy(static target => target.VolumeRootPath, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(GetVolumeRootSortRank)
+            .ThenBy(static target => NormalizeVolumeRoot(target.VolumeRootPath), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static target => target.DiskIndex)
             .Select(BuildTargetInfo)
             .ToArray();
 
@@ -800,6 +801,39 @@ public sealed class WindowsStorageBenchmarkService : IStorageBenchmarkService
 
         return char.ToLowerInvariant(root[0]).ToString(CultureInfo.InvariantCulture);
     }
+
+    private static int GetVolumeRootSortRank(StorageBenchmarkTargetSnapshot target) =>
+        GetVolumeRootSortRank(target.VolumeRootPath);
+
+    private static int GetVolumeRootSortRank(string volumeRootPath)
+    {
+        var normalized = NormalizeVolumeRoot(volumeRootPath);
+        if (normalized.Length >= 2 && normalized[1] == ':')
+        {
+            var driveLetter = char.ToUpperInvariant(normalized[0]);
+            if (driveLetter == 'C')
+            {
+                return 0;
+            }
+
+            if (driveLetter is >= 'D' and <= 'Z')
+            {
+                return 1 + (driveLetter - 'D');
+            }
+
+            if (driveLetter is >= 'A' and <= 'B')
+            {
+                return 100 + (driveLetter - 'A');
+            }
+        }
+
+        return 1000;
+    }
+
+    private static string NormalizeVolumeRoot(string? volumeRootPath) =>
+        string.IsNullOrWhiteSpace(volumeRootPath)
+            ? string.Empty
+            : volumeRootPath.Trim().TrimEnd('\\').ToUpperInvariant();
 
     private static string EnsureVolumeRootPath(string deviceId)
     {

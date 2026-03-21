@@ -102,6 +102,114 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
     }
 
     [Fact]
+    public async Task ScanSelectedDriveSmartAsync_ShouldPopulateBeginnerFriendlySummary()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                var drive = new DriveSmartTargetInfo(
+                    @"\\.\PHYSICALDRIVE0",
+                    "Samsung SSD 990 PRO  |  C:  |  Disk 0  |  1.8 TB  |  NVMe / SSD",
+                    "Samsung SSD 990 PRO",
+                    "1.8 TB",
+                    "NVMe",
+                    "SSD",
+                    "5B2QJXD7",
+                    "ABC123",
+                    @"C:\",
+                    "C:");
+
+                context.DriveSmartHealthService.AvailableDrives = [drive];
+                context.DriveSmartHealthService.ReportsByDeviceId[drive.DeviceId] =
+                    new DriveSmartHealthReport(
+                        drive,
+                        "Warning",
+                        "Overall health: Warning. Available reserved space is getting low.",
+                        DateTimeOffset.Parse("2026-03-20T20:40:00-07:00"),
+                        [
+                            new DriveSmartAttributeInfo("E8", "Warning", "Available Reserved Space", "15 (0x00000000000F)"),
+                        ],
+                        ["Spare area is getting low."]);
+
+                await context.ViewModel.InitializeAsync();
+                context.ViewModel.SelectedMainTabIndex = 4;
+                await context.ViewModel.LoadDriveSmartTargetsCommand.ExecuteAsync(null);
+
+                context.ViewModel.DriveSmartOverallHealthDisplay.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayInitial));
+                context.ViewModel.DriveSmartReportSummary.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartReportSummaryInitial));
+
+                await context.ViewModel.ScanSelectedDriveSmartCommand.ExecuteAsync(null);
+
+                context.ViewModel.DriveSmartOverallHealth.Should().Be("Warning");
+                context.ViewModel.DriveSmartOverallHealthDisplay.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayWarning));
+                context.ViewModel.DriveSmartQuickSummary.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartQuickSummaryWarning));
+                context.ViewModel.DriveSmartRecommendedAction.Should().Be(
+                    AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartRecommendedActionWarning));
+                context.ViewModel.DriveSmartReportSummary.Should().Be("Available reserved space is getting low.");
+            });
+    }
+
+    [Fact]
+    public async Task LoadDriveSmartTargetsAsync_ShouldPreferCDriveAndSortByDriveLetter()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                var dDrive = new DriveSmartTargetInfo(
+                    @"\\.\PHYSICALDRIVE1",
+                    "Games SSD  |  D:  |  Disk 1  |  931.5 GB  |  NVMe / SSD",
+                    "Games SSD",
+                    "931.5 GB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    "DDD1",
+                    @"D:\",
+                    "D:");
+                var cDrive = new DriveSmartTargetInfo(
+                    @"\\.\PHYSICALDRIVE0",
+                    "System SSD  |  C:  |  Disk 0  |  1.8 TB  |  NVMe / SSD",
+                    "System SSD",
+                    "1.8 TB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    "CCC1",
+                    @"C:\",
+                    "C:");
+                var eDrive = new DriveSmartTargetInfo(
+                    @"\\.\PHYSICALDRIVE2",
+                    "Media SSD  |  E:  |  Disk 2  |  2 TB  |  NVMe / SSD",
+                    "Media SSD",
+                    "2 TB",
+                    "NVMe",
+                    "SSD",
+                    "1.0",
+                    "EEE1",
+                    @"E:\",
+                    "E:");
+
+                context.DriveSmartHealthService.AvailableDrives = [dDrive, eDrive, cDrive];
+
+                await context.ViewModel.InitializeAsync();
+                context.ViewModel.SelectedMainTabIndex = 4;
+
+                await context.ViewModel.LoadDriveSmartTargetsCommand.ExecuteAsync(null);
+
+                context.ViewModel.DriveSmartTargets.Select(static drive => drive.PrimaryVolumeRootPath)
+                    .Should()
+                    .ContainInOrder(@"C:\", @"D:\", @"E:\");
+                context.ViewModel.SelectedDriveSmartTarget.Should().Be(cDrive);
+            });
+    }
+
+    [Fact]
     public async Task ExportDriveSmartReportAsync_ShouldWriteRequestedColumns()
     {
         await StaDispatcherTestRunner.RunAsync(

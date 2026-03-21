@@ -34,6 +34,18 @@ public partial class MainWindowViewModel
     private string storageBenchmarkLastBenchmarkedSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkLastBenchmarkedInitial);
 
     [ObservableProperty]
+    private string storageBenchmarkAssessmentHeadline = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineInitial);
+
+    [ObservableProperty]
+    private string storageBenchmarkAssessmentTone = "Unknown";
+
+    [ObservableProperty]
+    private string storageBenchmarkQuickSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryInitial);
+
+    [ObservableProperty]
+    private string storageBenchmarkWorkloadSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummaryInitial);
+
+    [ObservableProperty]
     private string storageBenchmarkSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStorageBenchmarkSummaryInitial);
 
     [ObservableProperty]
@@ -62,6 +74,7 @@ public partial class MainWindowViewModel
             ReplaceStorageBenchmarkResults([]);
             StorageBenchmarkSelectedDriveSummary = L(AppLanguageKeys.ToolsStorageBenchmarkSelectedDriveInitial);
             StorageBenchmarkLastBenchmarkedSummary = L(AppLanguageKeys.ToolsStorageBenchmarkLastBenchmarkedInitial);
+            ResetStorageBenchmarkFriendlySummary();
             StorageBenchmarkSummary = L(AppLanguageKeys.ToolsStorageBenchmarkSummaryInitial);
             StorageBenchmarkBalanceAssessment = L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentInitial);
             StorageBenchmarkDetectedSystemSummary = L(AppLanguageKeys.ToolsStorageBenchmarkDetectedSystemInitial);
@@ -85,6 +98,7 @@ public partial class MainWindowViewModel
             currentStorageBenchmarkReport = null;
             ReplaceStorageBenchmarkResults([]);
             StorageBenchmarkLastBenchmarkedSummary = L(AppLanguageKeys.ToolsStorageBenchmarkLastBenchmarkedInitial);
+            ResetStorageBenchmarkFriendlySummary();
             StorageBenchmarkSummary = L(AppLanguageKeys.ToolsStorageBenchmarkSummaryInitial);
             StorageBenchmarkBalanceAssessment = L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentInitial);
             StorageBenchmarkDetectedSystemSummary = L(AppLanguageKeys.ToolsStorageBenchmarkDetectedSystemInitial);
@@ -222,18 +236,25 @@ public partial class MainWindowViewModel
     private void ReplaceStorageBenchmarkTargets(IReadOnlyList<StorageBenchmarkTargetInfo> targets)
     {
         var previouslySelectedTargetId = SelectedStorageBenchmarkTarget?.TargetId;
+        var orderedTargets = targets
+            .OrderBy(GetStorageBenchmarkSortRank)
+            .ThenBy(static target => NormalizeStorageBenchmarkVolumeRoot(target.VolumeRootPath), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static target => target.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         StorageBenchmarkTargets.Clear();
-        foreach (var target in targets)
+        foreach (var target in orderedTargets)
         {
             StorageBenchmarkTargets.Add(target);
         }
 
         OnPropertyChanged(nameof(HasStorageBenchmarkTargets));
 
-        var nextSelection = targets.FirstOrDefault(target =>
+        var nextSelection = orderedTargets.FirstOrDefault(target =>
                 !string.IsNullOrWhiteSpace(previouslySelectedTargetId)
                 && target.TargetId.Equals(previouslySelectedTargetId, StringComparison.OrdinalIgnoreCase))
-            ?? targets.FirstOrDefault();
+            ?? orderedTargets.FirstOrDefault(static target => NormalizeStorageBenchmarkVolumeRoot(target.VolumeRootPath).Equals("C:", StringComparison.OrdinalIgnoreCase))
+            ?? orderedTargets.FirstOrDefault();
 
         SelectedStorageBenchmarkTarget = null;
         SelectedStorageBenchmarkTarget = nextSelection;
@@ -255,6 +276,7 @@ public partial class MainWindowViewModel
         currentStorageBenchmarkReport = report;
         StorageBenchmarkSelectedDriveSummary = BuildStorageBenchmarkSelectedDriveSummary(report.Target);
         StorageBenchmarkLastBenchmarkedSummary = $"Last benchmark: {report.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+        ApplyStorageBenchmarkFriendlySummary(report);
         StorageBenchmarkSummary = report.Summary;
         StorageBenchmarkBalanceAssessment = report.BalanceAssessment;
         StorageBenchmarkDetectedSystemSummary = report.DetectedSystemSummary;
@@ -284,6 +306,7 @@ public partial class MainWindowViewModel
         currentStorageBenchmarkReport = null;
         ReplaceStorageBenchmarkResults([]);
         StorageBenchmarkLastBenchmarkedSummary = L(AppLanguageKeys.ToolsStorageBenchmarkLastBenchmarkedInitial);
+        ResetStorageBenchmarkFriendlySummary();
         StorageBenchmarkSummary = L(AppLanguageKeys.ToolsStorageBenchmarkSummaryInitial);
         StorageBenchmarkBalanceAssessment = L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentInitial);
         StorageBenchmarkDetectedSystemSummary = L(AppLanguageKeys.ToolsStorageBenchmarkDetectedSystemInitial);
@@ -391,6 +414,154 @@ public partial class MainWindowViewModel
     {
         var normalized = value.Replace("\"", "\"\"");
         return $"\"{normalized}\"";
+    }
+
+    private static int GetStorageBenchmarkSortRank(StorageBenchmarkTargetInfo target)
+    {
+        var normalized = NormalizeStorageBenchmarkVolumeRoot(target.VolumeRootPath);
+        if (normalized.Length >= 2 && normalized[1] == ':')
+        {
+            var driveLetter = char.ToUpperInvariant(normalized[0]);
+            if (driveLetter == 'C')
+            {
+                return 0;
+            }
+
+            if (driveLetter is >= 'D' and <= 'Z')
+            {
+                return 1 + (driveLetter - 'D');
+            }
+
+            if (driveLetter is >= 'A' and <= 'B')
+            {
+                return 100 + (driveLetter - 'A');
+            }
+        }
+
+        return 1000;
+    }
+
+    private static string NormalizeStorageBenchmarkVolumeRoot(string? volumeRootPath) =>
+        string.IsNullOrWhiteSpace(volumeRootPath)
+            ? string.Empty
+            : volumeRootPath.Trim().TrimEnd('\\').ToUpperInvariant();
+
+    private void ResetStorageBenchmarkFriendlySummary()
+    {
+        StorageBenchmarkAssessmentHeadline = L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineInitial);
+        StorageBenchmarkAssessmentTone = "Unknown";
+        StorageBenchmarkQuickSummary = L(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryInitial);
+        StorageBenchmarkWorkloadSummary = L(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummaryInitial);
+    }
+
+    private void ApplyStorageBenchmarkFriendlySummary(StorageBenchmarkReport report)
+    {
+        var tone = ClassifyStorageBenchmarkAssessmentTone(report.BalanceAssessment);
+        StorageBenchmarkAssessmentTone = tone;
+        StorageBenchmarkAssessmentHeadline = tone switch
+        {
+            "Strong" => L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineStrong),
+            "GoodEnough" => L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineGoodEnough),
+            "Behind" => L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineBehind),
+            "Bottleneck" => L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineBottleneck),
+            _ => L(AppLanguageKeys.ToolsStorageBenchmarkAssessmentHeadlineUnknown),
+        };
+        StorageBenchmarkQuickSummary = tone switch
+        {
+            "Strong" => L(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryStrong),
+            "GoodEnough" => L(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryGoodEnough),
+            "Behind" => L(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryBehind),
+            "Bottleneck" => L(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryBottleneck),
+            _ => L(AppLanguageKeys.ToolsStorageBenchmarkQuickSummaryUnknown),
+        };
+        StorageBenchmarkWorkloadSummary = BuildStorageBenchmarkWorkloadSummary(report);
+    }
+
+    private static string ClassifyStorageBenchmarkAssessmentTone(string balanceAssessment)
+    {
+        if (string.IsNullOrWhiteSpace(balanceAssessment))
+        {
+            return "Unknown";
+        }
+
+        if (balanceAssessment.Contains("Good match", StringComparison.OrdinalIgnoreCase)
+            || balanceAssessment.Contains("keep up well", StringComparison.OrdinalIgnoreCase)
+            || balanceAssessment.Contains("strong enough", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Strong";
+        }
+
+        if (balanceAssessment.Contains("Good enough", StringComparison.OrdinalIgnoreCase)
+            || balanceAssessment.Contains("balanced in normal use", StringComparison.OrdinalIgnoreCase))
+        {
+            return "GoodEnough";
+        }
+
+        if (balanceAssessment.Contains("Likely the slowest part", StringComparison.OrdinalIgnoreCase)
+            || balanceAssessment.Contains("hold this PC back", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Bottleneck";
+        }
+
+        if (balanceAssessment.Contains("usable", StringComparison.OrdinalIgnoreCase)
+            || balanceAssessment.Contains("below", StringComparison.OrdinalIgnoreCase)
+            || balanceAssessment.Contains("little behind", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Behind";
+        }
+
+        return "Unknown";
+    }
+
+    private string BuildStorageBenchmarkWorkloadSummary(StorageBenchmarkReport report)
+    {
+        var sequentialRead = GetStorageBenchmarkThroughput(report.Results, "Sequential Read");
+        var sequentialWrite = GetStorageBenchmarkThroughput(report.Results, "Sequential Write");
+        var randomRead = GetStorageBenchmarkThroughput(report.Results, "Random Read");
+        var randomWrite = GetStorageBenchmarkThroughput(report.Results, "Random Write");
+
+        if (sequentialRead <= 0 && sequentialWrite <= 0 && randomRead <= 0 && randomWrite <= 0)
+        {
+            return L(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummaryUnknown);
+        }
+
+        var sequentialAverage = AveragePositive(sequentialRead, sequentialWrite);
+        var randomAverage = AveragePositive(randomRead, randomWrite);
+        var isNvme = report.Target.InterfaceType.Contains("NVMe", StringComparison.OrdinalIgnoreCase);
+        var strongSequentialThreshold = isNvme ? 1500d : 450d;
+        var strongRandomThreshold = isNvme ? 160d : 60d;
+        var sequentialStrong = sequentialAverage >= strongSequentialThreshold;
+        var randomStrong = randomAverage >= strongRandomThreshold;
+
+        if (sequentialStrong && randomStrong)
+        {
+            return L(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummaryBalanced);
+        }
+
+        if (sequentialStrong)
+        {
+            return L(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummaryLargeFileFocused);
+        }
+
+        if (randomStrong)
+        {
+            return L(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummarySmallFileFocused);
+        }
+
+        return L(AppLanguageKeys.ToolsStorageBenchmarkWorkloadSummaryModest);
+    }
+
+    private static double GetStorageBenchmarkThroughput(IReadOnlyList<StorageBenchmarkModeResult> results, string mode) =>
+        results.FirstOrDefault(result => result.Mode.Equals(mode, StringComparison.OrdinalIgnoreCase))?.ThroughputMegabytesPerSecond ?? 0d;
+
+    private static double AveragePositive(double first, double second)
+    {
+        if (first > 0 && second > 0)
+        {
+            return (first + second) / 2d;
+        }
+
+        return Math.Max(first, second);
     }
 
     private void StartStorageBenchmarkProgress()

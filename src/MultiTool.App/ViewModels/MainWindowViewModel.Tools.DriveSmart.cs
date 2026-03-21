@@ -31,13 +31,22 @@ public partial class MainWindowViewModel
     private string driveSmartOverallHealth = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartOverallHealthInitial);
 
     [ObservableProperty]
+    private string driveSmartOverallHealthDisplay = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayInitial);
+
+    [ObservableProperty]
     private string driveSmartSelectedDriveSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartSelectedDriveInitial);
 
     [ObservableProperty]
     private string driveSmartLastScannedSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartLastScannedInitial);
 
     [ObservableProperty]
-    private string driveSmartReportSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsStatusDriveSmartInitial);
+    private string driveSmartReportSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartReportSummaryInitial);
+
+    [ObservableProperty]
+    private string driveSmartQuickSummary = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartQuickSummaryInitial);
+
+    [ObservableProperty]
+    private string driveSmartRecommendedAction = AppLanguageStrings.GetForCurrentLanguage(AppLanguageKeys.ToolsDriveSmartRecommendedActionInitial);
 
     partial void OnSelectedDriveSmartTargetChanged(DriveSmartTargetInfo? value)
     {
@@ -47,8 +56,10 @@ public partial class MainWindowViewModel
             ReplaceDriveSmartAttributes([]);
             DriveSmartSelectedDriveSummary = L(AppLanguageKeys.ToolsDriveSmartSelectedDriveInitial);
             DriveSmartOverallHealth = L(AppLanguageKeys.ToolsDriveSmartOverallHealthInitial);
+            DriveSmartOverallHealthDisplay = L(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayInitial);
             DriveSmartLastScannedSummary = L(AppLanguageKeys.ToolsDriveSmartLastScannedInitial);
-            DriveSmartReportSummary = L(AppLanguageKeys.ToolsStatusDriveSmartInitial);
+            DriveSmartReportSummary = L(AppLanguageKeys.ToolsDriveSmartReportSummaryInitial);
+            ResetDriveSmartFriendlyGuidance();
             RefreshToolCommandStates();
             return;
         }
@@ -70,8 +81,10 @@ public partial class MainWindowViewModel
             currentDriveSmartHealthReport = null;
             ReplaceDriveSmartAttributes([]);
             DriveSmartOverallHealth = L(AppLanguageKeys.ToolsDriveSmartOverallHealthInitial);
+            DriveSmartOverallHealthDisplay = L(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayInitial);
             DriveSmartLastScannedSummary = L(AppLanguageKeys.ToolsDriveSmartLastScannedInitial);
-            DriveSmartReportSummary = L(AppLanguageKeys.ToolsStatusDriveSmartInitial);
+            DriveSmartReportSummary = L(AppLanguageKeys.ToolsDriveSmartReportSummaryInitial);
+            ResetDriveSmartFriendlyGuidance();
         }
 
         RefreshToolCommandStates();
@@ -203,18 +216,25 @@ public partial class MainWindowViewModel
     private void ReplaceDriveSmartTargets(IReadOnlyList<DriveSmartTargetInfo> targets)
     {
         var previouslySelectedDeviceId = SelectedDriveSmartTarget?.DeviceId;
+        var orderedTargets = targets
+            .OrderBy(GetDriveSmartSortRank)
+            .ThenBy(static target => NormalizeDriveSmartVolumeRoot(target.PrimaryVolumeRootPath), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static target => target.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         DriveSmartTargets.Clear();
-        foreach (var target in targets)
+        foreach (var target in orderedTargets)
         {
             DriveSmartTargets.Add(target);
         }
 
         OnPropertyChanged(nameof(HasDriveSmartTargets));
 
-        var nextSelection = targets.FirstOrDefault(target =>
+        var nextSelection = orderedTargets.FirstOrDefault(target =>
                 !string.IsNullOrWhiteSpace(previouslySelectedDeviceId) &&
                 target.DeviceId.Equals(previouslySelectedDeviceId, StringComparison.OrdinalIgnoreCase))
-            ?? targets.FirstOrDefault();
+            ?? orderedTargets.FirstOrDefault(static target => NormalizeDriveSmartVolumeRoot(target.PrimaryVolumeRootPath).Equals("C:", StringComparison.OrdinalIgnoreCase))
+            ?? orderedTargets.FirstOrDefault();
 
         SelectedDriveSmartTarget = null;
         SelectedDriveSmartTarget = nextSelection;
@@ -236,8 +256,10 @@ public partial class MainWindowViewModel
         currentDriveSmartHealthReport = report;
         DriveSmartSelectedDriveSummary = BuildDriveSmartSelectedDriveSummary(report.Drive);
         DriveSmartOverallHealth = report.OverallHealth;
+        DriveSmartOverallHealthDisplay = BuildDriveSmartOverallHealthDisplay(report.OverallHealth);
         DriveSmartLastScannedSummary = $"Last scanned: {report.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
-        DriveSmartReportSummary = report.Summary;
+        DriveSmartReportSummary = BuildDriveSmartFriendlyReportSummary(report);
+        ApplyDriveSmartFriendlyGuidance(report.OverallHealth);
         ReplaceDriveSmartAttributes(report.Attributes);
         RefreshToolCommandStates();
     }
@@ -264,8 +286,10 @@ public partial class MainWindowViewModel
         currentDriveSmartHealthReport = null;
         ReplaceDriveSmartAttributes([]);
         DriveSmartOverallHealth = L(AppLanguageKeys.ToolsDriveSmartOverallHealthInitial);
+        DriveSmartOverallHealthDisplay = L(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayInitial);
         DriveSmartLastScannedSummary = L(AppLanguageKeys.ToolsDriveSmartLastScannedInitial);
-        DriveSmartReportSummary = L(AppLanguageKeys.ToolsStatusDriveSmartInitial);
+        DriveSmartReportSummary = L(AppLanguageKeys.ToolsDriveSmartReportSummaryInitial);
+        ResetDriveSmartFriendlyGuidance();
         if (SelectedDriveSmartTarget is null)
         {
             DriveSmartSelectedDriveSummary = L(AppLanguageKeys.ToolsDriveSmartSelectedDriveInitial);
@@ -287,10 +311,93 @@ public partial class MainWindowViewModel
             new[]
             {
                 target.Model,
+                target.VolumePathsSummary,
                 string.IsNullOrWhiteSpace(target.Size) ? string.Empty : target.Size,
                 $"{target.InterfaceType} / {target.MediaType}",
                 $"Firmware {target.FirmwareVersion}",
             }.Where(static value => !string.IsNullOrWhiteSpace(value)));
+
+    private void ResetDriveSmartFriendlyGuidance()
+    {
+        DriveSmartQuickSummary = L(AppLanguageKeys.ToolsDriveSmartQuickSummaryInitial);
+        DriveSmartRecommendedAction = L(AppLanguageKeys.ToolsDriveSmartRecommendedActionInitial);
+    }
+
+    private void ApplyDriveSmartFriendlyGuidance(string overallHealth)
+    {
+        switch (overallHealth.Trim())
+        {
+            case "Healthy":
+                DriveSmartQuickSummary = L(AppLanguageKeys.ToolsDriveSmartQuickSummaryHealthy);
+                DriveSmartRecommendedAction = L(AppLanguageKeys.ToolsDriveSmartRecommendedActionHealthy);
+                break;
+            case "Warning":
+                DriveSmartQuickSummary = L(AppLanguageKeys.ToolsDriveSmartQuickSummaryWarning);
+                DriveSmartRecommendedAction = L(AppLanguageKeys.ToolsDriveSmartRecommendedActionWarning);
+                break;
+            case "Critical":
+                DriveSmartQuickSummary = L(AppLanguageKeys.ToolsDriveSmartQuickSummaryCritical);
+                DriveSmartRecommendedAction = L(AppLanguageKeys.ToolsDriveSmartRecommendedActionCritical);
+                break;
+            default:
+                DriveSmartQuickSummary = L(AppLanguageKeys.ToolsDriveSmartQuickSummaryUnknown);
+                DriveSmartRecommendedAction = L(AppLanguageKeys.ToolsDriveSmartRecommendedActionUnknown);
+                break;
+        }
+    }
+
+    private string BuildDriveSmartOverallHealthDisplay(string overallHealth) =>
+        overallHealth.Trim() switch
+        {
+            "Healthy" => L(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayHealthy),
+            "Warning" => L(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayWarning),
+            "Critical" => L(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayCritical),
+            _ => L(AppLanguageKeys.ToolsDriveSmartOverallHealthDisplayUnknown),
+        };
+
+    private string BuildDriveSmartFriendlyReportSummary(DriveSmartHealthReport report)
+    {
+        var summary = report.Summary.Trim();
+        var prefix = $"Overall health: {report.OverallHealth}.";
+        if (summary.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            summary = summary[prefix.Length..].Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(summary)
+            ? L(AppLanguageKeys.ToolsDriveSmartReportSummaryUnavailable)
+            : summary;
+    }
+
+    private static int GetDriveSmartSortRank(DriveSmartTargetInfo target)
+    {
+        var normalized = NormalizeDriveSmartVolumeRoot(target.PrimaryVolumeRootPath);
+        if (normalized.Length >= 2 && normalized[1] == ':')
+        {
+            var driveLetter = char.ToUpperInvariant(normalized[0]);
+            if (driveLetter == 'C')
+            {
+                return 0;
+            }
+
+            if (driveLetter is >= 'D' and <= 'Z')
+            {
+                return 1 + (driveLetter - 'D');
+            }
+
+            if (driveLetter is >= 'A' and <= 'B')
+            {
+                return 100 + (driveLetter - 'A');
+            }
+        }
+
+        return 1000;
+    }
+
+    private static string NormalizeDriveSmartVolumeRoot(string? volumeRootPath) =>
+        string.IsNullOrWhiteSpace(volumeRootPath)
+            ? string.Empty
+            : volumeRootPath.Trim().TrimEnd('\\').ToUpperInvariant();
 
     private static string BuildDriveSmartExportFileName(DriveSmartHealthReport report)
     {
