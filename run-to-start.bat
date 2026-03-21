@@ -98,12 +98,8 @@ if /I not "%CURRENT_BRANCH%"=="main" (
     exit /b 0
 )
 
-set "WORKTREE_DIRTY="
-for /f "usebackq delims=" %%S in (`git status --porcelain --untracked-files=normal 2^>nul`) do (
-    set "WORKTREE_DIRTY=1"
-)
-
-if defined WORKTREE_DIRTY (
+git status --porcelain --untracked-files=normal | findstr /r "." >nul
+if not errorlevel 1 (
     echo Local Git changes were found. Skipping automatic main update to protect them.
     exit /b 0
 )
