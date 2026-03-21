@@ -4,19 +4,25 @@ using System.Management;
 using System.Reflection;
 using MultiTool.Core.Models;
 using MultiTool.Core.Services;
+using MultiTool.Infrastructure.Windows.Interop;
 
 namespace MultiTool.Infrastructure.Windows.Tools;
 
 public sealed class WindowsSystemTrayMetricsService : ISystemTrayMetricsService
 {
-    private readonly Func<int?> getCpuUsagePercent;
+    private readonly Func<int?>? getCpuUsagePercentOverride;
     private readonly Func<double?> getTemperatureCelsius;
-    private readonly Func<int?> getMemoryUsagePercent;
+    private readonly Func<int?>? getMemoryUsagePercentOverride;
     private readonly Func<int?> getDiskUsagePercent;
+    private readonly object cpuUsageSync = new();
+    private ulong? previousCpuIdleTime;
+    private ulong? previousCpuKernelTime;
+    private ulong? previousCpuUserTime;
 
     public WindowsSystemTrayMetricsService()
-        : this(TryGetCpuUsagePercent, TryGetTemperatureCelsius, TryGetMemoryUsagePercent, TryGetDiskUsagePercent)
     {
+        getTemperatureCelsius = TryGetTemperatureCelsius;
+        getDiskUsagePercent = TryGetDiskUsagePercent;
     }
 
     internal WindowsSystemTrayMetricsService(
@@ -25,9 +31,9 @@ public sealed class WindowsSystemTrayMetricsService : ISystemTrayMetricsService
         Func<int?> getMemoryUsagePercent,
         Func<int?> getDiskUsagePercent)
     {
-        this.getCpuUsagePercent = getCpuUsagePercent;
+        getCpuUsagePercentOverride = getCpuUsagePercent;
         this.getTemperatureCelsius = getTemperatureCelsius;
-        this.getMemoryUsagePercent = getMemoryUsagePercent;
+        getMemoryUsagePercentOverride = getMemoryUsagePercent;
         this.getDiskUsagePercent = getDiskUsagePercent;
     }
 
@@ -36,16 +42,57 @@ public sealed class WindowsSystemTrayMetricsService : ISystemTrayMetricsService
         cancellationToken.ThrowIfCancellationRequested();
 
         var snapshot = new SystemTrayMetricsSnapshot(
-            CpuUsagePercent: ClampPercent(getCpuUsagePercent()),
+            CpuUsagePercent: ClampPercent((getCpuUsagePercentOverride ?? TryGetCpuUsagePercent).Invoke()),
             TemperatureCelsius: getTemperatureCelsius(),
-            MemoryUsagePercent: ClampPercent(getMemoryUsagePercent()),
+            MemoryUsagePercent: ClampPercent((getMemoryUsagePercentOverride ?? TryGetMemoryUsagePercent).Invoke()),
             DiskUsagePercent: ClampPercent(getDiskUsagePercent()),
             CapturedAt: DateTimeOffset.Now);
 
         return Task.FromResult(snapshot);
     }
 
-    private static int? TryGetCpuUsagePercent() =>
+    private int? TryGetCpuUsagePercent()
+    {
+        try
+        {
+            if (!Kernel32.GetSystemTimes(out var idleTime, out var kernelTime, out var userTime))
+            {
+                return TryGetCpuUsagePercentFromFormattedCounter();
+            }
+
+            var currentIdleTime = idleTime.ToUInt64();
+            var currentKernelTime = kernelTime.ToUInt64();
+            var currentUserTime = userTime.ToUInt64();
+
+            lock (cpuUsageSync)
+            {
+                if (!previousCpuIdleTime.HasValue || !previousCpuKernelTime.HasValue || !previousCpuUserTime.HasValue)
+                {
+                    previousCpuIdleTime = currentIdleTime;
+                    previousCpuKernelTime = currentKernelTime;
+                    previousCpuUserTime = currentUserTime;
+                    return TryGetCpuUsagePercentFromFormattedCounter();
+                }
+
+                var idleDelta = currentIdleTime - previousCpuIdleTime.Value;
+                var kernelDelta = currentKernelTime - previousCpuKernelTime.Value;
+                var userDelta = currentUserTime - previousCpuUserTime.Value;
+
+                previousCpuIdleTime = currentIdleTime;
+                previousCpuKernelTime = currentKernelTime;
+                previousCpuUserTime = currentUserTime;
+
+                return CalculateCpuUsagePercent(idleDelta, kernelDelta, userDelta)
+                    ?? TryGetCpuUsagePercentFromFormattedCounter();
+            }
+        }
+        catch
+        {
+            return TryGetCpuUsagePercentFromFormattedCounter();
+        }
+    }
+
+    private static int? TryGetCpuUsagePercentFromFormattedCounter() =>
         ReadFormattedPercent(
             @"root\CIMV2",
             "SELECT PercentProcessorTime FROM Win32_PerfFormattedData_PerfOS_Processor WHERE Name = '_Total'",
@@ -53,8 +100,23 @@ public sealed class WindowsSystemTrayMetricsService : ISystemTrayMetricsService
 
     private static int? TryGetMemoryUsagePercent()
     {
-        const string query = "SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem";
+        try
+        {
+            var memoryStatus = new Kernel32.MemoryStatusEx
+            {
+                DwLength = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Kernel32.MemoryStatusEx>(),
+            };
 
+            if (Kernel32.GlobalMemoryStatusEx(ref memoryStatus))
+            {
+                return ClampPercent((int)memoryStatus.DwMemoryLoad);
+            }
+        }
+        catch
+        {
+        }
+
+        const string query = "SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem";
         try
         {
             using var searcher = new ManagementObjectSearcher(@"root\CIMV2", query);
@@ -77,6 +139,18 @@ public sealed class WindowsSystemTrayMetricsService : ISystemTrayMetricsService
         }
 
         return null;
+    }
+
+    internal static int? CalculateCpuUsagePercent(ulong idleDelta, ulong kernelDelta, ulong userDelta)
+    {
+        var totalDelta = kernelDelta + userDelta;
+        if (totalDelta == 0 || idleDelta > totalDelta)
+        {
+            return null;
+        }
+
+        var busyDelta = totalDelta - idleDelta;
+        return ClampPercent((int)Math.Round((busyDelta * 100d) / totalDelta, MidpointRounding.AwayFromZero));
     }
 
     private static int? TryGetDiskUsagePercent() =>

@@ -244,6 +244,7 @@ public partial class MainWindowViewModel
             installerPackagesCollectionView.GroupDescriptions.Clear();
             installerPackagesCollectionView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(InstallerPackageItem.Category)));
         }
+        OnPropertyChanged(nameof(InstallerPackagesView));
         viewConfigurationStopwatch?.Stop();
         if (viewConfigurationStopwatch is not null)
         {

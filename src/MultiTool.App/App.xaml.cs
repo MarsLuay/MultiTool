@@ -62,6 +62,8 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IMouseSensitivityService, WindowsMouseSensitivityService>();
                         services.AddSingleton<IDisplayRefreshRateService, WindowsDisplayRefreshRateService>();
                         services.AddSingleton<IHardwareInventoryService, WindowsHardwareInventoryService>();
+                        services.AddSingleton<IDriveSmartHealthService, WindowsDriveSmartHealthService>();
+                        services.AddSingleton<IStorageBenchmarkService, WindowsStorageBenchmarkService>();
                         services.AddSingleton<IDriverUpdateService, WindowsDriverUpdateService>();
                         services.AddSingleton<IWindows11EeaMediaService, Windows11EeaMediaService>();
                         services.AddSingleton<IWindowsSearchReplacementService, WindowsSearchReplacementService>();
@@ -81,6 +83,7 @@ public partial class App : System.Windows.Application
                         services.AddSingleton<IMacroEditorDialogService, MacroEditorDialogService>();
                         services.AddSingleton<IMacroNamePromptService, MacroNamePromptService>();
                         services.AddSingleton<IMacroFileDialogService, MacroFileDialogService>();
+                        services.AddSingleton<ITextFileSaveDialogService, TextFileSaveDialogService>();
                         services.AddSingleton<IScreenshotAreaSelectionService, ScreenshotAreaSelectionService>();
                         services.AddSingleton<IAboutWindowService, AboutWindowService>();
                         services.AddSingleton<IShortcutHotkeyDialogService, ShortcutHotkeyDialogService>();

@@ -28,6 +28,8 @@ public partial class MainWindowViewModel : ObservableObject
         EmptyDirectories,
         DisplayRefreshRecommendations,
         Ipv4SocketSnapshot,
+        DriveSmartHealth,
+        StorageBenchmark,
         HardwareInventory,
         DriverUpdates,
     }
@@ -43,6 +45,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IMacroEditorDialogService macroEditorDialogService;
     private readonly IMacroNamePromptService macroNamePromptService;
     private readonly IMacroFileDialogService macroFileDialogService;
+    private readonly ITextFileSaveDialogService textFileSaveDialogService;
     private readonly IMacroHotkeyAssignmentsDialogService macroHotkeyAssignmentsDialogService;
     private readonly ICoordinateCaptureDialogService coordinateCaptureDialogService;
     private readonly IAboutWindowService aboutWindowService;
@@ -61,6 +64,8 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IMouseSensitivityService mouseSensitivityService;
     private readonly IDisplayRefreshRateService displayRefreshRateService;
     private readonly IHardwareInventoryService hardwareInventoryService;
+    private readonly IDriveSmartHealthService driveSmartHealthService;
+    private readonly IStorageBenchmarkService storageBenchmarkService;
     private readonly IDriverUpdateService driverUpdateService;
     private readonly IWindows11EeaMediaService windows11EeaMediaService;
     private readonly IWindowsSearchReplacementService windowsSearchReplacementService;
@@ -127,6 +132,7 @@ public partial class MainWindowViewModel : ObservableObject
         IMacroEditorDialogService macroEditorDialogService,
         IMacroNamePromptService macroNamePromptService,
         IMacroFileDialogService macroFileDialogService,
+        ITextFileSaveDialogService textFileSaveDialogService,
         IMacroHotkeyAssignmentsDialogService macroHotkeyAssignmentsDialogService,
         ICoordinateCaptureDialogService coordinateCaptureDialogService,
         IAboutWindowService aboutWindowService,
@@ -145,6 +151,8 @@ public partial class MainWindowViewModel : ObservableObject
         IMouseSensitivityService mouseSensitivityService,
         IDisplayRefreshRateService displayRefreshRateService,
         IHardwareInventoryService hardwareInventoryService,
+        IDriveSmartHealthService driveSmartHealthService,
+        IStorageBenchmarkService storageBenchmarkService,
         IDriverUpdateService driverUpdateService,
         IWindows11EeaMediaService windows11EeaMediaService,
         IWindowsSearchReplacementService windowsSearchReplacementService,
@@ -168,6 +176,7 @@ public partial class MainWindowViewModel : ObservableObject
         this.macroEditorDialogService = macroEditorDialogService;
         this.macroNamePromptService = macroNamePromptService;
         this.macroFileDialogService = macroFileDialogService;
+        this.textFileSaveDialogService = textFileSaveDialogService;
         this.macroHotkeyAssignmentsDialogService = macroHotkeyAssignmentsDialogService;
         this.coordinateCaptureDialogService = coordinateCaptureDialogService;
         this.aboutWindowService = aboutWindowService;
@@ -187,6 +196,8 @@ public partial class MainWindowViewModel : ObservableObject
         this.mouseSensitivityService = mouseSensitivityService;
         this.displayRefreshRateService = displayRefreshRateService;
         this.hardwareInventoryService = hardwareInventoryService;
+        this.driveSmartHealthService = driveSmartHealthService;
+        this.storageBenchmarkService = storageBenchmarkService;
         this.driverUpdateService = driverUpdateService;
         this.windows11EeaMediaService = windows11EeaMediaService;
         this.windowsSearchReplacementService = windowsSearchReplacementService;

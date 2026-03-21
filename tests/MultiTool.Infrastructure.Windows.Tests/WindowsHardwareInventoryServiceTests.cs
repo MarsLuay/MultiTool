@@ -7,6 +7,31 @@ namespace MultiTool.Infrastructure.Windows.Tests;
 public sealed class WindowsHardwareInventoryServiceTests
 {
     [Fact]
+    public void BuildMemorySummaryText_ShouldPreferInstalledModuleCapacityOverVisibleMemory()
+    {
+        var summary = WindowsHardwareInventoryService.BuildMemorySummaryText(
+            totalPhysicalMemory: 16_885_878_784,
+            modules:
+            [
+                (8_589_934_592UL, 3200),
+                (8_589_934_592UL, 3200),
+            ]);
+
+        summary.Should().StartWith("16 GB installed across 2 modules at up to 3200 MHz.");
+        summary.Should().Contain("15.7 GB usable");
+    }
+
+    [Fact]
+    public void BuildMemorySummaryText_ShouldFallBackToVisibleMemoryWhenModuleDataIsUnavailable()
+    {
+        var summary = WindowsHardwareInventoryService.BuildMemorySummaryText(
+            totalPhysicalMemory: 8_589_934_592,
+            modules: []);
+
+        summary.Should().Be("8 GB installed.");
+    }
+
+    [Fact]
     public async Task GetReportAsync_ShouldReturnInjectedReport()
     {
         var expectedReport = new HardwareInventoryReport(

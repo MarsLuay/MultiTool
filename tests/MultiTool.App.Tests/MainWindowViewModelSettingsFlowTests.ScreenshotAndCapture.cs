@@ -20,6 +20,30 @@ namespace MultiTool.App.Tests;
 public sealed partial class MainWindowViewModelSettingsFlowTests
 {
     [Fact]
+    public async Task BrowseScreenshotFolderCommand_ShouldOpenFolderPickerAndUpdatePath()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var settings = DefaultSettingsFactory.Create();
+                settings.Screenshot.SaveFolderPath = Path.Combine(Path.GetTempPath(), $"multitool-screenshot-source-{Guid.NewGuid():N}");
+
+                var context = new MainWindowViewModelTestContext(settings);
+                var selectedPath = Path.Combine(Path.GetTempPath(), $"multitool-screenshot-target-{Guid.NewGuid():N}");
+                context.FolderPickerService.NextResult = selectedPath;
+
+                await context.ViewModel.InitializeAsync();
+
+                context.ViewModel.BrowseScreenshotFolderCommand.Execute(null);
+
+                context.FolderPickerService.PickFolderCallCount.Should().Be(1);
+                context.FolderPickerService.LastCurrentPath.Should().Be(settings.Screenshot.SaveFolderPath);
+                context.ViewModel.ScreenshotFolderPath.Should().Be(selectedPath);
+                context.ViewModel.ScreenshotStatusMessage.Should().Contain(selectedPath);
+            });
+    }
+
+    [Fact]
     public async Task ScreenshotPreview_ShouldUnloadWhenLeavingScreenshotTabAndReloadWhenReturning()
     {
         await StaDispatcherTestRunner.RunAsync(

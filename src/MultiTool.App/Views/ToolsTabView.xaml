@@ -267,6 +267,339 @@
                       Style="{StaticResource InstallerInlineExpanderStyle}">
               <StackPanel>
 
+            <GroupBox Header="Drive Health (SMART)" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Pick a physical drive, run an on-demand SMART scan, then export the attribute table when you want the raw details. MultiTool keeps the results cached for a while after scanning, but it does not poll drive health in the background."
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,12,0,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Margin="0,0,10,0"
+                             VerticalAlignment="Center"
+                             Text="Drive" />
+
+                  <ComboBox Grid.Column="1"
+                            MinWidth="420"
+                            Margin="0,0,0,8"
+                            DisplayMemberPath="DisplayName"
+                            ItemsSource="{Binding DriveSmartTargets}"
+                            SelectedItem="{Binding SelectedDriveSmartTarget, Mode=TwoWay}" />
+
+                  <WrapPanel Grid.Row="1"
+                             Grid.Column="1"
+                             HorizontalAlignment="Right">
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding LoadDriveSmartTargetsCommand}"
+                            Content="Load Drives" />
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding ScanSelectedDriveSmartCommand}"
+                            Content="Scan Selected Drive" />
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding ExportDriveSmartReportCommand}"
+                            Content="Export SMART Data" />
+                  </WrapPanel>
+                </Grid>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding DriveSmartSelectedDriveSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource AccentBrush}"
+                               TextWrapping="Wrap">
+                      <Run Text="Overall health: " />
+                      <Run Text="{Binding DriveSmartOverallHealth, Mode=OneWay}" />
+                    </TextBlock>
+
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding DriveSmartReportSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding DriveSmartLastScannedSummary}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Grid>
+                    <ListView MaxHeight="280"
+                              ItemsSource="{Binding DriveSmartAttributes}"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                      <ListView.Style>
+                        <Style TargetType="ListView">
+                          <Setter Property="Visibility" Value="Collapsed" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasDriveSmartAttributes}" Value="True">
+                              <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </ListView.Style>
+                      <ListView.View>
+                        <GridView AllowsColumnReorder="False">
+                          <GridViewColumn Width="70" Header="Byte">
+                            <GridViewColumn.CellTemplate>
+                              <DataTemplate>
+                                <TextBlock FontFamily="Consolas"
+                                           Text="{Binding Byte}" />
+                              </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                          </GridViewColumn>
+                          <GridViewColumn Width="90" Header="Status" DisplayMemberBinding="{Binding Status}" />
+                          <GridViewColumn Width="260" Header="Description" DisplayMemberBinding="{Binding Description}" />
+                          <GridViewColumn Width="220" Header="Raw Data">
+                            <GridViewColumn.CellTemplate>
+                              <DataTemplate>
+                                <TextBlock FontFamily="Consolas"
+                                           Text="{Binding RawData}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding RawData}" />
+                              </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                          </GridViewColumn>
+                        </GridView>
+                      </ListView.View>
+                    </ListView>
+
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="SMART attributes will appear here after you scan the selected drive."
+                               TextAlignment="Center"
+                               TextWrapping="Wrap">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                          <Setter Property="Visibility" Value="Visible" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasDriveSmartAttributes}" Value="True">
+                              <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                  </Grid>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding DriveSmartStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="SSD Benchmark" Margin="0,0,0,12">
+              <StackPanel Margin="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Choose a mounted SSD volume, run the four WinSAT benchmark modes on demand, then export the results when you want a record. MultiTool keeps the last result cached for a while after you run it, but it does not benchmark anything in the background."
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,12,0,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Margin="0,0,10,0"
+                             VerticalAlignment="Center"
+                             Text="SSD" />
+
+                  <ComboBox Grid.Column="1"
+                            MinWidth="420"
+                            Margin="0,0,0,8"
+                            DisplayMemberPath="DisplayName"
+                            ItemsSource="{Binding StorageBenchmarkTargets}"
+                            SelectedItem="{Binding SelectedStorageBenchmarkTarget, Mode=TwoWay}" />
+
+                  <WrapPanel Grid.Row="1"
+                             Grid.Column="1"
+                             HorizontalAlignment="Right">
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding LoadStorageBenchmarkTargetsCommand}"
+                            Content="Load SSDs" />
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding RunSelectedStorageBenchmarkCommand}"
+                            Content="Start Benchmark" />
+                    <Button Margin="4"
+                            Padding="12,6"
+                            Command="{Binding ExportStorageBenchmarkReportCommand}"
+                            Content="Export Results" />
+                  </WrapPanel>
+                </Grid>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding StorageBenchmarkSelectedDriveSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource AccentBrush}"
+                               Text="{Binding StorageBenchmarkBalanceAssessment}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding StorageBenchmarkSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding StorageBenchmarkDetectedSystemSummary}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding StorageBenchmarkLastBenchmarkedSummary}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="10"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsStorageBenchmarkProgressVisible}" Value="True">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+                  <StackPanel>
+                    <ProgressBar Height="10"
+                                 Minimum="0"
+                                 Maximum="{Binding StorageBenchmarkProgressMaximum}"
+                                 Value="{Binding StorageBenchmarkProgressValue}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding StorageBenchmarkProgressSummary}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+
+                <Border Margin="0,12,0,0"
+                        Padding="8"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                  <Grid>
+                    <ListView MaxHeight="240"
+                              ItemsSource="{Binding StorageBenchmarkResults}"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                      <ListView.Style>
+                        <Style TargetType="ListView">
+                          <Setter Property="Visibility" Value="Collapsed" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasStorageBenchmarkResults}" Value="True">
+                              <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </ListView.Style>
+                      <ListView.View>
+                        <GridView AllowsColumnReorder="False">
+                          <GridViewColumn Width="130" Header="Mode" DisplayMemberBinding="{Binding Mode}" />
+                          <GridViewColumn Width="120" Header="Speed">
+                            <GridViewColumn.CellTemplate>
+                              <DataTemplate>
+                                <TextBlock FontFamily="Consolas"
+                                           Text="{Binding ThroughputMegabytesPerSecond, StringFormat={}{0:N2} MB/s}" />
+                              </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                          </GridViewColumn>
+                          <GridViewColumn Width="110" Header="IOPS">
+                            <GridViewColumn.CellTemplate>
+                              <DataTemplate>
+                                <TextBlock FontFamily="Consolas"
+                                           Text="{Binding Iops, StringFormat={}{0:N0}}" />
+                              </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                          </GridViewColumn>
+                          <GridViewColumn Width="90" Header="Block Size">
+                            <GridViewColumn.CellTemplate>
+                              <DataTemplate>
+                                <TextBlock FontFamily="Consolas"
+                                           Text="{Binding BlockSizeBytes, StringFormat={}{0:N0} B}" />
+                              </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                          </GridViewColumn>
+                          <GridViewColumn Width="320" Header="Notes" DisplayMemberBinding="{Binding Notes}" />
+                        </GridView>
+                      </ListView.View>
+                    </ListView>
+
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="SSD benchmark results will appear here after you run the selected drive."
+                               TextAlignment="Center"
+                               TextWrapping="Wrap">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                          <Setter Property="Visibility" Value="Visible" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasStorageBenchmarkResults}" Value="True">
+                              <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                  </Grid>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding StorageBenchmarkStatusMessage}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </GroupBox>
+
             <GroupBox Header="Hardware Check" Margin="0,0,0,12">
               <StackPanel Margin="12">
                 <TextBlock Foreground="{DynamicResource MutedTextBrush}"

@@ -245,6 +245,7 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
 
+    [RelayCommand]
     private void BrowseScreenshotFolder()
     {
         var selectedPath = folderPickerService.PickFolder(ScreenshotFolderPath, L(AppLanguageKeys.MainScreenshotFolderPickerPrompt));
@@ -261,7 +262,6 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-
     private async Task HandleScreenshotCaptureHotkeyAsync()
     {
         if (await TryStopVideoCaptureAsync())

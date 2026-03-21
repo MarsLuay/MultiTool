@@ -66,6 +66,41 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
     }
 
     [Fact]
+    public async Task InitializeAsync_WhenInstallerTabLoads_ShouldRaiseInstallerPackagesViewChangeForDeferredBinding()
+    {
+        await StaDispatcherTestRunner.RunAsync(
+            async () =>
+            {
+                var context = new MainWindowViewModelTestContext(DefaultSettingsFactory.Create());
+                context.InstallerService.CatalogItems =
+                [
+                    new InstallerCatalogItem("KiCad.KiCad", "KiCad", "CAD", "PCB design"),
+                    new InstallerCatalogItem("Microsoft.VisualStudioCode", "Visual Studio Code", "Developer", "Editor"),
+                ];
+
+                var changedProperties = new List<string>();
+                context.ViewModel.PropertyChanged += (_, args) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(args.PropertyName))
+                    {
+                        changedProperties.Add(args.PropertyName);
+                    }
+                };
+
+                await context.ViewModel.InitializeAsync();
+
+                context.ViewModel.InstallerPackagesView.Should().BeNull();
+
+                context.ViewModel.SelectedMainTabIndex = 3;
+                await context.InstallerService.WaitForPackageStatusCallsAsync(expectedCount: 1);
+
+                context.ViewModel.InstallerPackages.Should().HaveCount(2);
+                context.ViewModel.InstallerPackagesView.Should().NotBeNull();
+                changedProperties.Should().Contain(nameof(MainWindowViewModel.InstallerPackagesView));
+            });
+    }
+
+    [Fact]
     public async Task UpgradeSelectedPackagesAsync_ShouldShowPerAppDownloadProgressAcrossQueuedUpdates()
     {
         await StaDispatcherTestRunner.RunAsync(

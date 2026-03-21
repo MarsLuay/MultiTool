@@ -8,6 +8,28 @@ namespace MultiTool.Infrastructure.Windows.Tests;
 public sealed class WindowsSystemTrayMetricsServiceTests
 {
     [Fact]
+    public void CalculateCpuUsagePercent_ShouldUseDeltaTimesInsteadOfSingleSnapshot()
+    {
+        var percent = WindowsSystemTrayMetricsService.CalculateCpuUsagePercent(
+            idleDelta: 50,
+            kernelDelta: 80,
+            userDelta: 20);
+
+        percent.Should().Be(50);
+    }
+
+    [Fact]
+    public void CalculateCpuUsagePercent_ShouldReturnNullWhenDeltasAreInvalid()
+    {
+        var percent = WindowsSystemTrayMetricsService.CalculateCpuUsagePercent(
+            idleDelta: 120,
+            kernelDelta: 80,
+            userDelta: 20);
+
+        percent.Should().BeNull();
+    }
+
+    [Fact]
     public async Task CaptureAsync_ShouldReturnClampedMetricsSnapshot()
     {
         var service = new WindowsSystemTrayMetricsService(

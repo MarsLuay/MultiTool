@@ -130,17 +130,19 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
     {
         var modules = TryReadMany(
             "SELECT Capacity, Speed FROM Win32_PhysicalMemory WHERE Capacity IS NOT NULL",
-            item => new
-            {
-                Capacity = GetUInt64(item, "Capacity"),
-                Speed = GetInt(item, "Speed"),
-            },
+            item => (Capacity: GetUInt64(item, "Capacity"), Speed: GetInt(item, "Speed")),
             warnings,
             "Physical memory");
 
-        var total = totalPhysicalMemory > 0
-            ? totalPhysicalMemory
-            : modules.Aggregate(0UL, (sum, module) => sum + module.Capacity);
+        return BuildMemorySummaryText(totalPhysicalMemory, modules);
+    }
+
+    internal static string BuildMemorySummaryText(ulong totalPhysicalMemory, IReadOnlyList<(ulong Capacity, int Speed)> modules)
+    {
+        var installedTotal = modules.Aggregate(0UL, (sum, module) => sum + module.Capacity);
+        var total = installedTotal > 0
+            ? installedTotal
+            : totalPhysicalMemory;
 
         if (total == 0 && modules.Count == 0)
         {
@@ -154,7 +156,16 @@ public sealed class WindowsHardwareInventoryService : IHardwareInventoryService
             .Max();
 
         var speedText = speed > 0 ? $" at up to {speed} MHz" : string.Empty;
-        return $"{FormatBytes(total)} installed across {modules.Count} module{(modules.Count == 1 ? string.Empty : "s")}{speedText}.";
+        var moduleText = modules.Count > 0
+            ? $" across {modules.Count} module{(modules.Count == 1 ? string.Empty : "s")}"
+            : string.Empty;
+        var usableMemorySuffix =
+            totalPhysicalMemory > 0
+            && installedTotal > 0
+            && totalPhysicalMemory + (256UL * 1024UL * 1024UL) < installedTotal
+                ? $" Windows currently exposes {FormatBytes(totalPhysicalMemory)} usable."
+                : string.Empty;
+        return $"{FormatBytes(total)} installed{moduleText}{speedText}.{usableMemorySuffix}";
     }
 
     private static string BuildOperatingSystemSummary(ICollection<string> warnings)

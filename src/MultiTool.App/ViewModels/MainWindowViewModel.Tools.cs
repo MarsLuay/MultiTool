@@ -2256,6 +2256,12 @@ public partial class MainWindowViewModel
         ApplyMouseSensitivityCommand.NotifyCanExecuteChanged();
         ScanDisplayRefreshRecommendationsCommand.NotifyCanExecuteChanged();
         ApplyDisplayRefreshRecommendationsCommand.NotifyCanExecuteChanged();
+        LoadDriveSmartTargetsCommand.NotifyCanExecuteChanged();
+        ScanSelectedDriveSmartCommand.NotifyCanExecuteChanged();
+        ExportDriveSmartReportCommand.NotifyCanExecuteChanged();
+        LoadStorageBenchmarkTargetsCommand.NotifyCanExecuteChanged();
+        RunSelectedStorageBenchmarkCommand.NotifyCanExecuteChanged();
+        ExportStorageBenchmarkReportCommand.NotifyCanExecuteChanged();
         ScanHardwareCheckCommand.NotifyCanExecuteChanged();
         CopyHardwareCheckInfoCommand.NotifyCanExecuteChanged();
         ScanDriverUpdatesCommand.NotifyCanExecuteChanged();

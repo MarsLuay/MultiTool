@@ -48,6 +48,10 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
             Ipv4SocketSnapshotService = new FakeIpv4SocketSnapshotService();
             WindowsTelemetryService = new FakeWindowsTelemetryService();
             InstallerService = new FakeInstallerService();
+            DriveSmartHealthService = new FakeDriveSmartHealthService();
+            StorageBenchmarkService = new FakeStorageBenchmarkService();
+            FolderPickerService = new FakeFolderPickerService();
+            TextFileSaveDialogService = new FakeTextFileSaveDialogService();
             ShortcutHotkeyInventoryService = new FakeShortcutHotkeyInventoryService();
             ShortcutHotkeyDialogService = new FakeShortcutHotkeyDialogService();
             HardwareInventoryService = new FakeHardwareInventoryService();
@@ -59,12 +63,13 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
                 AutoClickerController,
                 new FakeMacroFileStore(),
                 new FakeMacroService(),
-                new FakeFolderPickerService(),
+                FolderPickerService,
                 ScreenshotCaptureService,
                 ScreenshotAreaSelectionService,
                 new FakeMacroEditorDialogService(),
                 new FakeMacroNamePromptService(),
                 new FakeMacroFileDialogService(),
+                TextFileSaveDialogService,
                 new FakeMacroHotkeyAssignmentsDialogService(),
                 new FakeCoordinateCaptureDialogService(),
                 new FakeAboutWindowService(),
@@ -83,6 +88,8 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
                 new FakeMouseSensitivityService(),
                 new FakeDisplayRefreshRateService(),
                 HardwareInventoryService,
+                DriveSmartHealthService,
+                StorageBenchmarkService,
                 DriverUpdateService,
                 new FakeWindows11EeaMediaService(),
                 new FakeWindowsSearchReplacementService(),
@@ -117,6 +124,14 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
         public FakeWindowsTelemetryService WindowsTelemetryService { get; }
 
         public FakeInstallerService InstallerService { get; }
+
+        public FakeDriveSmartHealthService DriveSmartHealthService { get; }
+
+        public FakeStorageBenchmarkService StorageBenchmarkService { get; }
+
+        public FakeFolderPickerService FolderPickerService { get; }
+
+        public FakeTextFileSaveDialogService TextFileSaveDialogService { get; }
 
         public FakeShortcutHotkeyInventoryService ShortcutHotkeyInventoryService { get; }
 
@@ -283,7 +298,46 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
 
     private sealed class FakeFolderPickerService : IFolderPickerService
     {
-        public string? PickFolder(string currentPath, string description) => currentPath;
+        public string? NextResult { get; set; }
+
+        public string? LastCurrentPath { get; private set; }
+
+        public string? LastDescription { get; private set; }
+
+        public int PickFolderCallCount { get; private set; }
+
+        public string? PickFolder(string currentPath, string description)
+        {
+            PickFolderCallCount++;
+            LastCurrentPath = currentPath;
+            LastDescription = description;
+            return NextResult ?? currentPath;
+        }
+    }
+
+    private sealed class FakeTextFileSaveDialogService : ITextFileSaveDialogService
+    {
+        public string? NextResult { get; set; }
+
+        public string? LastTitle { get; private set; }
+
+        public string? LastDefaultFileName { get; private set; }
+
+        public string? LastFilter { get; private set; }
+
+        public string? LastDefaultExtension { get; private set; }
+
+        public int PickSavePathCallCount { get; private set; }
+
+        public string? PickSavePath(string title, string defaultFileName, string filter, string defaultExtension)
+        {
+            PickSavePathCallCount++;
+            LastTitle = title;
+            LastDefaultFileName = defaultFileName;
+            LastFilter = filter;
+            LastDefaultExtension = defaultExtension;
+            return NextResult;
+        }
     }
 
     private sealed class FakeScreenshotCaptureService : IScreenshotCaptureService
@@ -584,6 +638,88 @@ public sealed partial class MainWindowViewModelSettingsFlowTests
                     action,
                     statusText,
                     percent));
+        }
+    }
+
+    private sealed class FakeDriveSmartHealthService : IDriveSmartHealthService
+    {
+        public IReadOnlyList<DriveSmartTargetInfo> AvailableDrives { get; set; } = [];
+
+        public Dictionary<string, DriveSmartHealthReport> ReportsByDeviceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public int GetAvailableDrivesCallCount { get; private set; }
+
+        public int ScanCallCount { get; private set; }
+
+        public List<string> ScannedDeviceIds { get; } = [];
+
+        public Task<IReadOnlyList<DriveSmartTargetInfo>> GetAvailableDrivesAsync(CancellationToken cancellationToken = default)
+        {
+            GetAvailableDrivesCallCount++;
+            return Task.FromResult(AvailableDrives);
+        }
+
+        public Task<DriveSmartHealthReport> ScanAsync(string deviceId, CancellationToken cancellationToken = default)
+        {
+            ScanCallCount++;
+            ScannedDeviceIds.Add(deviceId);
+            if (!ReportsByDeviceId.TryGetValue(deviceId, out var report))
+            {
+                throw new InvalidOperationException($"No SMART report was configured for '{deviceId}'.");
+            }
+
+            return Task.FromResult(report);
+        }
+    }
+
+    private sealed class FakeStorageBenchmarkService : IStorageBenchmarkService
+    {
+        public IReadOnlyList<StorageBenchmarkTargetInfo> AvailableTargets { get; set; } = [];
+
+        public Dictionary<string, StorageBenchmarkReport> ReportsByTargetId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Dictionary<string, IReadOnlyList<StorageBenchmarkProgressUpdate>> ProgressUpdatesByTargetId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Func<string, IProgress<StorageBenchmarkProgressUpdate>?, CancellationToken, Task<StorageBenchmarkReport>>? RunOverride { get; set; }
+
+        public int GetAvailableTargetsCallCount { get; private set; }
+
+        public int RunCallCount { get; private set; }
+
+        public List<string> RunTargetIds { get; } = [];
+
+        public Task<IReadOnlyList<StorageBenchmarkTargetInfo>> GetAvailableTargetsAsync(CancellationToken cancellationToken = default)
+        {
+            GetAvailableTargetsCallCount++;
+            return Task.FromResult(AvailableTargets);
+        }
+
+        public Task<StorageBenchmarkReport> RunAsync(
+            string targetId,
+            IProgress<StorageBenchmarkProgressUpdate>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            RunCallCount++;
+            RunTargetIds.Add(targetId);
+            if (RunOverride is not null)
+            {
+                return RunOverride(targetId, progress, cancellationToken);
+            }
+
+            if (!ReportsByTargetId.TryGetValue(targetId, out var report))
+            {
+                throw new InvalidOperationException($"No benchmark report was configured for '{targetId}'.");
+            }
+
+            if (progress is not null && ProgressUpdatesByTargetId.TryGetValue(targetId, out var updates))
+            {
+                foreach (var update in updates)
+                {
+                    progress.Report(update);
+                }
+            }
+
+            return Task.FromResult(report);
         }
     }
 

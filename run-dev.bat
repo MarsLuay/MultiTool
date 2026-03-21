@@ -4,6 +4,7 @@ setlocal EnableExtensions
 set "ROOT_DIR=%~dp0"
 set "REBUILD_SCRIPT=%ROOT_DIR%tools\rebuild-app.bat"
 set "APP_EXE=%ROOT_DIR%MultiTool.exe"
+set "AUTO_COMMIT_MESSAGE=Small update"
 set "NO_LAUNCH="
 
 if /I "%~1"=="--no-launch" (
@@ -45,6 +46,16 @@ if not exist "%APP_EXE%" (
     exit /b 1
 )
 
+pushd "%ROOT_DIR%" >nul
+call :auto_commit_and_push
+set "AUTO_PUSH_EXIT=%errorlevel%"
+popd >nul
+
+if not "%AUTO_PUSH_EXIT%"=="0" (
+    echo.
+    echo Automatic Git commit and push reported a problem. Continuing with the current files.
+)
+
 echo.
 echo Launching MultiTool with memory logging enabled...
 echo Logs: %ROOT_DIR%Logs
@@ -56,6 +67,81 @@ if defined NO_LAUNCH (
 
 start "" "%APP_EXE%" --log-memory --trace-tabs %*
 
+exit /b 0
+
+:auto_commit_and_push
+if defined MULTITOOL_SKIP_AUTO_GIT_PUSH (
+    echo Skipping automatic Git commit and push because MULTITOOL_SKIP_AUTO_GIT_PUSH is set.
+    exit /b 0
+)
+
+if not exist ".git" (
+    echo Git metadata was not found. Skipping automatic commit and push.
+    exit /b 0
+)
+
+git rev-parse --is-inside-work-tree >nul 2>&1
+if errorlevel 1 (
+    echo This folder is not a Git work tree. Skipping automatic commit and push.
+    exit /b 0
+)
+
+set "CURRENT_BRANCH="
+for /f "usebackq delims=" %%B in (`git rev-parse --abbrev-ref HEAD 2^>nul`) do (
+    set "CURRENT_BRANCH=%%B"
+)
+
+if not defined CURRENT_BRANCH (
+    echo Could not determine the current Git branch. Skipping automatic commit and push.
+    exit /b 1
+)
+
+if /I "%CURRENT_BRANCH%"=="HEAD" (
+    echo Detached HEAD was detected. Skipping automatic commit and push.
+    exit /b 0
+)
+
+git remote get-url origin >nul 2>&1
+if errorlevel 1 (
+    echo Git remote "origin" was not found. Skipping automatic commit and push.
+    exit /b 0
+)
+
+echo Staging local Git changes...
+git add .
+if errorlevel 1 (
+    echo Automatic Git staging failed.
+    exit /b 1
+)
+
+git diff --cached --quiet --ignore-submodules --
+set "STAGED_DIFF_EXIT=%errorlevel%"
+
+if "%STAGED_DIFF_EXIT%"=="0" (
+    echo No local Git changes were detected after staging. Skipping automatic commit and push.
+    exit /b 0
+)
+
+if not "%STAGED_DIFF_EXIT%"=="1" (
+    echo Git could not compare the staged changes. Skipping automatic commit and push.
+    exit /b 1
+)
+
+echo Creating automatic Git commit with message "%AUTO_COMMIT_MESSAGE%"...
+git commit -m "%AUTO_COMMIT_MESSAGE%"
+if errorlevel 1 (
+    echo Automatic Git commit failed.
+    exit /b 1
+)
+
+echo Pushing "%CURRENT_BRANCH%" to origin...
+git push -u origin "%CURRENT_BRANCH%"
+if errorlevel 1 (
+    echo Automatic Git push failed.
+    exit /b 1
+)
+
+echo Automatic Git commit and push completed.
 exit /b 0
 
 :sync_latest_main
