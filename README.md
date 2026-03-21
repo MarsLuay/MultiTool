@@ -15,14 +15,14 @@ MultiTool is a Windows app that combines several everyday utility features in on
 
 1. Make sure you are on Windows.
 2. If `MultiTool.exe` is already in the repository root, launch it directly.
-3. If you want the helper to install dependencies, rebuild, and launch for you, right-click `run-to-start.bat` and run as administrator.
+3. If you want the helper to install dependencies, fast-forward the repo to the newest `origin/main` commit when it is safe to do so, rebuild, and launch for you, right-click `run-to-start.bat` and run as administrator.
 4. If Windows shows a UAC/admin prompt, click Yes.
 5. Wait for the script to finish setup and launch MultiTool.
 
 ## Run again later
 
 - Open `MultiTool.exe` in the repository root.
-- Or run `run-to-start.bat` as admin again whenever you want to rebuild and launch in one step.
+- Or run `run-to-start.bat` as admin again whenever you want it to check `origin/main`, auto-update when the repo is clean and on `main`, rebuild, and launch in one step.
 
 ## Run at startup
 
